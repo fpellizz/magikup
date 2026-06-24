@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea" id="theme-color-meta">
+    <title>Login - Magiku(r)p</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="icon" type="image/png" href="{{ base_path }}/static/magikarp.png">
+
+    <!-- Prevent flash of wrong theme -->
+    <script>
+        (function() {
+            const stored = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = stored || (prefersDark ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            const themeColor = theme === 'dark' ? '#0f172a' : '#667eea';
+            document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
+        })();
+    </script>
+
+    <style>
+        :root {
+            /* Light theme */
+            --login-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --card-text: #333;
+            --card-text-secondary: #666;
+            --card-text-muted: #999;
+            --input-bg: #ffffff;
+            --input-border: #e0e0e0;
+            --input-border-focus: #667eea;
+            --particle-color: rgba(255, 255, 255, 0.1);
+        }
+
+        [data-bs-theme="dark"] {
+            /* Dark theme */
+            --login-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            --card-bg: rgba(30, 41, 59, 0.95);
+            --card-text: #f1f5f9;
+            --card-text-secondary: #94a3b8;
+            --card-text-muted: #64748b;
+            --input-bg: #334155;
+            --input-border: #475569;
+            --input-border-focus: #818cf8;
+            --particle-color: rgba(99, 102, 241, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--login-gradient);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+
+        .theme-toggle-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .theme-toggle-btn i {
+            font-size: 1.25rem;
+            transition: transform 0.3s ease;
+        }
+
+        .theme-toggle-btn:hover i {
+            transform: rotate(15deg);
+        }
+
+        /* Animated background particles */
+        .bg-animation {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            background: var(--particle-color);
+            border-radius: 50%;
+            animation: float 20s infinite;
+        }
+
+        .particle:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .particle:nth-child(2) {
+            width: 120px;
+            height: 120px;
+            left: 70%;
+            animation-delay: 4s;
+        }
+
+        .particle:nth-child(3) {
+            width: 100px;
+            height: 100px;
+            left: 40%;
+            animation-delay: 8s;
+        }
+
+        .particle:nth-child(4) {
+            width: 60px;
+            height: 60px;
+            left: 80%;
+            animation-delay: 2s;
+        }
+
+        .particle:nth-child(5) {
+            width: 90px;
+            height: 90px;
+            left: 25%;
+            animation-delay: 6s;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.6;
+            }
+            90% {
+                opacity: 0.6;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .login-container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 450px;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 48px 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        [data-bs-theme="dark"] .login-card {
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(40px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .login-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 40px rgba(99, 102, 241, 0.4);
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 10px 40px rgba(99, 102, 241, 0.4);
+            }
+            50% {
+                transform: scale(1.02);
+                box-shadow: 0 15px 50px rgba(99, 102, 241, 0.5);
+            }
+        }
+
+        .login-icon i {
+            font-size: 40px;
+            color: white;
+        }
+
+        .login-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--card-text);
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+
+        .login-subtitle {
+            font-size: 15px;
+            color: var(--card-text-secondary);
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--card-text-secondary);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .form-control {
+            height: 52px;
+            background: var(--input-bg);
+            border: 2px solid var(--input-border);
+            border-radius: 12px;
+            padding: 12px 20px 12px 48px;
+            font-size: 15px;
+            color: var(--card-text);
+            transition: all 0.3s ease;
+        }
+
+        .form-control::placeholder {
+            color: var(--card-text-muted);
+        }
+
+        .form-control:focus {
+            background: var(--input-bg);
+            border-color: var(--input-border-focus);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+            color: var(--card-text);
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--card-text-muted);
+            font-size: 18px;
+            pointer-events: none;
+            transition: color 0.3s ease;
+        }
+
+        .form-control:focus ~ .input-icon,
+        .input-group:focus-within .input-icon {
+            color: var(--input-border-focus);
+        }
+
+        .input-group {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--card-text-muted);
+            cursor: pointer;
+            font-size: 18px;
+            transition: color 0.3s;
+            padding: 4px;
+        }
+
+        .password-toggle:hover {
+            color: var(--input-border-focus);
+        }
+
+        .btn-login {
+            width: 100%;
+            height: 52px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            margin-top: 8px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-login .spinner-border {
+            width: 20px;
+            height: 20px;
+            border-width: 2px;
+        }
+
+        .remember-forgot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .form-check-label {
+            color: var(--card-text-secondary);
+            cursor: pointer;
+        }
+
+        .form-check-input:checked {
+            background-color: #6366f1;
+            border-color: #6366f1;
+        }
+
+        .forgot-password {
+            color: #6366f1;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .forgot-password:hover {
+            color: #8b5cf6;
+        }
+
+        .alert {
+            border-radius: 12px;
+            margin-bottom: 24px;
+            animation: shake 0.5s ease-in-out;
+            border: none;
+            padding: 14px 18px;
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        [data-bs-theme="dark"] .alert-danger {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+            20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+
+        .version-info {
+            text-align: center;
+            margin-top: 32px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+        }
+
+        [data-bs-theme="dark"] .version-info {
+            color: rgba(148, 163, 184, 0.7);
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 576px) {
+            .login-card {
+                padding: 36px 24px;
+                border-radius: 20px;
+            }
+
+            .login-title {
+                font-size: 24px;
+            }
+
+            .login-icon {
+                width: 70px;
+                height: 70px;
+                border-radius: 16px;
+            }
+
+            .login-icon i {
+                font-size: 32px;
+            }
+
+            .theme-toggle-container {
+                top: 12px;
+                right: 12px;
+            }
+
+            .theme-toggle-btn {
+                width: 40px;
+                height: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Toggle -->
+    <div class="theme-toggle-container">
+        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+            <i class="bi bi-sun-fill" id="theme-icon"></i>
+        </button>
+    </div>
+
+    <!-- Animated background -->
+    <div class="bg-animation">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <!-- Login Container -->
+    <div class="login-container">
+        <div class="login-card">
+            <!-- Header -->
+            <div class="login-header">
+                <div class="login-icon" style="background: transparent; box-shadow: none;">
+                    <img src="{{ base_path }}/static/magikarp.png" alt="Magiku(r)p" style="width: 80px; height: 80px; object-fit: contain;">
+                </div>
+                <h1 class="login-title">Welcome Back</h1>
+                <p class="login-subtitle">Magiku(r)p</p>
+            </div>
+
+            <!-- Error Alert -->
+            {% if error %}
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <!-- Login Form -->
+            <form method="POST" action="{{ base_path }}/login" id="loginForm">
+                <!-- Username -->
+                <div class="form-group">
+                    <label for="username" class="form-label">Username</label>
+                    <div class="input-group">
+                        <input type="text"
+                               class="form-control"
+                               id="username"
+                               name="username"
+                               placeholder="Enter your username"
+                               required
+                               autofocus>
+                        <i class="bi bi-person-fill input-icon"></i>
+                    </div>
+                </div>
+
+                <!-- Password -->
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="input-group">
+                        <input type="password"
+                               class="form-control"
+                               id="password"
+                               name="password"
+                               placeholder="Enter your password"
+                               required>
+                        <i class="bi bi-lock-fill input-icon"></i>
+                        <button type="button"
+                                class="password-toggle"
+                                id="passwordToggle"
+                                tabindex="-1"
+                                aria-label="Toggle password visibility">
+                            <i class="bi bi-eye-fill" id="toggleIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Remember Me -->
+                <div class="remember-forgot">
+                    <div class="form-check">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="rememberMe"
+                               name="remember_me">
+                        <label class="form-check-label" for="rememberMe">
+                            Remember me
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Login Button -->
+                <button type="submit" class="btn btn-login" id="loginBtn">
+                    <span id="btnText">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                    </span>
+                    <span id="btnSpinner" style="display: none;">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Signing in...
+                    </span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Version Info -->
+        <div class="version-info">
+            <i class="bi bi-shield-check me-1"></i>
+            Magiku(r)p v3.3.0
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // ============================================
+        // Theme Management
+        // ============================================
+
+        function getPreferredTheme() {
+            const stored = localStorage.getItem('theme');
+            if (stored) return stored;
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem('theme', theme);
+            updateThemeIcon(theme);
+            updateThemeColor(theme);
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-bs-theme');
+            const newTheme = current === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+
+            // Add rotation animation
+            const icon = document.getElementById('theme-icon');
+            icon.style.transform = 'rotate(360deg)';
+            setTimeout(() => { icon.style.transform = ''; }, 300);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('theme-icon');
+            if (icon) {
+                icon.className = theme === 'dark' ? 'bi bi-moon-fill' : 'bi bi-sun-fill';
+            }
+        }
+
+        function updateThemeColor(theme) {
+            const meta = document.getElementById('theme-color-meta');
+            if (meta) {
+                meta.setAttribute('content', theme === 'dark' ? '#0f172a' : '#667eea');
+            }
+        }
+
+        // Initialize theme
+        document.addEventListener('DOMContentLoaded', function() {
+            setTheme(getPreferredTheme());
+        });
+
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            if (!localStorage.getItem('theme')) {
+                setTheme(e.matches ? 'dark' : 'light');
+            }
+        });
+
+        // ============================================
+        // Password Toggle
+        // ============================================
+
+        const passwordInput = document.getElementById('password');
+        const passwordToggle = document.getElementById('passwordToggle');
+        const toggleIcon = document.getElementById('toggleIcon');
+
+        passwordToggle.addEventListener('click', function() {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+
+            if (type === 'text') {
+                toggleIcon.classList.remove('bi-eye-fill');
+                toggleIcon.classList.add('bi-eye-slash-fill');
+            } else {
+                toggleIcon.classList.remove('bi-eye-slash-fill');
+                toggleIcon.classList.add('bi-eye-fill');
+            }
+        });
+
+        // ============================================
+        // Form Submission
+        // ============================================
+
+        const loginForm = document.getElementById('loginForm');
+        const loginBtn = document.getElementById('loginBtn');
+        const btnText = document.getElementById('btnText');
+        const btnSpinner = document.getElementById('btnSpinner');
+
+        loginForm.addEventListener('submit', function(e) {
+            // Show loading state
+            loginBtn.disabled = true;
+            btnText.style.display = 'none';
+            btnSpinner.style.display = 'inline';
+        });
+
+        // Auto-focus on username if error
+        {% if error %}
+        document.getElementById('username').focus();
+        {% endif %}
+
+        // Add enter key support
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loginForm.submit();
+            }
+        });
+    </script>
+</body>
+</html>

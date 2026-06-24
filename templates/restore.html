@@ -1,0 +1,1055 @@
+{% extends "base.html" %}
+
+{% block title %}Restore - PostgreSQL Backup/Restore{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Schema Mode Toggle */
+.schema-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    border: 1px solid var(--bs-border-color);
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: #667eea;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+
+.toggle-label {
+    flex: 1;
+}
+
+.toggle-label-title {
+    display: block;
+    font-weight: 600;
+    color: var(--bs-body-color);
+    margin-bottom: 2px;
+}
+
+.toggle-label-desc {
+    display: block;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+
+/* Schema Selector */
+.schema-selector {
+    display: none;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 16px;
+    background: var(--bs-body-bg);
+}
+
+.schema-selector.visible {
+    display: block;
+}
+
+.schema-selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.schema-selector-title {
+    font-weight: 600;
+    color: var(--bs-body-color);
+}
+
+.schema-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    background: #667eea;
+    color: white;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+.schema-selector-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.schema-chips-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 120px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--bs-secondary-bg);
+    border-radius: 6px;
+}
+
+.schema-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: white;
+    border: 2px solid var(--bs-border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.schema-chip:hover {
+    border-color: #667eea;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.schema-chip.selected {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+}
+
+.schema-chip i {
+    font-size: 1rem;
+}
+
+.schema-chip .schema-name {
+    font-weight: 500;
+}
+
+.schema-empty,
+.schema-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 40px 20px;
+    color: var(--bs-secondary-color);
+    font-size: 0.9rem;
+}
+
+.selected-schemas-summary {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 12px;
+    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: var(--bs-body-color);
+}
+
+.selected-schemas-summary.visible {
+    display: flex;
+}
+
+.selected-schemas-summary i {
+    color: #28a745;
+    font-size: 1.1rem;
+}
+
+/* SSM Tunnel Info Badge */
+.ssm-tunnel-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-top: 6px;
+}
+
+.ssm-tunnel-badge i {
+    font-size: 0.85rem;
+}
+
+[data-bs-theme="dark"] .ssm-tunnel-badge {
+    background: rgba(245, 158, 11, 0.1);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.25);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-upload"></i> Restore Database</h2>
+        <hr>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-gear"></i> Restore Configuration
+            </div>
+            <div class="card-body">
+                <form id="restoreForm">
+                    <!-- Backup File Selection -->
+                    <div class="mb-3">
+                        <label for="backupFile" class="form-label">Backup File</label>
+                        <select class="form-select" id="backupFile" name="backupFile" required>
+                            <option value="">Select backup file...</option>
+                            {% for backup in backups %}
+                            <option value="{{ backup.path }}">
+                                {{ backup.name }} ({{ backup.size_human }}) - {{ backup.modified[:10] }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Endpoint Selection -->
+                    <div class="mb-3">
+                        <label for="endpoint" class="form-label">Destination Endpoint</label>
+                        <select class="form-select" id="endpoint" name="endpoint" required>
+                            <option value="">Select endpoint...</option>
+                            {% for name, endpoint in endpoints.items() %}
+                            <option value="{{ name }}"
+                                    data-host="{{ endpoint.host }}"
+                                    data-port="{{ endpoint.port }}"
+                                    data-use-ssm="{{ endpoint.use_ssm|lower }}"
+                                    data-jumphost="{{ endpoint.jumphost_alias }}">
+                                {{ name }} ({{ endpoint.host }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div id="ssmTunnelInfo" style="display: none;">
+                            <span class="ssm-tunnel-badge">
+                                <i class="bi bi-shield-lock"></i>
+                                SSM Tunnel
+                                <span id="ssmJumphostAlias"></span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Database Selection -->
+                    <div class="mb-3">
+                        <label for="database" class="form-label">Destination Database</label>
+                        <select class="form-select" id="database" name="database" required disabled>
+                            <option value="">Select database...</option>
+                        </select>
+                        <div id="dbLoadingIndicator" class="form-text text-muted" style="display: none;">
+                            <span class="spinner-border spinner-border-sm"></span> Loading databases...
+                        </div>
+                    </div>
+
+                    <!-- Role Selection -->
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role (optional)</label>
+                        <select class="form-select" id="role" name="role" disabled>
+                            <option value="">No role (use connection user)</option>
+                        </select>
+                        <div class="form-text">Objects will be owned by this role after restore</div>
+                    </div>
+
+                    <!-- Schema Mode Toggle -->
+                    <div class="schema-mode-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="schemaModeToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div class="toggle-label">
+                            <span class="toggle-label-title">
+                                <i class="bi bi-layers"></i> Schema Mode
+                            </span>
+                            <span class="toggle-label-desc">Restore specific schemas from the backup file</span>
+                        </div>
+                    </div>
+
+                    <!-- Schema Selector -->
+                    <div id="schemaSelector" class="schema-selector mb-3">
+                        <div class="schema-selector-header">
+                            <span class="schema-selector-title">
+                                Select Schemas <span id="schemaCountBadge" class="schema-count-badge" style="display: none;">0</span>
+                            </span>
+                            <div class="schema-selector-actions">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="selectAllSchemas()">
+                                    Select All
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearSchemaSelection()">
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+                        <div id="schemaChipsContainer" class="schema-chips-container">
+                            <!-- Schema chips will be loaded here -->
+                        </div>
+                        <div id="selectedSchemasSummary" class="selected-schemas-summary">
+                            <i class="bi bi-check-circle"></i>
+                            <span id="selectedSchemasText"></span>
+                        </div>
+                    </div>
+
+                    <!-- Exclude Schema (only in standard mode) -->
+                    <div class="mb-3" id="standardOptions">
+                        <label for="excludeSchema" class="form-label">Exclude Schema</label>
+                        <input type="text" class="form-control" id="excludeSchema" value="public">
+                        <div class="form-text">Leave empty to include all schemas</div>
+                    </div>
+
+                    <!-- Advanced Parameters Toggle -->
+                    <div class="advanced-params-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="advancedParamsToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div class="toggle-label">
+                            <span class="toggle-label-title">
+                                <i class="bi bi-sliders"></i> Advanced Parameters
+                            </span>
+                            <span class="toggle-label-desc">Configure pg_restore options (owner, privileges, data/schema only, exclusions...)</span>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Parameters Panel -->
+                    <div id="advancedParamsPanel" class="advanced-params-panel mb-3">
+                        <div class="advanced-params-section">
+                            <div class="advanced-params-section-title">
+                                <i class="bi bi-toggle-on"></i> Restore Options
+                            </div>
+
+                            <!-- Row 1: --clean + --no-owner -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="clean" checked>
+                                            <label class="form-check-label" for="clean">
+                                                --clean
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Drop database objects before recreating them. Uses --if-exists to avoid errors if objects don't exist yet."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noOwner" checked>
+                                            <label class="form-check-label" for="noOwner">
+                                                --no-owner
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not output commands to set ownership of objects. Objects will be owned by the user connecting to the database."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 2: --no-privileges + --no-tablespaces -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noPrivileges" checked>
+                                            <label class="form-check-label" for="noPrivileges">
+                                                --no-privileges
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not restore GRANT/REVOKE commands to set access privileges."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noTablespaces" checked>
+                                            <label class="form-check-label" for="noTablespaces">
+                                                --no-tablespaces
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not restore tablespace assignments. All objects will be restored into the default tablespace."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 3: --no-comments + --data-only -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noComments" checked>
+                                            <label class="form-check-label" for="noComments">
+                                                --no-comments
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not restore comments on objects. Reduces restore noise when comments are not needed."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="dataOnly">
+                                            <label class="form-check-label" for="dataOnly">
+                                                --data-only
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Restore only data, not schema (DDL). Table structure must already exist in the target database. Mutually exclusive with --schema-only."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 4: --schema-only + --exit-on-error -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="schemaOnly">
+                                            <label class="form-check-label" for="schemaOnly">
+                                                --schema-only
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Restore only schema (DDL), not data. Creates tables, indexes, and constraints but loads no data. Mutually exclusive with --data-only."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="exitOnError">
+                                            <label class="form-check-label" for="exitOnError">
+                                                --exit-on-error
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Exit immediately if an error occurs during restore instead of continuing. By default pg_restore continues after errors."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 5: --no-publications + --no-subscriptions -->
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noPublications" checked>
+                                            <label class="form-check-label" for="noPublications">
+                                                --no-publications
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not restore publication definitions. Useful when restoring to a server that should not replicate data."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noSubscriptions" checked>
+                                            <label class="form-check-label" for="noSubscriptions">
+                                                --no-subscriptions
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not restore subscription definitions. Prevents the restored database from trying to connect to publisher servers."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 6: TimescaleDB -->
+                            <div class="row g-2 mt-1">
+                                <div class="col-12">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="timescaledb">
+                                            <label class="form-check-label" for="timescaledb">
+                                                TimescaleDB
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Enable TimescaleDB-aware restore. Runs SELECT timescaledb_pre_restore() before and SELECT timescaledb_post_restore() after pg_restore, and adds --disable-triggers to pg_restore. Requires the target database to have the timescaledb extension installed and the user to be a superuser."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Parallel Jobs -->
+                        <div class="advanced-params-section mt-3">
+                            <div class="advanced-params-section-title">
+                                <i class="bi bi-lightning"></i> Parallel Jobs
+                            </div>
+                            <div class="param-pattern-item">
+                                <label for="jobs" class="form-check-label mb-1">
+                                    --jobs N
+                                    <i class="bi bi-question-circle param-tooltip"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Run the restore using N parallel processes. This can dramatically speed up restoring large databases on multi-core servers. Incompatible with --single-transaction."></i>
+                                </label>
+                                <input type="number" class="form-control form-control-sm" id="jobs"
+                                       min="1" max="8" placeholder="Default: single process">
+                            </div>
+                        </div>
+
+                        <!-- Exclusions -->
+                        <div class="advanced-params-section mt-3">
+                            <div class="advanced-params-section-title">
+                                <i class="bi bi-funnel"></i> Exclusions
+                            </div>
+                            <div class="param-pattern-item mb-2">
+                                <label for="excludeSchemasAdv" class="form-check-label mb-1">
+                                    Exclude schemas
+                                    <i class="bi bi-question-circle param-tooltip"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Skip restoring the specified schemas. Each schema name will be passed as --exclude-schema to pg_restore."></i>
+                                </label>
+                                <textarea class="form-control form-control-sm" id="excludeSchemasAdv" rows="2"
+                                          placeholder="One schema per line"></textarea>
+                            </div>
+                            <div class="param-pattern-item">
+                                <label for="excludeTables" class="form-check-label mb-1">
+                                    Exclude tables
+                                    <i class="bi bi-question-circle param-tooltip"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Exclude matching tables via TOC filtering. pg_restore --list is used to get the table of contents, matching entries are commented out, and --use-list is used to skip them."></i>
+                                </label>
+                                <textarea class="form-control form-control-sm" id="excludeTables" rows="2"
+                                          placeholder="temp_*&#10;audit_log&#10;staging_*"></textarea>
+                                <small class="text-muted">Supports wildcards: * (any chars), ? (single char)</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-success" id="restoreBtn">
+                        <i class="bi bi-play"></i> Start Restore
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-terminal"></i> Output
+            </div>
+            <div class="card-body">
+                <div id="progressContainer" style="display: none;">
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                             id="progressBar" role="progressbar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div id="output" class="output-console"></div>
+                <div id="resultContainer" style="display: none;" class="mt-3">
+                    <div class="alert" id="resultAlert"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const endpointSelect = document.getElementById('endpoint');
+    const databaseSelect = document.getElementById('database');
+    const roleSelect = document.getElementById('role');
+    const restoreForm = document.getElementById('restoreForm');
+    const output = document.getElementById('output');
+    const progressContainer = document.getElementById('progressContainer');
+    const resultContainer = document.getElementById('resultContainer');
+    const resultAlert = document.getElementById('resultAlert');
+    const dbLoadingIndicator = document.getElementById('dbLoadingIndicator');
+    const schemaModeToggle = document.getElementById('schemaModeToggle');
+    const schemaSelector = document.getElementById('schemaSelector');
+    const schemaChipsContainer = document.getElementById('schemaChipsContainer');
+    const schemaCountBadge = document.getElementById('schemaCountBadge');
+    const selectedSchemasSummary = document.getElementById('selectedSchemasSummary');
+    const selectedSchemasText = document.getElementById('selectedSchemasText');
+    const standardOptions = document.getElementById('standardOptions');
+    const ssmTunnelInfo = document.getElementById('ssmTunnelInfo');
+    const ssmJumphostAlias = document.getElementById('ssmJumphostAlias');
+    const advancedParamsToggle = document.getElementById('advancedParamsToggle');
+    const advancedParamsPanel = document.getElementById('advancedParamsPanel');
+    const dataOnlyToggle = document.getElementById('dataOnly');
+    const schemaOnlyToggle = document.getElementById('schemaOnly');
+
+    let selectedSchemas = new Set();
+    let availableSchemas = [];
+
+    // ============================================
+    // SSM Tunnel Badge
+    // ============================================
+
+    function updateSsmBadge() {
+        const option = endpointSelect.options[endpointSelect.selectedIndex];
+        if (option && option.dataset.useSsm === 'true') {
+            const jumphost = option.dataset.jumphost || '';
+            ssmJumphostAlias.textContent = jumphost ? `(${jumphost})` : '';
+            ssmTunnelInfo.style.display = 'block';
+        } else {
+            ssmTunnelInfo.style.display = 'none';
+        }
+    }
+
+    // ============================================
+    // Schema Mode
+    // ============================================
+
+    function updateSchemaCountBadge() {
+        if (selectedSchemas.size > 0) {
+            schemaCountBadge.textContent = selectedSchemas.size;
+            schemaCountBadge.style.display = 'inline-flex';
+            selectedSchemasSummary.classList.add('visible');
+            selectedSchemasText.textContent = `${selectedSchemas.size} schema(s) selected: ${[...selectedSchemas].join(', ')}`;
+        } else {
+            schemaCountBadge.style.display = 'none';
+            selectedSchemasSummary.classList.remove('visible');
+        }
+    }
+
+    function toggleSchemaSelection(schemaName, chipElement) {
+        if (selectedSchemas.has(schemaName)) {
+            selectedSchemas.delete(schemaName);
+            chipElement.classList.remove('selected');
+        } else {
+            selectedSchemas.add(schemaName);
+            chipElement.classList.add('selected');
+        }
+        updateSchemaCountBadge();
+    }
+
+    function selectAllSchemas() {
+        availableSchemas.forEach(schema => {
+            selectedSchemas.add(schema.name);
+        });
+        document.querySelectorAll('.schema-chip').forEach(chip => {
+            chip.classList.add('selected');
+        });
+        updateSchemaCountBadge();
+    }
+
+    function clearSchemaSelection() {
+        selectedSchemas.clear();
+        document.querySelectorAll('.schema-chip').forEach(chip => {
+            chip.classList.remove('selected');
+        });
+        updateSchemaCountBadge();
+    }
+
+    function renderSchemaChips() {
+        schemaChipsContainer.innerHTML = '';
+
+        if (availableSchemas.length === 0) {
+            schemaChipsContainer.innerHTML = '<div class="schema-empty"><i class="bi bi-inbox"></i>No schemas found</div>';
+            return;
+        }
+
+        availableSchemas.forEach(schema => {
+            const chip = document.createElement('div');
+            chip.className = 'schema-chip';
+            if (selectedSchemas.has(schema.name)) {
+                chip.classList.add('selected');
+            }
+            chip.innerHTML = `
+                <i class="bi bi-layers"></i>
+                <span class="schema-name">${schema.name}</span>
+            `;
+            chip.onclick = () => toggleSchemaSelection(schema.name, chip);
+            schemaChipsContainer.appendChild(chip);
+        });
+    }
+
+    async function loadSchemas(endpointName, database) {
+        schemaChipsContainer.innerHTML = '<div class="schema-loading"><span class="spinner-border spinner-border-sm"></span> Loading schemas...</div>';
+        selectedSchemas.clear();
+        updateSchemaCountBadge();
+
+        try {
+            const response = await apiCall(`/api/schemas/${endpointName}/${database}`);
+
+            if (!response.success) {
+                schemaChipsContainer.innerHTML = `<div class="schema-empty"><i class="bi bi-exclamation-triangle"></i>Error: ${response.error}</div>`;
+                availableSchemas = [];
+            } else {
+                availableSchemas = response.schemas || [];
+                renderSchemaChips();
+            }
+        } catch (e) {
+            schemaChipsContainer.innerHTML = '<div class="schema-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load schemas</div>';
+            availableSchemas = [];
+        }
+    }
+
+    // Toggle schema mode
+    schemaModeToggle.addEventListener('change', function() {
+        if (this.checked) {
+            schemaSelector.classList.add('visible');
+            standardOptions.style.display = 'none';
+            // Load schemas if endpoint and database are selected
+            const endpointName = endpointSelect.value;
+            const database = databaseSelect.value;
+            if (endpointName && database) {
+                loadSchemas(endpointName, database);
+            }
+        } else {
+            schemaSelector.classList.remove('visible');
+            standardOptions.style.display = 'block';
+            selectedSchemas.clear();
+            updateSchemaCountBadge();
+        }
+    });
+
+    // ============================================
+    // Endpoint / Database / Role Loading
+    // ============================================
+
+    async function loadDatabases(endpointName) {
+        databaseSelect.disabled = true;
+        databaseSelect.innerHTML = '<option value="">Loading...</option>';
+        dbLoadingIndicator.style.display = 'block';
+        // Reset schema selector
+        availableSchemas = [];
+        selectedSchemas.clear();
+        schemaChipsContainer.innerHTML = '';
+        updateSchemaCountBadge();
+
+        try {
+            const response = await apiCall(`/api/databases/${endpointName}`);
+            databaseSelect.innerHTML = '<option value="">Select database...</option>';
+
+            if (!response.success) {
+                databaseSelect.innerHTML += `<option value="" disabled>Error: ${response.error}</option>`;
+                showToast(`Failed to load databases: ${response.error}`, 'error');
+            } else if (response.databases.length === 0) {
+                databaseSelect.innerHTML += '<option value="" disabled>No databases found</option>';
+            } else {
+                response.databases.forEach(db => {
+                    const option = document.createElement('option');
+                    option.value = db.name;
+                    option.textContent = `${db.name} (${db.size})`;
+                    databaseSelect.appendChild(option);
+                });
+                databaseSelect.disabled = false;
+            }
+        } catch (e) {
+            databaseSelect.innerHTML = '<option value="">Error loading databases</option>';
+            showToast('Failed to load databases', 'error');
+        } finally {
+            dbLoadingIndicator.style.display = 'none';
+        }
+    }
+
+    async function loadUsers(endpointName) {
+        roleSelect.disabled = true;
+        roleSelect.innerHTML = '<option value="">Loading...</option>';
+
+        try {
+            const response = await apiCall(`/api/users/${endpointName}`);
+            roleSelect.innerHTML = '<option value="">No role (use connection user)</option>';
+
+            if (!response.success) {
+                roleSelect.innerHTML += `<option value="" disabled>Error: ${response.error}</option>`;
+                showToast(`Failed to load users: ${response.error}`, 'error');
+            } else if (response.users && response.users.length > 0) {
+                response.users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.name;
+                    option.textContent = user.name + (user.is_superuser ? ' (superuser)' : '');
+                    roleSelect.appendChild(option);
+                });
+            }
+            roleSelect.disabled = false;
+        } catch (e) {
+            roleSelect.innerHTML = '<option value="">Error loading users</option>';
+        }
+    }
+
+    endpointSelect.addEventListener('change', async function() {
+        const endpointName = endpointSelect.value;
+        updateSsmBadge();
+
+        if (endpointName) {
+            await loadDatabases(endpointName);
+            await loadUsers(endpointName);
+        } else {
+            databaseSelect.innerHTML = '<option value="">Select database...</option>';
+            databaseSelect.disabled = true;
+            roleSelect.innerHTML = '<option value="">No role (use connection user)</option>';
+            roleSelect.disabled = true;
+        }
+    });
+
+    databaseSelect.addEventListener('change', async function() {
+        // Load schemas if schema mode is active
+        if (schemaModeToggle.checked) {
+            const endpointName = endpointSelect.value;
+            const database = databaseSelect.value;
+            if (endpointName && database) {
+                await loadSchemas(endpointName, database);
+            } else {
+                schemaChipsContainer.innerHTML = '';
+                availableSchemas = [];
+                selectedSchemas.clear();
+                updateSchemaCountBadge();
+            }
+        }
+    });
+
+    // ============================================
+    // Advanced Parameters
+    // ============================================
+
+    advancedParamsToggle.addEventListener('change', function() {
+        if (this.checked) {
+            advancedParamsPanel.classList.add('visible');
+        } else {
+            advancedParamsPanel.classList.remove('visible');
+        }
+    });
+
+    // Mutual exclusivity: data-only vs schema-only
+    dataOnlyToggle.addEventListener('change', function() {
+        if (this.checked) {
+            schemaOnlyToggle.checked = false;
+        }
+    });
+
+    schemaOnlyToggle.addEventListener('change', function() {
+        if (this.checked) {
+            dataOnlyToggle.checked = false;
+        }
+    });
+
+    // Initialize Bootstrap tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        new bootstrap.Tooltip(el);
+    });
+
+    // ============================================
+    // Helper: parse textarea to array
+    // ============================================
+
+    function textareaToArray(elementId) {
+        const el = document.getElementById(elementId);
+        if (!el || !el.value.trim()) return null;
+        const lines = el.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        return lines.length > 0 ? lines : null;
+    }
+
+    function inputToArray(elementId) {
+        const el = document.getElementById(elementId);
+        if (!el || !el.value.trim()) return null;
+        return [el.value.trim()];
+    }
+
+    // ============================================
+    // Restore Execution via WebSocket
+    // ============================================
+
+    restoreForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const backupFile = document.getElementById('backupFile').value;
+        const endpointName = endpointSelect.value;
+        const database = databaseSelect.value;
+        const role = roleSelect.value;
+
+        if (!backupFile || !endpointName || !database) {
+            showToast('Please fill all required fields', 'error');
+            return;
+        }
+
+        // Validate schema selection if schema mode is active
+        if (schemaModeToggle.checked && selectedSchemas.size === 0) {
+            showToast('Please select at least one schema or disable Schema Mode', 'error');
+            return;
+        }
+
+        // Validate jobs if specified
+        const jobsEl = document.getElementById('jobs');
+        if (jobsEl && jobsEl.value) {
+            const jobsVal = parseInt(jobsEl.value, 10);
+            if (isNaN(jobsVal) || jobsVal < 1 || jobsVal > 8) {
+                showToast('Parallel jobs must be between 1 and 8', 'error');
+                return;
+            }
+        }
+
+        // Destructive --clean restore: require explicit typed confirmation of the
+        // target database before proceeding (matched again server-side).
+        if (document.getElementById('clean').checked) {
+            const typed = window.prompt(
+                `⚠️ Restore distruttivo (--clean) su "${database}".\n` +
+                `Gli oggetti esistenti nel database verranno eliminati.\n\n` +
+                `Digita il nome del database di destinazione per confermare:`);
+            if (typed === null) {
+                return; // cancelled
+            }
+            if (typed.trim() !== database) {
+                showToast('Nome database non corrispondente: restore annullato', 'error');
+                return;
+            }
+        }
+
+        output.innerHTML = '';
+        progressContainer.style.display = 'block';
+        resultContainer.style.display = 'none';
+        document.getElementById('restoreBtn').disabled = true;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}${BASE_PATH}/ws/restore`);
+
+        ws.onopen = function() {
+            // Base options (shared between standard and schema mode)
+            const payload = {
+                backup_file: backupFile,
+                endpoint_name: endpointName,
+                database: database,
+                role: role || null,
+                clean: document.getElementById('clean').checked,
+                confirm_database: database,
+                no_owner: document.getElementById('noOwner').checked,
+                no_privileges: document.getElementById('noPrivileges').checked,
+                data_only: document.getElementById('dataOnly').checked,
+                schema_only: document.getElementById('schemaOnly').checked,
+                exit_on_error: document.getElementById('exitOnError').checked,
+                no_comments: document.getElementById('noComments').checked,
+                no_tablespaces: document.getElementById('noTablespaces').checked,
+                no_publications: document.getElementById('noPublications').checked,
+                no_subscriptions: document.getElementById('noSubscriptions').checked,
+                timescaledb: document.getElementById('timescaledb').checked,
+            };
+
+            // Jobs
+            if (jobsEl && jobsEl.value) {
+                payload.jobs = parseInt(jobsEl.value, 10);
+            }
+
+            // Exclude tables (from advanced options)
+            const excludeTables = textareaToArray('excludeTables');
+            if (excludeTables) payload.exclude_tables = excludeTables;
+
+            if (schemaModeToggle.checked && selectedSchemas.size > 0) {
+                // Schema mode: send selected schemas, merge advanced exclude schemas
+                payload.schemas = [...selectedSchemas];
+                const advExcludeSchemas = textareaToArray('excludeSchemasAdv');
+                if (advExcludeSchemas) payload.exclude_schema = advExcludeSchemas;
+            } else {
+                // Standard mode: send exclude schema from base field + advanced
+                const baseExclude = inputToArray('excludeSchema');
+                const advExclude = textareaToArray('excludeSchemasAdv');
+                const merged = [...(baseExclude || []), ...(advExclude || [])];
+                if (merged.length > 0) payload.exclude_schema = merged;
+            }
+
+            ws.send(JSON.stringify(payload));
+        };
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'output' || data.type === 'progress') {
+                output.innerHTML += `<div>${escapeHtml(data.message)}</div>`;
+                output.scrollTop = output.scrollHeight;
+            } else if (data.type === 'complete') {
+                progressContainer.style.display = 'none';
+                resultContainer.style.display = 'block';
+
+                if (data.success) {
+                    resultAlert.className = 'alert alert-success';
+                    resultAlert.innerHTML = `<i class="bi bi-check-circle"></i> ${escapeHtml(data.message)}`;
+                } else {
+                    resultAlert.className = 'alert alert-danger';
+                    resultAlert.innerHTML = `<i class="bi bi-x-circle"></i> ${escapeHtml(data.message)}`;
+                }
+
+                document.getElementById('restoreBtn').disabled = false;
+            } else if (data.type === 'error') {
+                progressContainer.style.display = 'none';
+                resultContainer.style.display = 'block';
+                resultAlert.className = 'alert alert-danger';
+                resultAlert.innerHTML = `<i class="bi bi-x-circle"></i> ${escapeHtml(data.message)}`;
+                document.getElementById('restoreBtn').disabled = false;
+            }
+        };
+
+        ws.onerror = function(error) {
+            progressContainer.style.display = 'none';
+            resultContainer.style.display = 'block';
+            resultAlert.className = 'alert alert-danger';
+            resultAlert.innerHTML = '<i class="bi bi-x-circle"></i> WebSocket error';
+            document.getElementById('restoreBtn').disabled = false;
+        };
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}Info - Magiku(r)p{% endblock %}
+
+{% block extra_css %}
+<style>
+    .info-logo {
+        width: 100px;
+        height: 100px;
+        transition: transform 0.3s ease;
+    }
+    .info-logo:hover {
+        transform: rotate(15deg) scale(1.1);
+    }
+    .tech-badge {
+        font-size: 0.85rem;
+        padding: 0.35em 0.65em;
+    }
+    .doc-link-card {
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        text-decoration: none;
+        color: inherit;
+    }
+    .doc-link-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    /* Easter egg: Magikarp Splash */
+    .splash-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.85);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        cursor: pointer;
+    }
+    .splash-overlay.active {
+        display: flex;
+    }
+    .splash-fish {
+        animation: splash 0.6s ease-in-out infinite alternate;
+    }
+    .splash-fish img {
+        max-height: 300px;
+        border-radius: 12px;
+        box-shadow: 0 0 40px rgba(255,215,0,0.3);
+    }
+    .splash-text {
+        color: #ffd700;
+        font-size: 2rem;
+        font-weight: bold;
+        margin-top: 1rem;
+        text-shadow: 0 0 20px rgba(255,215,0,0.5);
+        animation: textPulse 1s ease-in-out infinite alternate;
+    }
+    .splash-hint {
+        color: #888;
+        font-size: 0.9rem;
+        margin-top: 2rem;
+    }
+    @keyframes splash {
+        0% { transform: translateY(0) rotate(-5deg); }
+        100% { transform: translateY(-60px) rotate(5deg); }
+    }
+    @keyframes textPulse {
+        0% { opacity: 0.7; transform: scale(1); }
+        100% { opacity: 1; transform: scale(1.05); }
+    }
+    .water-drops {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        overflow: hidden;
+    }
+    .drop {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(100,180,255,0.6);
+        animation: dropFall 1.5s ease-in infinite;
+    }
+    @keyframes dropFall {
+        0% { opacity: 1; transform: translateY(0) scale(1); }
+        100% { opacity: 0; transform: translateY(200px) scale(0.5); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-2">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h2 class="mb-0"><i class="bi bi-info-circle"></i> Info</h2>
+    </div>
+</div>
+<hr class="mt-0 mb-3">
+
+<!-- Row 1: Logo/Version + Author/Project + Documentation -->
+<div class="row g-3 mb-3">
+    <!-- Logo & Version -->
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body text-center d-flex flex-column align-items-center justify-content-center py-4">
+                <img src="{{ base_path }}/static/magikarp.png" alt="Magiku(r)p" class="info-logo mb-2" id="infoLogo">
+                <h4 class="fw-bold mb-1">Magiku(r)p</h4>
+                <p class="text-body-secondary small mb-2">PostgreSQL Backup, Restore & Transfer Tool</p>
+                <span class="badge bg-primary fs-6">v{{ version }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Author & Project -->
+    <div class="col-md-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-header py-2">
+                <i class="bi bi-person-circle me-1"></i> Author & Project
+            </div>
+            <div class="card-body py-2">
+                <table class="table table-borderless table-sm mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-body-secondary" style="width:110px;"><i class="bi bi-person me-1"></i> Author</td>
+                            <td class="fw-semibold">Fabio "Fax" Pellizzaro</td>
+                        </tr>
+                        <tr>
+                            <td class="text-body-secondary"><i class="bi bi-envelope me-1"></i> Contact</td>
+                            <td><a href="mailto:fax.pel@gmail.com">fax.pel@gmail.com</a></td>
+                        </tr>
+                        <tr>
+                            <td class="text-body-secondary"><i class="bi bi-git me-1"></i> Repository</td>
+                            <td><a href="https://github.com/fpellizz/magikup" target="_blank" rel="noopener">github.com/fpellizz/magikup <i class="bi bi-box-arrow-up-right small"></i></a></td>
+                        </tr>
+                        <tr>
+                            <td class="text-body-secondary"><i class="bi bi-file-earmark-text me-1"></i> License</td>
+                            <td>MIT</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Documentation -->
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header py-2">
+                <i class="bi bi-book me-1"></i> Documentation
+            </div>
+            <div class="card-body d-flex flex-column gap-2 py-3">
+                {% if has_html_manual %}
+                <a href="{{ base_path }}/docs/manual" target="_blank" rel="noopener" class="doc-link-card card border">
+                    <div class="card-body py-2 px-3 d-flex align-items-center">
+                        <i class="bi bi-filetype-html fs-4 text-info me-3"></i>
+                        <div>
+                            <div class="fw-semibold">User Manual (HTML)</div>
+                            <small class="text-body-secondary">Opens in a new tab</small>
+                        </div>
+                        <i class="bi bi-box-arrow-up-right ms-auto text-body-secondary"></i>
+                    </div>
+                </a>
+                {% endif %}
+                {% if has_pdf_manual %}
+                <a href="{{ base_path }}/docs/manual.pdf" class="doc-link-card card border">
+                    <div class="card-body py-2 px-3 d-flex align-items-center">
+                        <i class="bi bi-filetype-pdf fs-4 text-danger me-3"></i>
+                        <div>
+                            <div class="fw-semibold">User Manual (PDF)</div>
+                            <small class="text-body-secondary">Download</small>
+                        </div>
+                        <i class="bi bi-download ms-auto text-body-secondary"></i>
+                    </div>
+                </a>
+                {% endif %}
+                {% if not has_html_manual and not has_pdf_manual %}
+                <div class="text-center text-body-secondary py-3">
+                    <i class="bi bi-journal-x fs-3 d-block mb-2" style="opacity: 0.4;"></i>
+                    <small>No documentation files found</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 2: Version History (full width) -->
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm h-100">
+            <div class="card-header py-2">
+                <i class="bi bi-clock-history me-1"></i> Version History
+            </div>
+            <div class="card-body py-2">
+                <div class="mb-2">
+                    <div class="d-flex align-items-center mb-1">
+                        <span class="badge bg-primary me-2">3.3.0</span>
+                        <span class="fw-semibold small">Current</span>
+                    </div>
+                    <ul class="list-unstyled ms-3 mb-0 small text-body-secondary">
+                        <li><i class="bi bi-check2 text-success me-1"></i>TimescaleDB-aware restore (pre/post procedures + --disable-triggers)</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>New "TimescaleDB" toggle in Restore and Transfer advanced parameters</li>
+                    </ul>
+                </div>
+                <hr class="my-2">
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">3.1.0</span>
+                    <span class="small text-body-secondary">Context Path / Reverse Proxy support (ROOT_PATH env var, Admin UI Network section)</span>
+                </div>
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">3.0.0</span>
+                    <span class="small text-body-secondary">Query Editor, Object Browser, Autocommit, Dark/Light theme</span>
+                </div>
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">2.0.0</span>
+                    <span class="small text-body-secondary">Transfer page, Advanced backup/restore parameters</span>
+                </div>
+                <div>
+                    <span class="badge bg-secondary me-2">1.0.0</span>
+                    <span class="small text-body-secondary">Initial release: Backup, Restore, File manager, Dashboard</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 3: Built With -->
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header py-2">
+                <i class="bi bi-cpu me-1"></i> Built With
+            </div>
+            <div class="card-body py-3">
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge bg-success tech-badge"><i class="bi bi-filetype-py me-1"></i>Python</span>
+                    <span class="badge bg-info tech-badge"><i class="bi bi-lightning me-1"></i>FastAPI</span>
+                    <span class="badge bg-secondary tech-badge"><i class="bi bi-database me-1"></i>PostgreSQL</span>
+                    <span class="badge bg-primary tech-badge"><i class="bi bi-bootstrap me-1"></i>Bootstrap 5</span>
+                    <span class="badge bg-warning text-dark tech-badge"><i class="bi bi-filetype-html me-1"></i>Jinja2</span>
+                    <span class="badge bg-danger tech-badge"><i class="bi bi-hdd-stack me-1"></i>psycopg2</span>
+                    <span class="badge bg-dark tech-badge"><i class="bi bi-cloud me-1"></i>AWS SSM</span>
+                    <span class="badge bg-secondary tech-badge"><i class="bi bi-pencil-square me-1"></i>Ace Editor</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<p class="text-center text-body-secondary small mb-4">
+    <i class="bi bi-heart-fill text-danger"></i> Made with love and a lot of <code>pg_dump</code>
+</p>
+
+<!-- Easter Egg: Konami Code -->
+<div class="splash-overlay" id="splashOverlay" onclick="this.classList.remove('active')">
+    <div class="water-drops" id="waterDrops"></div>
+    <div class="splash-fish"><img src="{{ base_path }}/static/bc571ddd-ee56-4962-ba12-c6acddddf511" alt="Easter Egg"></div>
+    <div class="splash-text">Magikarp used Splash!</div>
+    <div class="splash-hint">(...but nothing happened!) Click anywhere to close</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Konami Code: up up down down left right left right b a
+    const konamiCode = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65];
+    let konamiIndex = 0;
+
+    document.addEventListener('keydown', function(e) {
+        if (e.keyCode === konamiCode[konamiIndex]) {
+            konamiIndex++;
+            if (konamiIndex === konamiCode.length) {
+                activateSplash();
+                konamiIndex = 0;
+            }
+        } else {
+            konamiIndex = 0;
+        }
+    });
+
+    // Also trigger splash by clicking logo 5 times
+    let logoClicks = 0;
+    let logoClickTimer = null;
+    document.getElementById('infoLogo').addEventListener('click', function() {
+        logoClicks++;
+        clearTimeout(logoClickTimer);
+        logoClickTimer = setTimeout(() => { logoClicks = 0; }, 2000);
+        if (logoClicks >= 5) {
+            activateSplash();
+            logoClicks = 0;
+        }
+    });
+
+    function activateSplash() {
+        const overlay = document.getElementById('splashOverlay');
+        const dropsContainer = document.getElementById('waterDrops');
+        dropsContainer.innerHTML = '';
+
+        // Create random water drops
+        for (let i = 0; i < 30; i++) {
+            const drop = document.createElement('div');
+            drop.className = 'drop';
+            drop.style.left = Math.random() * 100 + '%';
+            drop.style.top = (30 + Math.random() * 30) + '%';
+            drop.style.animationDelay = Math.random() * 2 + 's';
+            drop.style.animationDuration = (1 + Math.random()) + 's';
+            dropsContainer.appendChild(drop);
+        }
+
+        overlay.classList.add('active');
+    }
+</script>
+{% endblock %}

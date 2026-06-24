@@ -1,0 +1,25 @@
+services:
+  magikup:
+    build: .
+    image: magikup:latest
+    container_name: magikup
+    ports:
+      - "8000:8000"
+    volumes:
+      - magikup-backups:/backups
+      - magikup-config:/app/config
+      - magikup-logs:/app/logs
+    environment:
+      - TZ=Europe/Rome
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+volumes:
+  magikup-backups:
+  magikup-config:
+  magikup-logs:

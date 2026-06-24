@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e3a5f" id="theme-color-meta">
+    <title>{% block title %}Magiku(r)p{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ base_path }}/static/style.css" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ base_path }}/static/magikarp.png">
+    <!-- Prevent flash of wrong theme -->
+    <script>
+        (function() {
+            const stored = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = stored || (prefersDark ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            // Update theme-color meta for mobile browsers
+            const themeColor = theme === 'dark' ? '#0f172a' : '#1e3a5f';
+            document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
+        })();
+    </script>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="{{ base_path }}/">
+                <img src="{{ base_path }}/static/magikarp.png" alt="Magiku(r)p" style="height: 32px; margin-right: 0.5rem;">
+                <span>Magiku(r)p</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/' %}active{% endif %}" href="{{ base_path }}/">
+                            <i class="bi bi-house"></i> Dashboard
+                        </a>
+                    </li>
+                    {% if user_role != 'viewer' %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/backup' %}active{% endif %}" href="{{ base_path }}/backup">
+                            <i class="bi bi-download"></i> Backup
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/restore' %}active{% endif %}" href="{{ base_path }}/restore">
+                            <i class="bi bi-upload"></i> Restore
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/transfer' %}active{% endif %}" href="{{ base_path }}/transfer">
+                            <i class="bi bi-arrow-left-right"></i> Transfer
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/query-editor' %}active{% endif %}" href="{{ base_path }}/query-editor">
+                            <i class="bi bi-code-square"></i> Query
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/files' %}active{% endif %}" href="{{ base_path }}/files">
+                            <i class="bi bi-folder2-open"></i> Files
+                        </a>
+                    </li>
+                    {% if user_role == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/admin' %}active{% endif %}" href="{{ base_path }}/admin">
+                            <i class="bi bi-gear"></i> Admin
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/info' %}active{% endif %}" href="{{ base_path }}/info">
+                            <i class="bi bi-info-circle"></i> Info
+                        </a>
+                    </li>
+                    <!-- Theme Toggle -->
+                    <li class="nav-item">
+                        <button class="theme-toggle nav-link" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                            <i class="bi bi-sun-fill" id="theme-icon"></i>
+                        </button>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle"></i> {{ user }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <a class="dropdown-item disabled" href="#">
+                                    <i class="bi bi-shield-check"></i> {{ user }}
+                                    {% if user_role == 'admin' %}
+                                    <span class="badge bg-danger ms-1">Admin</span>
+                                    {% elif user_role == 'operator' %}
+                                    <span class="badge bg-primary ms-1">Operator</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary ms-1">Viewer</span>
+                                    {% endif %}
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ base_path }}/change-password"><i class="bi bi-key"></i> Change Password</a></li>
+                            <li><a class="dropdown-item" href="{{ base_path }}/logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ============================================
+        // Theme Management
+        // ============================================
+
+        function getPreferredTheme() {
+            const stored = localStorage.getItem('theme');
+            if (stored) return stored;
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem('theme', theme);
+            updateThemeIcon(theme);
+            updateThemeColor(theme);
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-bs-theme');
+            const newTheme = current === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+
+            // Add a subtle animation to the icon
+            const icon = document.getElementById('theme-icon');
+            icon.style.transform = 'rotate(360deg)';
+            setTimeout(() => { icon.style.transform = ''; }, 300);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('theme-icon');
+            if (icon) {
+                icon.className = theme === 'dark' ? 'bi bi-moon-fill' : 'bi bi-sun-fill';
+            }
+        }
+
+        function updateThemeColor(theme) {
+            const meta = document.getElementById('theme-color-meta');
+            if (meta) {
+                meta.setAttribute('content', theme === 'dark' ? '#0f172a' : '#1e3a5f');
+            }
+        }
+
+        // Initialize theme on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const theme = getPreferredTheme();
+            setTheme(theme);
+        });
+
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            if (!localStorage.getItem('theme')) {
+                setTheme(e.matches ? 'dark' : 'light');
+            }
+        });
+
+        // ============================================
+        // Context Path (for reverse proxy deployments)
+        // ============================================
+        const BASE_PATH = "{{ base_path }}";
+
+        // ============================================
+        // API Utilities
+        // ============================================
+
+        async function apiCall(url, method = 'GET', data = null) {
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            };
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+            const response = await fetch(BASE_PATH + url, options);
+            return response.json();
+        }
+
+        // ============================================
+        // Toast Notifications
+        // ============================================
+
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+            const toastId = 'toast-' + Date.now();
+
+            // Map type to background color
+            let bgClass = 'bg-primary';
+            let icon = 'bi-info-circle';
+            if (type === 'error') {
+                bgClass = 'bg-danger';
+                icon = 'bi-exclamation-circle';
+            } else if (type === 'success') {
+                bgClass = 'bg-success';
+                icon = 'bi-check-circle';
+            } else if (type === 'warning') {
+                bgClass = 'bg-warning text-dark';
+                icon = 'bi-exclamation-triangle';
+            }
+
+            const toastHtml = `
+                <div id="${toastId}" class="toast align-items-center text-white ${bgClass}" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi ${icon} me-2"></i>${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            const toastEl = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+            toast.show();
+            toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+        }
+
+        function createToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toastContainer';
+            container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            document.body.appendChild(container);
+            return container;
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

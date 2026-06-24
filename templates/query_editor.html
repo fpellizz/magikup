@@ -1,0 +1,955 @@
+{% extends "base.html" %}
+
+{% block title %}Query Editor - Magiku(r)p{% endblock %}
+
+{% block content %}
+<div class="row mb-2">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h2 class="mb-0"><i class="bi bi-code-square"></i> Query Editor</h2>
+    </div>
+</div>
+<hr class="mt-0 mb-3">
+
+<!-- Connection Bar -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3" data-bs-toggle="tooltip" data-bs-placement="top"
+                         title="Seleziona l'endpoint PostgreSQL a cui connettersi">
+                        <label class="form-label form-label-sm mb-1">
+                            <i class="bi bi-plug me-1"></i>Endpoint
+                        </label>
+                        <select class="form-select form-select-sm" id="qeEndpoint">
+                            <option value="">Select endpoint...</option>
+                            {% for name, ep in endpoints.items() %}
+                            <option value="{{ name }}"
+                                    data-use-ssm="{{ ep.use_ssm|string|lower }}"
+                                    data-jumphost="{{ ep.jumphost_alias }}">
+                                {{ name }} ({{ ep.host }}:{{ ep.port }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3" data-bs-toggle="tooltip" data-bs-placement="top"
+                         title="Database su cui eseguire le query">
+                        <label class="form-label form-label-sm mb-1">
+                            <i class="bi bi-database me-1"></i>Database
+                        </label>
+                        <select class="form-select form-select-sm" id="qeDatabase" disabled>
+                            <option value="">Select database...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" data-bs-toggle="tooltip" data-bs-placement="top"
+                         title="Ruolo PostgreSQL con cui eseguire le query (opzionale). Usa SET ROLE per cambiare i privilegi.">
+                        <label class="form-label form-label-sm mb-1">
+                            <i class="bi bi-person me-1"></i>Run as Role
+                        </label>
+                        <select class="form-select form-select-sm" id="qeRole">
+                            <option value="">Default (endpoint user)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" data-bs-toggle="tooltip" data-bs-placement="top"
+                         title="Tempo massimo di esecuzione per ogni query. Le query che superano il timeout vengono annullate automaticamente.">
+                        <label class="form-label form-label-sm mb-1">Timeout</label>
+                        <select class="form-select form-select-sm" id="qeTimeout">
+                            <option value="5">5 sec</option>
+                            <option value="10">10 sec</option>
+                            <option value="30" selected>30 sec</option>
+                            <option value="60">60 sec</option>
+                            <option value="120">120 sec</option>
+                            <option value="300">300 sec</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" data-bs-toggle="tooltip" data-bs-placement="top"
+                         title="Numero massimo di righe restituite. I risultati vengono troncati se superano questo limite.">
+                        <label class="form-label form-label-sm mb-1">Row Limit</label>
+                        <select class="form-select form-select-sm" id="qeRowLimit">
+                            <option value="100">100</option>
+                            <option value="500">500</option>
+                            <option value="1000" selected>1,000</option>
+                            <option value="5000">5,000</option>
+                            <option value="10000">10,000</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main 3-panel layout -->
+<div class="qe-container">
+    <!-- Left: Object Browser -->
+    <div class="qe-sidebar card">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-diagram-3 me-1"></i>Object Browser</span>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-1" id="qeRefreshTree"
+                    data-bs-toggle="tooltip" data-bs-placement="left"
+                    title="Ricarica l'albero degli oggetti del database" disabled>
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+        <div class="card-body p-2" id="qeObjectTree">
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-database" style="font-size: 2rem; opacity: 0.3;"></i>
+                <p class="mt-2 mb-0 small">Select an endpoint and database</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vertical resize handle -->
+    <div class="qe-resize-handle" id="qeVResizeHandle"></div>
+
+    <!-- Right: Editor + Results -->
+    <div class="qe-main">
+        <!-- Toolbar -->
+        <div class="qe-toolbar card mb-0">
+            <div class="card-body py-2 d-flex gap-2 align-items-center flex-wrap">
+                <button class="btn btn-sm btn-success" id="qeRunBtn" disabled
+                        data-bs-toggle="tooltip" data-bs-placement="bottom"
+                        title="Esegui la query nell'editor (Ctrl+Enter)">
+                    <i class="bi bi-play-fill"></i> Run
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" id="qeRunSelBtn" disabled
+                        data-bs-toggle="tooltip" data-bs-placement="bottom"
+                        title="Esegui solo il testo selezionato nell'editor">
+                    <i class="bi bi-play"></i> Run Selection
+                </button>
+                <div class="vr mx-1"></div>
+                <button class="btn btn-sm btn-outline-secondary" id="qeClearBtn"
+                        data-bs-toggle="tooltip" data-bs-placement="bottom"
+                        title="Cancella il contenuto dell'editor">
+                    <i class="bi bi-eraser"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" id="qeHistoryBtn"
+                        data-bs-toggle="tooltip" data-bs-placement="bottom"
+                        title="Mostra la cronologia delle query eseguite">
+                    <i class="bi bi-clock-history"></i>
+                </button>
+                <div class="vr mx-1"></div>
+                <div class="form-check form-switch d-flex align-items-center mb-0"
+                     data-bs-toggle="tooltip" data-bs-placement="bottom"
+                     title="Quando attivo, ogni istruzione SQL viene eseguita e confermata immediatamente (senza transazione esplicita). Quando disattivo, le query vengono eseguite in una transazione con COMMIT alla fine.">
+                    <input class="form-check-input me-1" type="checkbox" id="qeAutocommit"
+                           {% if query_settings.autocommit %}checked{% endif %}>
+                    <label class="form-check-label small" for="qeAutocommit">Autocommit</label>
+                </div>
+                <span class="ms-auto text-muted small d-none d-md-inline" id="qeStatusText">
+                    Ready
+                </span>
+                <kbd class="ms-2 small d-none d-md-inline" style="opacity: 0.5;">Ctrl+Enter</kbd>
+            </div>
+        </div>
+
+        <!-- CodeMirror editor container -->
+        <div class="qe-editor-wrap card mb-0" style="min-height: 150px; height: 280px;" id="qeEditorWrap">
+            <div id="qeEditorContainer" style="height: 100%;"></div>
+        </div>
+
+        <!-- Horizontal resize handle -->
+        <div class="qe-h-resize" id="qeHResizeHandle"></div>
+
+        <!-- Results area -->
+        <div class="qe-results card">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center"
+                 id="qeResultsHeader" style="display: none !important;">
+                <span class="small" id="qeResultsInfo"></span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="qeExportCsvBtn"
+                            data-bs-toggle="tooltip" data-bs-placement="top"
+                            title="Esporta i risultati correnti in formato CSV" style="display: none;">
+                        <i class="bi bi-filetype-csv"></i> CSV
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" id="qeResultsBody">
+                <div class="text-center text-muted py-5" id="qeResultsEmpty">
+                    <i class="bi bi-table" style="font-size: 2rem; opacity: 0.3;"></i>
+                    <p class="mt-2 mb-0">Run a query to see results</p>
+                    <p class="small mt-1 mb-0" style="opacity: 0.5;">Ctrl+Enter to execute</p>
+                </div>
+                <div id="qeResultsError" class="p-3" style="display: none;"></div>
+                <div id="qeResultsDml" style="display: none;"></div>
+                <div id="qeTruncationWarn" class="qe-truncation-warning" style="display: none;">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span id="qeTruncationText"></span>
+                </div>
+                <div class="table-responsive" id="qeResultsTableWrap" style="display: none; height: 100%; overflow: auto;">
+                    <table class="table table-hover table-sm qe-results-table" id="qeResultsTable">
+                        <thead id="qeResultsThead"></thead>
+                        <tbody id="qeResultsTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Query History Modal -->
+<div class="modal fade" id="qeHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>Query History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="list-group list-group-flush" id="qeHistoryList">
+                    <div class="text-center text-muted py-4">No history yet</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-sm btn-outline-danger" id="qeClearHistoryBtn">
+                    <i class="bi bi-trash3"></i> Clear History
+                </button>
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Ace Editor from jsdelivr (already allowed in CSP) -->
+<script src="https://cdn.jsdelivr.net/npm/ace-builds@1.32.6/src-min-noconflict/ace.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ace-builds@1.32.6/src-min-noconflict/mode-pgsql.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ace-builds@1.32.6/src-min-noconflict/theme-sqlserver.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ace-builds@1.32.6/src-min-noconflict/theme-one_dark.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ace-builds@1.32.6/src-min-noconflict/ext-language_tools.js"></script>
+<script>
+// ============================================================
+// DOM References
+// ============================================================
+const endpointSel = document.getElementById('qeEndpoint');
+const databaseSel = document.getElementById('qeDatabase');
+const roleSel     = document.getElementById('qeRole');
+const timeoutIn   = document.getElementById('qeTimeout');
+const rowLimitSel = document.getElementById('qeRowLimit');
+const runBtn      = document.getElementById('qeRunBtn');
+const runSelBtn   = document.getElementById('qeRunSelBtn');
+const clearBtn    = document.getElementById('qeClearBtn');
+const historyBtn  = document.getElementById('qeHistoryBtn');
+const autocommitChk = document.getElementById('qeAutocommit');
+const refreshBtn  = document.getElementById('qeRefreshTree');
+const statusText  = document.getElementById('qeStatusText');
+const objectTree  = document.getElementById('qeObjectTree');
+const editorWrap  = document.getElementById('qeEditorWrap');
+const editorContainer = document.getElementById('qeEditorContainer');
+const resultsHeader   = document.getElementById('qeResultsHeader');
+const resultsInfo     = document.getElementById('qeResultsInfo');
+const resultsBody     = document.getElementById('qeResultsBody');
+const resultsEmpty    = document.getElementById('qeResultsEmpty');
+const resultsError    = document.getElementById('qeResultsError');
+const resultsDml      = document.getElementById('qeResultsDml');
+const truncWarn       = document.getElementById('qeTruncationWarn');
+const truncText       = document.getElementById('qeTruncationText');
+const resultsTableWrap = document.getElementById('qeResultsTableWrap');
+const resultsThead    = document.getElementById('qeResultsThead');
+const resultsTbody    = document.getElementById('qeResultsTbody');
+const exportCsvBtn    = document.getElementById('qeExportCsvBtn');
+const historyModal    = document.getElementById('qeHistoryModal');
+const historyList     = document.getElementById('qeHistoryList');
+const clearHistoryBtn = document.getElementById('qeClearHistoryBtn');
+
+let currentResults = null;
+
+// ============================================================
+// Ace Editor Setup
+// ============================================================
+const editor = ace.edit('qeEditorContainer', {
+    mode: 'ace/mode/pgsql',
+    theme: document.documentElement.getAttribute('data-bs-theme') === 'dark'
+        ? 'ace/theme/one_dark' : 'ace/theme/sqlserver',
+    fontSize: 14,
+    showPrintMargin: false,
+    wrap: true,
+    tabSize: 2,
+    enableBasicAutocompletion: true,
+    enableLiveAutocompletion: true,
+    placeholder: '-- Write your SQL query here...',
+});
+editor.setValue('-- Write your SQL query here\nSELECT 1;\n', -1);
+
+// Ctrl+Enter to run query
+editor.commands.addCommand({
+    name: 'executeQuery',
+    bindKey: { win: 'Ctrl-Enter', mac: 'Cmd-Enter' },
+    exec: () => executeQuery(),
+});
+
+// Theme change listener
+const origSetTheme = window.setTheme;
+if (origSetTheme) {
+    window.setTheme = function(theme) {
+        origSetTheme(theme);
+        editor.setTheme(theme === 'dark' ? 'ace/theme/one_dark' : 'ace/theme/sqlserver');
+    };
+}
+
+// ============================================================
+// Connection Management
+// ============================================================
+endpointSel.addEventListener('change', async function() {
+    const ep = this.value;
+    databaseSel.innerHTML = '<option value="">Loading...</option>';
+    databaseSel.disabled = true;
+    roleSel.innerHTML = '<option value="">Default (endpoint user)</option>';
+    objectTree.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm"></span></div>';
+    refreshBtn.disabled = true;
+    updateRunState();
+
+    if (!ep) {
+        databaseSel.innerHTML = '<option value="">Select database...</option>';
+        objectTree.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-database" style="font-size:2rem;opacity:0.3;"></i><p class="mt-2 mb-0 small">Select an endpoint and database</p></div>';
+        return;
+    }
+
+    try {
+        const resp = await apiCall(`/api/databases/${ep}`);
+        if (resp.success) {
+            databaseSel.innerHTML = '<option value="">Select database...</option>';
+            resp.databases.forEach(db => {
+                const opt = document.createElement('option');
+                opt.value = db.name;
+                opt.textContent = `${db.name} (${db.size})`;
+                databaseSel.appendChild(opt);
+            });
+            databaseSel.disabled = false;
+        } else {
+            databaseSel.innerHTML = '<option value="">Error loading</option>';
+            showToast(`Failed to load databases: ${resp.error}`, 'error');
+        }
+    } catch (e) {
+        databaseSel.innerHTML = '<option value="">Error loading</option>';
+        showToast(`Connection error: ${e.message}`, 'error');
+    }
+    objectTree.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-database" style="font-size:2rem;opacity:0.3;"></i><p class="mt-2 mb-0 small">Select a database</p></div>';
+});
+
+databaseSel.addEventListener('change', async function() {
+    const ep = endpointSel.value;
+    const db = this.value;
+    updateRunState();
+
+    if (!ep || !db) {
+        roleSel.innerHTML = '<option value="">Default (endpoint user)</option>';
+        objectTree.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-database" style="font-size:2rem;opacity:0.3;"></i><p class="mt-2 mb-0 small">Select a database</p></div>';
+        refreshBtn.disabled = true;
+        return;
+    }
+
+    // Load roles
+    try {
+        const resp = await apiCall(`/api/users/${ep}?database=${db}`);
+        roleSel.innerHTML = '<option value="">Default (endpoint user)</option>';
+        if (resp.success) {
+            resp.users.forEach(u => {
+                if (!u.can_login) return;
+                const opt = document.createElement('option');
+                opt.value = u.name;
+                opt.textContent = u.name + (u.is_superuser ? ' (superuser)' : '');
+                roleSel.appendChild(opt);
+            });
+        }
+    } catch (e) { /* ignore */ }
+
+    // Load object tree
+    refreshBtn.disabled = false;
+    loadObjectTree();
+});
+
+refreshBtn.addEventListener('click', () => loadObjectTree());
+
+function updateRunState() {
+    const ok = endpointSel.value && databaseSel.value;
+    runBtn.disabled = !ok;
+    runSelBtn.disabled = !ok;
+}
+
+// ============================================================
+// Object Browser Tree
+// ============================================================
+async function loadObjectTree() {
+    const ep = endpointSel.value;
+    const db = databaseSel.value;
+    if (!ep || !db) return;
+
+    objectTree.innerHTML = '<div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span> Loading...</div>';
+
+    try {
+        const resp = await apiCall(`/api/schemas/${ep}/${db}`);
+        if (!resp.success) {
+            objectTree.innerHTML = `<div class="text-muted p-3 small">Error: ${resp.error || 'Failed'}</div>`;
+            return;
+        }
+
+        objectTree.innerHTML = '';
+        const schemas = resp.schemas || [];
+        if (schemas.length === 0) {
+            objectTree.innerHTML = '<div class="text-muted p-3 small">No schemas found</div>';
+            return;
+        }
+
+        schemas.forEach(s => {
+            objectTree.appendChild(buildSchemaNode(s.name, ep, db));
+        });
+    } catch (e) {
+        objectTree.innerHTML = `<div class="text-muted p-3 small">Error: ${e.message}</div>`;
+    }
+}
+
+function buildSchemaNode(schemaName, ep, db) {
+    const node = document.createElement('div');
+    node.className = 'qe-tree-node';
+
+    const header = document.createElement('div');
+    header.className = 'qe-tree-header';
+    header.innerHTML = `
+        <span class="toggle-icon"><i class="bi bi-caret-right-fill"></i></span>
+        <span class="node-icon"><i class="bi bi-diagram-3"></i></span>
+        <span class="node-label">${esc(schemaName)}</span>
+    `;
+
+    const children = document.createElement('div');
+    children.className = 'qe-tree-children';
+    let loaded = false;
+
+    header.addEventListener('click', async () => {
+        const toggle = header.querySelector('.toggle-icon');
+        const isExpanded = children.classList.contains('expanded');
+
+        if (isExpanded) {
+            children.classList.remove('expanded');
+            toggle.classList.remove('expanded');
+            return;
+        }
+
+        toggle.classList.add('expanded');
+        children.classList.add('expanded');
+
+        if (!loaded) {
+            loaded = true;
+            children.innerHTML = '<div class="qe-tree-spinner"><span class="spinner-border spinner-border-sm"></span> Loading...</div>';
+
+            // Load tables, views, functions, indexes in parallel
+            const [tablesR, viewsR, funcsR, idxR] = await Promise.all([
+                apiCall(`/api/tables/${ep}/${db}/${schemaName}`).catch(() => ({success:false})),
+                apiCall(`/api/views/${ep}/${db}/${schemaName}`).catch(() => ({success:false})),
+                apiCall(`/api/functions/${ep}/${db}/${schemaName}`).catch(() => ({success:false})),
+                apiCall(`/api/indexes/${ep}/${db}/${schemaName}`).catch(() => ({success:false})),
+            ]);
+
+            children.innerHTML = '';
+
+            // Tables folder
+            const tables = tablesR.success ? tablesR.tables : [];
+            children.appendChild(buildFolderNode('Tables', 'bi-table', tables, (t) =>
+                buildTableNode(t, schemaName, ep, db)
+            ));
+
+            // Views folder
+            const views = viewsR.success ? viewsR.views : [];
+            children.appendChild(buildFolderNode('Views', 'bi-eye', views, (v) =>
+                buildLeafNode(v.name, 'bi-eye', '', () => insertInEditor(`"${schemaName}"."${v.name}"`), () => insertQueryInEditor(schemaName, v.name))
+            ));
+
+            // Functions folder
+            const funcs = funcsR.success ? funcsR.functions : [];
+            children.appendChild(buildFolderNode('Functions', 'bi-braces', funcs, (f) =>
+                buildLeafNode(f.name, f.kind === 'procedure' ? 'bi-gear' : 'bi-braces', f.return_type || '', () => insertInEditor(`"${schemaName}"."${f.name}"`))
+            ));
+
+            // Indexes folder
+            const indexes = idxR.success ? idxR.indexes : [];
+            children.appendChild(buildFolderNode('Indexes', 'bi-lightning', indexes, (i) =>
+                buildLeafNode(i.name, i.is_primary ? 'bi-key' : 'bi-lightning', i.table_name, () => insertInEditor(i.name))
+            ));
+        }
+    });
+
+    node.appendChild(header);
+    node.appendChild(children);
+    return node;
+}
+
+function buildFolderNode(label, icon, items, buildChildFn) {
+    const node = document.createElement('div');
+    node.className = 'qe-tree-node';
+
+    const header = document.createElement('div');
+    header.className = 'qe-tree-header';
+    header.innerHTML = `
+        <span class="toggle-icon"><i class="bi bi-caret-right-fill"></i></span>
+        <span class="node-icon"><i class="bi ${icon}"></i></span>
+        <span class="node-label">${esc(label)}</span>
+        <span class="node-badge">${items.length}</span>
+    `;
+
+    const children = document.createElement('div');
+    children.className = 'qe-tree-children';
+
+    if (items.length === 0) {
+        children.innerHTML = '<div class="text-muted px-3 py-1" style="font-size:0.75rem;">(empty)</div>';
+    } else {
+        items.forEach(item => children.appendChild(buildChildFn(item)));
+    }
+
+    header.addEventListener('click', () => {
+        const toggle = header.querySelector('.toggle-icon');
+        const isExpanded = children.classList.contains('expanded');
+        if (isExpanded) {
+            children.classList.remove('expanded');
+            toggle.classList.remove('expanded');
+        } else {
+            children.classList.add('expanded');
+            toggle.classList.add('expanded');
+        }
+    });
+
+    node.appendChild(header);
+    node.appendChild(children);
+    return node;
+}
+
+function buildTableNode(table, schemaName, ep, db) {
+    const node = document.createElement('div');
+    node.className = 'qe-tree-node';
+
+    const header = document.createElement('div');
+    header.className = 'qe-tree-header';
+    header.innerHTML = `
+        <span class="toggle-icon"><i class="bi bi-caret-right-fill"></i></span>
+        <span class="node-icon"><i class="bi bi-table"></i></span>
+        <span class="node-label">${esc(table.name)}</span>
+        <span class="node-badge">${table.size || ''}</span>
+    `;
+
+    // Single click = insert name
+    header.addEventListener('click', (e) => {
+        if (e.detail === 1) {
+            // will be handled below for expand/collapse
+        }
+    });
+
+    // Double click = insert SELECT query
+    header.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        insertQueryInEditor(schemaName, table.name);
+    });
+
+    const children = document.createElement('div');
+    children.className = 'qe-tree-children';
+    let loaded = false;
+
+    header.addEventListener('click', async () => {
+        const toggle = header.querySelector('.toggle-icon');
+        const isExpanded = children.classList.contains('expanded');
+
+        if (isExpanded) {
+            children.classList.remove('expanded');
+            toggle.classList.remove('expanded');
+            return;
+        }
+
+        toggle.classList.add('expanded');
+        children.classList.add('expanded');
+
+        if (!loaded) {
+            loaded = true;
+            children.innerHTML = '<div class="qe-tree-spinner"><span class="spinner-border spinner-border-sm"></span></div>';
+            try {
+                const resp = await apiCall(`/api/columns/${ep}/${db}/${schemaName}/${table.name}`);
+                children.innerHTML = '';
+                if (resp.success && resp.columns.length > 0) {
+                    resp.columns.forEach(col => {
+                        children.appendChild(buildLeafNode(
+                            col.name,
+                            col.nullable ? 'bi-dash' : 'bi-asterisk',
+                            col.data_type + (col.max_length ? `(${col.max_length})` : ''),
+                            () => insertInEditor(col.name)
+                        ));
+                    });
+                } else {
+                    children.innerHTML = '<div class="text-muted px-3 py-1" style="font-size:0.75rem;">(no columns)</div>';
+                }
+            } catch (e) {
+                children.innerHTML = '<div class="text-muted px-3 py-1" style="font-size:0.75rem;">Error loading</div>';
+            }
+        }
+    });
+
+    node.appendChild(header);
+    node.appendChild(children);
+    return node;
+}
+
+function buildLeafNode(name, icon, detail, onClick, onDblClick) {
+    const el = document.createElement('div');
+    el.className = 'qe-tree-leaf';
+    el.innerHTML = `
+        <span class="leaf-icon"><i class="bi ${icon}"></i></span>
+        <span class="leaf-name">${esc(name)}</span>
+        ${detail ? `<span class="leaf-type">${esc(detail)}</span>` : ''}
+    `;
+    if (onClick) el.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+    if (onDblClick) el.addEventListener('dblclick', (e) => { e.stopPropagation(); onDblClick(); });
+    return el;
+}
+
+function insertInEditor(text) {
+    editor.insert(text);
+    editor.focus();
+}
+
+function insertQueryInEditor(schema, name) {
+    const q = `\nSELECT * FROM "${schema}"."${name}" LIMIT 100;\n`;
+    editor.navigateFileEnd();
+    editor.insert(q);
+    editor.focus();
+}
+
+// ============================================================
+// Query Execution
+// ============================================================
+runBtn.addEventListener('click', () => executeQuery());
+runSelBtn.addEventListener('click', () => executeQuery(true));
+
+async function executeQuery(selectionOnly = false) {
+    const ep = endpointSel.value;
+    const db = databaseSel.value;
+    if (!ep || !db) {
+        showToast('Select an endpoint and database first', 'warning');
+        return;
+    }
+
+    let queryText;
+    if (selectionOnly) {
+        queryText = editor.getSelectedText().trim();
+        if (!queryText) {
+            showToast('No text selected', 'warning');
+            return;
+        }
+    } else {
+        queryText = editor.getValue().trim();
+    }
+
+    if (!queryText) {
+        showToast('Query is empty', 'warning');
+        return;
+    }
+
+    // UI: show loading
+    runBtn.disabled = true;
+    runSelBtn.disabled = true;
+    statusText.textContent = 'Executing...';
+    statusText.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Executing...';
+    hideAllResults();
+
+    const payload = {
+        endpoint_name: ep,
+        database: db,
+        query: queryText,
+        role: roleSel.value || null,
+        timeout_seconds: parseInt(timeoutIn.value) || 30,
+        row_limit: parseInt(rowLimitSel.value) || 1000,
+        autocommit: autocommitChk.checked,
+    };
+
+    try {
+        const resp = await apiCall('/api/query/execute', 'POST', payload);
+        currentResults = resp;
+
+        if (resp.success) {
+            const rs = resp.result_sets[0];
+            if (rs.columns && rs.columns.length > 0) {
+                renderResultsTable(rs, resp.execution_time_ms);
+            } else {
+                renderDmlResult(rs, resp.execution_time_ms);
+            }
+            statusText.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>${resp.execution_time_ms} ms`;
+        } else {
+            renderError(resp.error);
+            statusText.innerHTML = `<i class="bi bi-x-circle text-danger me-1"></i>Error`;
+        }
+
+        // Save to history
+        saveToHistory(queryText, ep, db, resp);
+    } catch (e) {
+        renderError(`Network error: ${e.message}`);
+        statusText.innerHTML = `<i class="bi bi-x-circle text-danger me-1"></i>Error`;
+    } finally {
+        updateRunState();
+    }
+}
+
+// ============================================================
+// Results Rendering
+// ============================================================
+function hideAllResults() {
+    resultsEmpty.style.display = 'none';
+    resultsError.style.display = 'none';
+    resultsDml.style.display = 'none';
+    resultsTableWrap.style.display = 'none';
+    truncWarn.style.display = 'none';
+    resultsHeader.style.display = 'none !important';
+    resultsHeader.style.cssText = 'display: none !important;';
+    exportCsvBtn.style.display = 'none';
+}
+
+function renderResultsTable(rs, timeMs) {
+    // Header
+    resultsHeader.style.cssText = '';
+    resultsInfo.innerHTML = `<i class="bi bi-table me-1"></i>${rs.row_count.toLocaleString()} row${rs.row_count !== 1 ? 's' : ''}`
+        + (rs.total_rows > rs.row_count ? ` of ${rs.total_rows.toLocaleString()}` : '')
+        + ` <span class="text-muted">(${timeMs} ms)</span>`;
+    exportCsvBtn.style.display = '';
+
+    // Truncation warning
+    if (rs.truncated) {
+        truncWarn.style.display = 'flex';
+        truncText.textContent = `Results truncated to ${rs.row_count.toLocaleString()} rows. Increase the row limit or refine your query.`;
+    }
+
+    // Table header
+    let thead = '<tr><th class="row-num">#</th>';
+    rs.columns.forEach(c => { thead += `<th>${esc(c)}</th>`; });
+    thead += '</tr>';
+    resultsThead.innerHTML = thead;
+
+    // Table body
+    let tbody = '';
+    rs.rows.forEach((row, idx) => {
+        tbody += `<tr><td class="row-num">${idx + 1}</td>`;
+        row.forEach(val => {
+            if (val === null) {
+                tbody += '<td class="null-val">NULL</td>';
+            } else {
+                tbody += `<td title="${esc(val)}">${esc(truncateVal(val, 200))}</td>`;
+            }
+        });
+        tbody += '</tr>';
+    });
+    resultsTbody.innerHTML = tbody;
+
+    resultsTableWrap.style.display = '';
+}
+
+function renderDmlResult(rs, timeMs) {
+    resultsHeader.style.cssText = '';
+    const affected = rs.affected_rows !== undefined ? rs.affected_rows : 0;
+    resultsInfo.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>Query OK`
+        + ` <span class="text-muted">(${timeMs} ms)</span>`;
+
+    resultsDml.style.display = 'flex';
+    resultsDml.className = 'qe-dml-result p-4';
+    resultsDml.innerHTML = `
+        <i class="bi bi-check-circle-fill text-success" style="font-size:1.5rem;"></i>
+        <span>${affected >= 0 ? affected.toLocaleString() + ' row' + (affected !== 1 ? 's' : '') + ' affected' : 'Query executed successfully'}</span>
+    `;
+}
+
+function renderError(msg) {
+    resultsError.style.display = '';
+    resultsError.innerHTML = `
+        <div class="alert alert-danger mb-0">
+            <i class="bi bi-exclamation-circle me-2"></i>
+            <strong>Error:</strong>
+            <pre class="mb-0 mt-2" style="white-space:pre-wrap;font-size:0.82rem;">${esc(msg)}</pre>
+        </div>
+    `;
+}
+
+function truncateVal(val, maxLen) {
+    if (typeof val === 'string' && val.length > maxLen) {
+        return val.substring(0, maxLen) + '...';
+    }
+    return val;
+}
+
+// ============================================================
+// CSV Export
+// ============================================================
+exportCsvBtn.addEventListener('click', () => {
+    if (!currentResults || !currentResults.success) return;
+    const rs = currentResults.result_sets[0];
+    if (!rs.columns || rs.columns.length === 0) return;
+
+    let csv = rs.columns.map(c => csvEscape(c)).join(',') + '\n';
+    rs.rows.forEach(row => {
+        csv += row.map(val => val === null ? '' : csvEscape(String(val))).join(',') + '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `query_results_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('CSV exported', 'success');
+});
+
+function csvEscape(val) {
+    if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return '"' + val.replace(/"/g, '""') + '"';
+    }
+    return val;
+}
+
+// ============================================================
+// Query History (localStorage)
+// ============================================================
+const HISTORY_KEY = 'magikup_query_history';
+const MAX_HISTORY = 50;
+
+function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+    catch { return []; }
+}
+
+function saveToHistory(query, endpoint, database, result) {
+    const history = loadHistory();
+    history.unshift({
+        query: query.substring(0, 2000),
+        endpoint,
+        database,
+        timestamp: new Date().toISOString(),
+        executionTimeMs: result.execution_time_ms || 0,
+        rowCount: result.success && result.result_sets[0] ? result.result_sets[0].row_count : 0,
+        success: result.success,
+    });
+    if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
+
+historyBtn.addEventListener('click', () => {
+    renderHistoryModal();
+    new bootstrap.Modal(historyModal).show();
+});
+
+function renderHistoryModal() {
+    const history = loadHistory();
+    if (history.length === 0) {
+        historyList.innerHTML = '<div class="text-center text-muted py-4">No history yet</div>';
+        return;
+    }
+
+    historyList.innerHTML = '';
+    history.forEach((h, idx) => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item qe-history-item';
+        const ts = new Date(h.timestamp);
+        const icon = h.success ? 'bi-check-circle text-success' : 'bi-x-circle text-danger';
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <span class="query-meta">
+                    <i class="bi ${icon} me-1"></i>
+                    ${esc(h.endpoint)} / ${esc(h.database)}
+                </span>
+                <span class="query-meta">${ts.toLocaleString()}</span>
+            </div>
+            <div class="query-preview">${esc(h.query.substring(0, 200))}</div>
+            <div class="query-meta mt-1">
+                ${h.success ? `${h.rowCount} rows &middot; ${h.executionTimeMs} ms` : 'Failed'}
+            </div>
+        `;
+        item.addEventListener('click', () => {
+            editor.setValue(h.query, -1);
+            bootstrap.Modal.getInstance(historyModal).hide();
+            editor.focus();
+        });
+        historyList.appendChild(item);
+    });
+}
+
+clearHistoryBtn.addEventListener('click', () => {
+    localStorage.removeItem(HISTORY_KEY);
+    renderHistoryModal();
+    showToast('History cleared', 'info');
+});
+
+// ============================================================
+// Clear button
+// ============================================================
+clearBtn.addEventListener('click', () => {
+    editor.setValue('', -1);
+    hideAllResults();
+    resultsEmpty.style.display = '';
+    statusText.textContent = 'Ready';
+    editor.focus();
+});
+
+// ============================================================
+// Panel Resizing
+// ============================================================
+const vHandle = document.getElementById('qeVResizeHandle');
+const hHandle = document.getElementById('qeHResizeHandle');
+const sidebar = document.querySelector('.qe-sidebar');
+
+// Vertical resize (sidebar width)
+let vDragging = false;
+vHandle.addEventListener('mousedown', (e) => {
+    vDragging = true;
+    vHandle.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+});
+
+// Horizontal resize (editor height)
+let hDragging = false;
+hHandle.addEventListener('mousedown', (e) => {
+    hDragging = true;
+    hHandle.classList.add('active');
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (vDragging) {
+        const containerRect = document.querySelector('.qe-container').getBoundingClientRect();
+        let newWidth = e.clientX - containerRect.left;
+        newWidth = Math.max(200, Math.min(500, newWidth));
+        sidebar.style.width = newWidth + 'px';
+        localStorage.setItem('qe_sidebar_width', newWidth);
+    }
+    if (hDragging) {
+        const mainRect = document.querySelector('.qe-main').getBoundingClientRect();
+        const toolbarHeight = document.querySelector('.qe-toolbar').offsetHeight;
+        let newHeight = e.clientY - mainRect.top - toolbarHeight;
+        newHeight = Math.max(100, Math.min(mainRect.height - 150, newHeight));
+        editorWrap.style.height = newHeight + 'px';
+        localStorage.setItem('qe_editor_height', newHeight);
+    }
+});
+
+document.addEventListener('mouseup', () => {
+    if (vDragging) { vDragging = false; vHandle.classList.remove('active'); }
+    if (hDragging) { hDragging = false; hHandle.classList.remove('active'); }
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+});
+
+// Restore saved sizes
+const savedSidebarW = localStorage.getItem('qe_sidebar_width');
+if (savedSidebarW) sidebar.style.width = savedSidebarW + 'px';
+const savedEditorH = localStorage.getItem('qe_editor_height');
+if (savedEditorH) editorWrap.style.height = savedEditorH + 'px';
+
+// ============================================================
+// Utility
+// ============================================================
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    const d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+}
+
+// Initialize Bootstrap tooltips
+document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+</script>
+{% endblock %}

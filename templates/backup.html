@@ -1,0 +1,820 @@
+{% extends "base.html" %}
+
+{% block title %}Backup - PostgreSQL Backup/Restore{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-download"></i> Backup Database</h2>
+        <hr>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-gear"></i> Backup Configuration
+            </div>
+            <div class="card-body">
+                <form id="backupForm">
+                    <!-- Endpoint Selection -->
+                    <div class="mb-3">
+                        <label for="endpoint" class="form-label">Database Endpoint</label>
+                        <select class="form-select" id="endpoint" name="endpoint" required>
+                            <option value="">Select endpoint...</option>
+                            {% for name, endpoint in endpoints.items() %}
+                            <option value="{{ name }}"
+                                    data-host="{{ endpoint.host }}"
+                                    data-port="{{ endpoint.port }}"
+                                    data-use-ssm="{{ endpoint.use_ssm|lower }}"
+                                    data-jumphost="{{ endpoint.jumphost_alias }}">
+                                {{ name }} ({{ endpoint.host }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <!-- SSM Tunnel Info Badge -->
+                        <div id="ssmInfoBadge" class="mt-2" style="display: none;">
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-cloud"></i> SSM Tunnel
+                            </span>
+                            <small class="text-muted ms-2">
+                                via jumphost: <strong id="ssmJumphostAlias"></strong>
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Database Selection -->
+                    <div class="mb-3">
+                        <label for="database" class="form-label">Database</label>
+                        <select class="form-select" id="database" name="database" required disabled>
+                            <option value="">Select database...</option>
+                        </select>
+                        <div id="dbLoadingIndicator" class="form-text text-muted" style="display: none;">
+                            <span class="spinner-border spinner-border-sm"></span> Loading databases...
+                        </div>
+                    </div>
+
+                    <!-- Schema Mode Toggle -->
+                    <div class="schema-mode-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="schemaModeToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div class="toggle-label">
+                            <span class="toggle-label-title">
+                                <i class="bi bi-layers"></i> Schema Mode
+                            </span>
+                            <span class="toggle-label-desc">Backup specific schemas instead of the entire database</span>
+                        </div>
+                    </div>
+
+                    <!-- Schema Selector -->
+                    <div id="schemaSelector" class="schema-selector mb-3">
+                        <div class="schema-selector-header">
+                            <span class="schema-selector-title">
+                                Select Schemas <span id="schemaCountBadge" class="schema-count-badge" style="display: none;">0</span>
+                            </span>
+                            <div class="schema-selector-actions">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="selectAllSchemas()">
+                                    Select All
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearSchemaSelection()">
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+                        <div id="schemaChipsContainer" class="schema-chips-container">
+                            <!-- Schema chips will be loaded here -->
+                        </div>
+                        <div id="selectedSchemasSummary" class="selected-schemas-summary">
+                            <i class="bi bi-check-circle"></i>
+                            <span id="selectedSchemasText"></span>
+                        </div>
+                    </div>
+
+                    <!-- Backup Filename -->
+                    <div class="mb-3">
+                        <label for="backupFilename" class="form-label">Backup Filename</label>
+                        <input type="text" class="form-control" id="backupFilename" name="backup_filename"
+                               placeholder="Select a database to generate filename..." disabled>
+                        <div class="form-text">
+                            You can modify the filename or keep the auto-generated one.
+                        </div>
+                    </div>
+
+                    <!-- Advanced Parameters Toggle -->
+                    <div class="advanced-params-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="advancedParamsToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div class="toggle-label">
+                            <span class="toggle-label-title">
+                                <i class="bi bi-sliders"></i> Advanced Parameters
+                            </span>
+                            <span class="toggle-label-desc">Configure pg_dump options (owner, privileges, data/schema only, exclusions...)</span>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Parameters Panel -->
+                    <div id="advancedParamsPanel" class="advanced-params-panel mb-3">
+                        <div class="advanced-params-section">
+                            <div class="advanced-params-section-title">
+                                <i class="bi bi-toggle-on"></i> Dump Options
+                            </div>
+
+                            <!-- Row 1: large-objects + no-owner -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="largeObjects" checked>
+                                            <label class="form-check-label" for="largeObjects">
+                                                --large-objects
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Include large objects (BLOBs) in the dump. This is the default behavior. Disable this to exclude large objects and reduce dump size."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noOwner" checked>
+                                            <label class="form-check-label" for="noOwner">
+                                                --no-owner
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not output commands to set ownership of objects. The restored objects will be owned by the user connecting to the database."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 2: no-privileges + no-tablespaces -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noPrivileges" checked>
+                                            <label class="form-check-label" for="noPrivileges">
+                                                --no-privileges
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not dump GRANT/REVOKE commands to set access privileges. Without this, the dump will try to replicate the same privileges that the original objects had."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noTablespaces" checked>
+                                            <label class="form-check-label" for="noTablespaces">
+                                                --no-tablespaces
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not output commands to set tablespaces. All objects will be restored into the default tablespace during restore."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 3: no-comments + data-only -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="noComments" checked>
+                                            <label class="form-check-label" for="noComments">
+                                                --no-comments
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Do not dump COMMENT commands to set object comments. Useful to reduce dump size when comments are not needed."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="dataOnly">
+                                            <label class="form-check-label" for="dataOnly">
+                                                --data-only
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Dump only the data, not the schema (DDL). Table data, sequences, and large objects are dumped. Mutually exclusive with --schema-only."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 4: schema-only + clean -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="schemaOnly">
+                                            <label class="form-check-label" for="schemaOnly">
+                                                --schema-only
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Dump only the object definitions (schema/DDL), not data. Sequence values will not be dumped. Mutually exclusive with --data-only."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="cleanFlag">
+                                            <label class="form-check-label" for="cleanFlag">
+                                                --clean
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Output DROP commands before CREATE commands in the dump. This makes the dump suitable for cleanly replacing an existing database. Note: with custom format, this option takes effect only during restore."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 5: create -->
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <div class="param-toggle-item">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="createFlag">
+                                            <label class="form-check-label" for="createFlag">
+                                                --create
+                                                <i class="bi bi-question-circle param-tooltip"
+                                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                                   title="Include CREATE DATABASE command in the dump. When restoring, the database itself will be created before connecting to it, and DROP DATABASE is added if --clean is also specified."></i>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Table Exclusions -->
+                        <div class="advanced-params-section mt-3">
+                            <div class="advanced-params-section-title">
+                                <i class="bi bi-funnel"></i> Table Exclusions
+                            </div>
+
+                            <div class="param-pattern-item mb-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="excludeTableToggle">
+                                    <label class="form-check-label" for="excludeTableToggle">
+                                        --exclude-table
+                                        <i class="bi bi-question-circle param-tooltip"
+                                           data-bs-toggle="tooltip" data-bs-placement="top"
+                                           title="Do not dump any table matching the pattern. The pattern is matched against both schema-qualified and unqualified table names. Use * as wildcard (e.g. public.temp_* excludes all tables starting with temp_ in the public schema)."></i>
+                                    </label>
+                                </div>
+                                <div id="excludeTableInput" class="param-pattern-input" style="display: none;">
+                                    <input type="text" class="form-control form-control-sm" id="excludeTable"
+                                           placeholder="e.g. public.audit_log or temp_*">
+                                </div>
+                            </div>
+
+                            <div class="param-pattern-item">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="excludeTableDataToggle">
+                                    <label class="form-check-label" for="excludeTableDataToggle">
+                                        --exclude-table-data
+                                        <i class="bi bi-question-circle param-tooltip"
+                                           data-bs-toggle="tooltip" data-bs-placement="top"
+                                           title="Do not dump data for any table matching the pattern. The table structure (DDL) is still included in the dump. Useful for excluding large audit/log tables while keeping their schema definition."></i>
+                                    </label>
+                                </div>
+                                <div id="excludeTableDataInput" class="param-pattern-input" style="display: none;">
+                                    <input type="text" class="form-control form-control-sm" id="excludeTableData"
+                                           placeholder="e.g. public.audit_log or logs_*">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="backupBtn">
+                        <i class="bi bi-play"></i> Start Backup
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-terminal"></i> Output
+            </div>
+            <div class="card-body">
+                <div id="progressContainer" style="display: none;">
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                             id="progressBar" role="progressbar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div id="output" class="output-console"></div>
+                <div id="resultContainer" style="display: none;" class="mt-3">
+                    <div class="alert" id="resultAlert"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const endpointSelect = document.getElementById('endpoint');
+    const databaseSelect = document.getElementById('database');
+    const backupFilenameInput = document.getElementById('backupFilename');
+    const backupForm = document.getElementById('backupForm');
+    const output = document.getElementById('output');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const resultContainer = document.getElementById('resultContainer');
+    const resultAlert = document.getElementById('resultAlert');
+    const dbLoadingIndicator = document.getElementById('dbLoadingIndicator');
+    const schemaModeToggle = document.getElementById('schemaModeToggle');
+    const schemaSelector = document.getElementById('schemaSelector');
+    const schemaChipsContainer = document.getElementById('schemaChipsContainer');
+    const schemaCountBadge = document.getElementById('schemaCountBadge');
+    const selectedSchemasSummary = document.getElementById('selectedSchemasSummary');
+    const selectedSchemasText = document.getElementById('selectedSchemasText');
+    const ssmInfoBadge = document.getElementById('ssmInfoBadge');
+    const ssmJumphostAlias = document.getElementById('ssmJumphostAlias');
+    const advancedParamsToggle = document.getElementById('advancedParamsToggle');
+    const advancedParamsPanel = document.getElementById('advancedParamsPanel');
+    const dataOnlyToggle = document.getElementById('dataOnly');
+    const schemaOnlyToggle = document.getElementById('schemaOnly');
+    const excludeTableToggle = document.getElementById('excludeTableToggle');
+    const excludeTableDataToggle = document.getElementById('excludeTableDataToggle');
+    const excludeTableInput = document.getElementById('excludeTableInput');
+    const excludeTableDataInput = document.getElementById('excludeTableDataInput');
+
+    let selectedSchemas = new Set();
+    let availableSchemas = [];
+
+    // =========================================================================
+    // SSM Tunnel Info
+    // =========================================================================
+
+    function updateSsmInfo() {
+        const selectedOption = endpointSelect.options[endpointSelect.selectedIndex];
+        if (!selectedOption || !selectedOption.value) {
+            ssmInfoBadge.style.display = 'none';
+            return;
+        }
+
+        const usesSsm = selectedOption.getAttribute('data-use-ssm') === 'true';
+        const jumphostAlias = selectedOption.getAttribute('data-jumphost') || '';
+
+        if (usesSsm) {
+            ssmJumphostAlias.textContent = jumphostAlias || 'N/A';
+            ssmInfoBadge.style.display = 'block';
+        } else {
+            ssmInfoBadge.style.display = 'none';
+        }
+    }
+
+    // =========================================================================
+    // Backup Filename Generation
+    // =========================================================================
+
+    function generateBackupFilename(database) {
+        const now = new Date();
+        const timestamp = now.getFullYear().toString() +
+            String(now.getMonth() + 1).padStart(2, '0') +
+            String(now.getDate()).padStart(2, '0') + '_' +
+            String(now.getHours()).padStart(2, '0') +
+            String(now.getMinutes()).padStart(2, '0') +
+            String(now.getSeconds()).padStart(2, '0');
+
+        // If schema mode is active and schemas are selected, add schema info to filename
+        if (schemaModeToggle.checked && selectedSchemas.size > 0) {
+            if (selectedSchemas.size === 1) {
+                const schemaName = [...selectedSchemas][0];
+                return `${database}_${schemaName}_${timestamp}.backup`;
+            } else {
+                return `${database}_${selectedSchemas.size}schemas_${timestamp}.backup`;
+            }
+        }
+        return `${database}_${timestamp}.backup`;
+    }
+
+    function updateBackupFilename() {
+        const database = databaseSelect.value;
+        if (database) {
+            backupFilenameInput.value = generateBackupFilename(database);
+            backupFilenameInput.disabled = false;
+        } else {
+            backupFilenameInput.value = '';
+            backupFilenameInput.placeholder = 'Select a database to generate filename...';
+            backupFilenameInput.disabled = true;
+        }
+    }
+
+    // =========================================================================
+    // Schema Selection
+    // =========================================================================
+
+    function updateSchemaCountBadge() {
+        if (selectedSchemas.size > 0) {
+            schemaCountBadge.textContent = selectedSchemas.size;
+            schemaCountBadge.style.display = 'inline-flex';
+            selectedSchemasSummary.classList.add('visible');
+            selectedSchemasText.textContent = `${selectedSchemas.size} schema(s) selected: ${[...selectedSchemas].join(', ')}`;
+        } else {
+            schemaCountBadge.style.display = 'none';
+            selectedSchemasSummary.classList.remove('visible');
+        }
+        updateBackupFilename();
+    }
+
+    function toggleSchemaSelection(schemaName, chipElement) {
+        if (selectedSchemas.has(schemaName)) {
+            selectedSchemas.delete(schemaName);
+            chipElement.classList.remove('selected');
+        } else {
+            selectedSchemas.add(schemaName);
+            chipElement.classList.add('selected');
+        }
+        updateSchemaCountBadge();
+    }
+
+    function selectAllSchemas() {
+        availableSchemas.forEach(schema => {
+            selectedSchemas.add(schema.name);
+        });
+        document.querySelectorAll('.schema-chip').forEach(chip => {
+            chip.classList.add('selected');
+        });
+        updateSchemaCountBadge();
+    }
+
+    function clearSchemaSelection() {
+        selectedSchemas.clear();
+        document.querySelectorAll('.schema-chip').forEach(chip => {
+            chip.classList.remove('selected');
+        });
+        updateSchemaCountBadge();
+    }
+
+    function renderSchemaChips() {
+        schemaChipsContainer.innerHTML = '';
+
+        if (availableSchemas.length === 0) {
+            schemaChipsContainer.innerHTML = '<div class="schema-empty"><i class="bi bi-inbox"></i>No schemas found</div>';
+            return;
+        }
+
+        availableSchemas.forEach(schema => {
+            const chip = document.createElement('div');
+            chip.className = 'schema-chip';
+            if (selectedSchemas.has(schema.name)) {
+                chip.classList.add('selected');
+            }
+            chip.innerHTML = `
+                <i class="bi bi-layers"></i>
+                <span class="schema-name">${schema.name}</span>
+            `;
+            chip.onclick = () => toggleSchemaSelection(schema.name, chip);
+            schemaChipsContainer.appendChild(chip);
+        });
+    }
+
+    async function loadSchemas(endpointName, database) {
+        schemaChipsContainer.innerHTML = '<div class="schema-loading"><span class="spinner-border spinner-border-sm"></span> Loading schemas...</div>';
+        selectedSchemas.clear();
+        updateSchemaCountBadge();
+
+        try {
+            const response = await apiCall(`/api/schemas/${endpointName}/${database}`);
+
+            if (!response.success) {
+                schemaChipsContainer.innerHTML = `<div class="schema-empty"><i class="bi bi-exclamation-triangle"></i>Error: ${response.error}</div>`;
+                availableSchemas = [];
+            } else {
+                availableSchemas = response.schemas || [];
+                renderSchemaChips();
+            }
+        } catch (e) {
+            schemaChipsContainer.innerHTML = '<div class="schema-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load schemas</div>';
+            availableSchemas = [];
+        }
+    }
+
+    // =========================================================================
+    // Database Loading
+    // =========================================================================
+
+    async function loadDatabases(endpointName) {
+        databaseSelect.disabled = true;
+        databaseSelect.innerHTML = '<option value="">Loading...</option>';
+        dbLoadingIndicator.style.display = 'block';
+        backupFilenameInput.value = '';
+        backupFilenameInput.disabled = true;
+        // Reset schema selector
+        availableSchemas = [];
+        selectedSchemas.clear();
+        schemaChipsContainer.innerHTML = '';
+        updateSchemaCountBadge();
+
+        try {
+            const response = await apiCall(`/api/databases/${endpointName}`);
+            databaseSelect.innerHTML = '<option value="">Select database...</option>';
+
+            if (!response.success) {
+                databaseSelect.innerHTML += `<option value="" disabled>Error: ${response.error}</option>`;
+                showToast(`Failed to load databases: ${response.error}`, 'error');
+            } else if (response.databases.length === 0) {
+                databaseSelect.innerHTML += '<option value="" disabled>No databases found</option>';
+            } else {
+                response.databases.forEach(db => {
+                    const option = document.createElement('option');
+                    option.value = db.name;
+                    option.textContent = `${db.name} (${db.size})`;
+                    databaseSelect.appendChild(option);
+                });
+                databaseSelect.disabled = false;
+            }
+        } catch (e) {
+            databaseSelect.innerHTML = '<option value="">Error loading databases</option>';
+            showToast('Failed to load databases', 'error');
+        } finally {
+            dbLoadingIndicator.style.display = 'none';
+        }
+    }
+
+    // =========================================================================
+    // Event Listeners
+    // =========================================================================
+
+    // Toggle schema mode visibility
+    schemaModeToggle.addEventListener('change', function() {
+        if (this.checked) {
+            schemaSelector.classList.add('visible');
+            // Load schemas if database is selected
+            const endpointName = endpointSelect.value;
+            const database = databaseSelect.value;
+            if (endpointName && database) {
+                loadSchemas(endpointName, database);
+            }
+        } else {
+            schemaSelector.classList.remove('visible');
+            selectedSchemas.clear();
+            updateSchemaCountBadge();
+        }
+        updateBackupFilename();
+    });
+
+    endpointSelect.addEventListener('change', async function() {
+        const endpointName = endpointSelect.value;
+
+        // Update SSM info badge
+        updateSsmInfo();
+
+        if (endpointName) {
+            await loadDatabases(endpointName);
+        } else {
+            databaseSelect.innerHTML = '<option value="">Select database...</option>';
+            databaseSelect.disabled = true;
+            backupFilenameInput.value = '';
+            backupFilenameInput.disabled = true;
+        }
+    });
+
+    databaseSelect.addEventListener('change', async function() {
+        updateBackupFilename();
+        // Load schemas if schema mode is active
+        if (schemaModeToggle.checked) {
+            const endpointName = endpointSelect.value;
+            const database = databaseSelect.value;
+            if (endpointName && database) {
+                await loadSchemas(endpointName, database);
+            } else {
+                schemaChipsContainer.innerHTML = '';
+                availableSchemas = [];
+                selectedSchemas.clear();
+                updateSchemaCountBadge();
+            }
+        }
+    });
+
+    // =========================================================================
+    // Advanced Parameters
+    // =========================================================================
+
+    advancedParamsToggle.addEventListener('change', function() {
+        if (this.checked) {
+            advancedParamsPanel.classList.add('visible');
+        } else {
+            advancedParamsPanel.classList.remove('visible');
+        }
+    });
+
+    // Mutual exclusivity: data-only vs schema-only
+    dataOnlyToggle.addEventListener('change', function() {
+        if (this.checked) {
+            schemaOnlyToggle.checked = false;
+        }
+    });
+
+    schemaOnlyToggle.addEventListener('change', function() {
+        if (this.checked) {
+            dataOnlyToggle.checked = false;
+        }
+    });
+
+    // Pattern input visibility toggles
+    excludeTableToggle.addEventListener('change', function() {
+        excludeTableInput.style.display = this.checked ? 'block' : 'none';
+        if (!this.checked) {
+            document.getElementById('excludeTable').value = '';
+        }
+    });
+
+    excludeTableDataToggle.addEventListener('change', function() {
+        excludeTableDataInput.style.display = this.checked ? 'block' : 'none';
+        if (!this.checked) {
+            document.getElementById('excludeTableData').value = '';
+        }
+    });
+
+    // Initialize Bootstrap tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        new bootstrap.Tooltip(el);
+    });
+
+    // =========================================================================
+    // Backup Form Submission (WebSocket)
+    // =========================================================================
+
+    backupForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const endpointName = endpointSelect.value;
+        const database = databaseSelect.value;
+        const backupFilename = backupFilenameInput.value.trim();
+
+        if (!endpointName || !database) {
+            showToast('Please select endpoint and database', 'error');
+            return;
+        }
+
+        if (!backupFilename) {
+            showToast('Please enter a backup filename', 'error');
+            return;
+        }
+
+        if (!backupFilename.endsWith('.backup')) {
+            showToast('Filename must end with .backup extension', 'error');
+            return;
+        }
+
+        // Validate schema selection if schema mode is active
+        if (schemaModeToggle.checked && selectedSchemas.size === 0) {
+            showToast('Please select at least one schema or disable Schema Mode', 'error');
+            return;
+        }
+
+        // Validate mutual exclusivity
+        if (document.getElementById('dataOnly').checked && document.getElementById('schemaOnly').checked) {
+            showToast('Data Only and Schema Only are mutually exclusive', 'error');
+            return;
+        }
+
+        // Validate exclude patterns if enabled
+        if (excludeTableToggle.checked) {
+            const pattern = document.getElementById('excludeTable').value.trim();
+            if (!pattern) {
+                showToast('Please enter an exclude-table pattern or disable the toggle', 'error');
+                return;
+            }
+            if (!/^[a-zA-Z0-9_\-\.\*\?]+$/.test(pattern)) {
+                showToast('Exclude-table pattern contains invalid characters', 'error');
+                return;
+            }
+        }
+
+        if (excludeTableDataToggle.checked) {
+            const pattern = document.getElementById('excludeTableData').value.trim();
+            if (!pattern) {
+                showToast('Please enter an exclude-table-data pattern or disable the toggle', 'error');
+                return;
+            }
+            if (!/^[a-zA-Z0-9_\-\.\*\?]+$/.test(pattern)) {
+                showToast('Exclude-table-data pattern contains invalid characters', 'error');
+                return;
+            }
+        }
+
+        output.innerHTML = '';
+        progressContainer.style.display = 'block';
+        resultContainer.style.display = 'none';
+        document.getElementById('backupBtn').disabled = true;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}${BASE_PATH}/ws/backup`);
+
+        ws.onopen = function() {
+            const payload = {
+                endpoint_name: endpointName,
+                database: database,
+                backup_filename: backupFilename,
+                large_objects: document.getElementById('largeObjects').checked,
+                no_owner: document.getElementById('noOwner').checked,
+                no_privileges: document.getElementById('noPrivileges').checked,
+                no_tablespaces: document.getElementById('noTablespaces').checked,
+                no_comments: document.getElementById('noComments').checked,
+                data_only: document.getElementById('dataOnly').checked,
+                schema_only: document.getElementById('schemaOnly').checked,
+                clean: document.getElementById('cleanFlag').checked,
+                create: document.getElementById('createFlag').checked,
+            };
+
+            // Add exclude-table pattern if enabled and non-empty
+            if (excludeTableToggle.checked) {
+                const excludeTable = document.getElementById('excludeTable').value.trim();
+                if (excludeTable) {
+                    payload.exclude_table = excludeTable;
+                }
+            }
+
+            // Add exclude-table-data pattern if enabled and non-empty
+            if (excludeTableDataToggle.checked) {
+                const excludeTableData = document.getElementById('excludeTableData').value.trim();
+                if (excludeTableData) {
+                    payload.exclude_table_data = excludeTableData;
+                }
+            }
+
+            // Add schemas if schema mode is active
+            if (schemaModeToggle.checked && selectedSchemas.size > 0) {
+                payload.schemas = [...selectedSchemas];
+            }
+
+            ws.send(JSON.stringify(payload));
+        };
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'output' || data.type === 'progress') {
+                output.innerHTML += `<div>${escapeHtml(data.message)}</div>`;
+                output.scrollTop = output.scrollHeight;
+            } else if (data.type === 'complete') {
+                progressContainer.style.display = 'none';
+                resultContainer.style.display = 'block';
+
+                if (data.success) {
+                    resultAlert.className = 'alert alert-success';
+                    resultAlert.innerHTML = `
+                        <i class="bi bi-check-circle"></i> ${escapeHtml(data.message)}
+                        <br><small>File: ${escapeHtml(data.output_file)}</small>
+                        <br><small>Size: ${escapeHtml(data.file_size_human)}</small>
+                    `;
+                } else {
+                    resultAlert.className = 'alert alert-danger';
+                    resultAlert.innerHTML = `<i class="bi bi-x-circle"></i> ${escapeHtml(data.message)}`;
+                }
+
+                document.getElementById('backupBtn').disabled = false;
+            } else if (data.type === 'error') {
+                progressContainer.style.display = 'none';
+                resultContainer.style.display = 'block';
+                resultAlert.className = 'alert alert-danger';
+                resultAlert.innerHTML = `<i class="bi bi-x-circle"></i> ${escapeHtml(data.message)}`;
+                document.getElementById('backupBtn').disabled = false;
+            }
+        };
+
+        ws.onerror = function(error) {
+            progressContainer.style.display = 'none';
+            resultContainer.style.display = 'block';
+            resultAlert.className = 'alert alert-danger';
+            resultAlert.innerHTML = '<i class="bi bi-x-circle"></i> WebSocket error';
+            document.getElementById('backupBtn').disabled = false;
+        };
+    });
+
+    // =========================================================================
+    // Utilities
+    // =========================================================================
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}

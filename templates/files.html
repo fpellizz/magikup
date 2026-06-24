@@ -1,0 +1,740 @@
+{% extends "base.html" %}
+
+{% block title %}Backup Files - PostgreSQL Backup/Restore{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-folder-open"></i> Backup Files</h2>
+        <hr>
+    </div>
+</div>
+
+<!-- Storage Info Banner -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="storage-info-banner">
+            <div class="storage-info-item">
+                <i class="bi bi-folder-fill"></i>
+                <div>
+                    <span class="storage-label">Backup Directory</span>
+                    <span class="storage-value" title="{{ settings.backup_dir }}">{{ settings.backup_dir }}</span>
+                </div>
+            </div>
+            <div class="storage-info-item">
+                <i class="bi bi-cloud-upload-fill"></i>
+                <div>
+                    <span class="storage-label">Max Upload Size</span>
+                    <span class="storage-value">{{ settings.max_upload_size_gb }} GB</span>
+                </div>
+            </div>
+            <div class="storage-info-item" id="storageStatsInfo">
+                <i class="bi bi-hdd-fill"></i>
+                <div>
+                    <span class="storage-label">Total Storage Used</span>
+                    <span class="storage-value" id="totalStorageSize">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Backup Files Card -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-archive"></i> Backup Files</span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-success" onclick="document.getElementById('uploadFileInput').click()">
+                        <i class="bi bi-upload"></i> Upload Backup
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="loadBackups()" id="refreshBtn">
+                        <i class="bi bi-arrow-repeat"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+
+                    <!-- Upload Progress -->
+                    <div id="uploadProgress" style="display: none;" class="upload-progress-container mb-4">
+                        <div class="upload-progress-header">
+                            <div class="upload-progress-icon">
+                                <i class="bi bi-cloud-arrow-up"></i>
+                            </div>
+                            <div class="upload-progress-info">
+                                <span id="uploadStatus" class="upload-status">Uploading...</span>
+                                <span id="uploadPercent" class="upload-percent">0%</span>
+                            </div>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 id="uploadProgressBar"
+                                 role="progressbar"
+                                 style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden file input -->
+                    <input type="file" id="uploadFileInput" accept=".backup" style="display: none;" onchange="handleFileUpload(this.files[0])">
+
+                    <!-- Search/Filter -->
+                    <div class="files-toolbar mb-4">
+                        <div class="search-wrapper">
+                            <i class="bi bi-search search-icon"></i>
+                            <input type="text"
+                                   class="form-control search-input"
+                                   id="backupSearch"
+                                   placeholder="Search backups by name..."
+                                   onkeyup="filterBackups()">
+                        </div>
+                        <div class="files-count-badge" id="filesCountBadge" style="display: none;">
+                            <i class="bi bi-file-earmark-zip"></i>
+                            <span id="filesCountText">0 files</span>
+                        </div>
+                    </div>
+
+                    <!-- Backup Files Table -->
+                    <div class="table-responsive files-table-container">
+                        <table class="table table-hover" id="backupsTableContainer">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortBackups('name')">
+                                        <span class="th-content">
+                                            Filename
+                                            <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </span>
+                                    </th>
+                                    <th onclick="sortBackups('size')" class="text-end" style="width: 120px;">
+                                        <span class="th-content">
+                                            Size
+                                            <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </span>
+                                    </th>
+                                    <th onclick="sortBackups('modified')" style="width: 180px;">
+                                        <span class="th-content">
+                                            Modified
+                                            <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </span>
+                                    </th>
+                                    <th class="text-end" style="width: 130px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="backupsTable">
+                                <tr>
+                                    <td colspan="4">
+                                        <div class="files-loading">
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                            Loading backup files...
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="files-stats mt-3">
+                        <span id="backupStats"><i class="bi bi-info-circle"></i> Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Storage Info Banner */
+    .storage-info-banner {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        padding: 1.25rem 1.5rem;
+        background: var(--accent-gradient);
+        border-radius: 12px;
+        color: white;
+    }
+
+    .storage-info-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .storage-info-item > i {
+        font-size: 1.5rem;
+        opacity: 0.9;
+    }
+
+    .storage-info-item > div {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .storage-label {
+        font-size: 0.75rem;
+        opacity: 0.85;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .storage-value {
+        font-weight: 600;
+        font-size: 0.95rem;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Files Toolbar */
+    .files-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .search-wrapper {
+        position: relative;
+        flex: 1;
+        max-width: 400px;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .search-input {
+        padding-left: 2.75rem !important;
+    }
+
+    .files-count-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--bg-tertiary);
+        border-radius: 20px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .files-count-badge i {
+        color: var(--accent-primary);
+    }
+
+    /* Upload Progress */
+    .upload-progress-container {
+        background: var(--bg-tertiary);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .upload-progress-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .upload-progress-icon {
+        width: 48px;
+        height: 48px;
+        background: var(--accent-gradient);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.25rem;
+        animation: pulse 2s infinite;
+    }
+
+    .upload-progress-info {
+        flex: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .upload-status {
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .upload-percent {
+        font-weight: 700;
+        font-size: 1.25rem;
+        color: var(--accent-primary);
+    }
+
+    /* Files Table */
+    .files-table-container {
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+    }
+
+    .files-table-container .table {
+        margin-bottom: 0;
+    }
+
+    .files-table-container thead th {
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.2s ease;
+    }
+
+    .files-table-container thead th:hover {
+        background-color: var(--bg-secondary) !important;
+    }
+
+    .th-content {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+
+    .sort-icon {
+        font-size: 0.7rem;
+        opacity: 0.4;
+        transition: opacity 0.2s ease;
+    }
+
+    thead th:hover .sort-icon {
+        opacity: 0.8;
+    }
+
+    /* File Row */
+    .file-row {
+        transition: all 0.2s ease;
+    }
+
+    .file-row:hover {
+        background-color: var(--bg-tertiary) !important;
+    }
+
+    .file-info {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+    }
+
+    .file-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--accent-primary);
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .file-details {
+        min-width: 0;
+    }
+
+    .file-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 350px;
+    }
+
+    .file-size {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        background: var(--bg-tertiary);
+        padding: 0.25rem 0.625rem;
+        border-radius: 6px;
+    }
+
+    .file-date {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    .file-date i {
+        opacity: 0.7;
+    }
+
+    .file-actions {
+        display: flex;
+        gap: 0.375rem;
+        justify-content: flex-end;
+    }
+
+    .file-actions .btn {
+        padding: 0.375rem 0.625rem;
+    }
+
+    /* Files Stats */
+    .files-stats {
+        padding: 0.75rem 1rem;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .files-stats i {
+        margin-right: 0.375rem;
+    }
+
+    /* Empty State */
+    .files-empty-state {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: var(--text-muted);
+    }
+
+    .files-empty-state i {
+        font-size: 3.5rem;
+        margin-bottom: 1rem;
+        opacity: 0.3;
+        display: block;
+    }
+
+    .files-empty-state h6 {
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+
+    .files-empty-state p {
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+    }
+
+    /* Loading State */
+    .files-loading {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .storage-info-banner {
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .files-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .search-wrapper {
+            max-width: 100%;
+        }
+
+        .file-name {
+            max-width: 180px;
+        }
+
+        .file-info {
+            gap: 0.5rem;
+        }
+
+        .file-icon {
+            width: 36px;
+            height: 36px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Backup management variables
+    let allBackups = [];
+    let currentSort = { field: 'modified', ascending: false };
+
+    async function loadBackups() {
+        const backups = await apiCall('/api/backups');
+        allBackups = backups;
+        displayBackups(backups);
+        updateBackupStats();
+    }
+
+    function displayBackups(backups) {
+        const tbody = document.getElementById('backupsTable');
+        const filesCountBadge = document.getElementById('filesCountBadge');
+        const filesCountText = document.getElementById('filesCountText');
+
+        if (backups.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4">
+                        <div class="files-empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <h6>No backup files found</h6>
+                            <p>Upload a backup file to get started</p>
+                            <button class="btn btn-primary btn-sm" onclick="document.getElementById('uploadFileInput').click()">
+                                <i class="bi bi-upload me-1"></i> Upload Backup
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            filesCountBadge.style.display = 'none';
+            return;
+        }
+
+        // Show files count badge
+        filesCountBadge.style.display = 'flex';
+        filesCountText.textContent = `${backups.length} file${backups.length !== 1 ? 's' : ''}`;
+
+        tbody.innerHTML = backups.map(backup => `
+            <tr class="file-row">
+                <td>
+                    <div class="file-info">
+                        <div class="file-icon">
+                            <i class="bi bi-file-earmark-zip-fill"></i>
+                        </div>
+                        <div class="file-details">
+                            <span class="file-name" title="${backup.name}">${backup.name}</span>
+                        </div>
+                    </div>
+                </td>
+                <td class="text-end">
+                    <span class="file-size">${backup.size_human}</span>
+                </td>
+                <td>
+                    <span class="file-date">
+                        <i class="bi bi-clock me-1"></i>${formatDateTime(backup.modified)}
+                    </span>
+                </td>
+                <td class="text-end">
+                    <div class="file-actions">
+                        <button class="btn btn-sm btn-outline-primary"
+                                onclick="downloadBackup('${backup.name}')"
+                                title="Download">
+                            <i class="bi bi-download"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                onclick="deleteBackup('${backup.name}')"
+                                title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function formatDateTime(isoString) {
+        // Format: 2024-01-27 15:30:45
+        return isoString.substring(0, 19).replace('T', ' ');
+    }
+
+    function updateBackupStats() {
+        const statsEl = document.getElementById('backupStats');
+        const totalStorageEl = document.getElementById('totalStorageSize');
+
+        if (allBackups.length === 0) {
+            statsEl.innerHTML = '<i class="bi bi-info-circle"></i> No backups found';
+            totalStorageEl.textContent = '0 B';
+            return;
+        }
+
+        const totalSize = allBackups.reduce((sum, b) => sum + b.size, 0);
+        const totalSizeHuman = formatSize(totalSize);
+
+        statsEl.innerHTML = `<i class="bi bi-check-circle text-success"></i> ${allBackups.length} backup file${allBackups.length !== 1 ? 's' : ''} • Total size: <strong>${totalSizeHuman}</strong>`;
+        totalStorageEl.textContent = totalSizeHuman;
+    }
+
+    function formatSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let size = bytes;
+        let unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return `${size.toFixed(1)} ${units[unitIndex]}`;
+    }
+
+    function filterBackups() {
+        const searchTerm = document.getElementById('backupSearch').value.toLowerCase();
+
+        if (!searchTerm) {
+            displayBackups(allBackups);
+            return;
+        }
+
+        const filtered = allBackups.filter(b =>
+            b.name.toLowerCase().includes(searchTerm)
+        );
+
+        displayBackups(filtered);
+    }
+
+    function sortBackups(field) {
+        // Toggle sort direction if clicking same field
+        if (currentSort.field === field) {
+            currentSort.ascending = !currentSort.ascending;
+        } else {
+            currentSort.field = field;
+            currentSort.ascending = field === 'name'; // name ascending by default, others descending
+        }
+
+        const sorted = [...allBackups].sort((a, b) => {
+            let valA, valB;
+
+            if (field === 'size') {
+                valA = a.size;
+                valB = b.size;
+            } else if (field === 'modified') {
+                valA = new Date(a.modified);
+                valB = new Date(b.modified);
+            } else {
+                valA = a.name.toLowerCase();
+                valB = b.name.toLowerCase();
+            }
+
+            if (valA < valB) return currentSort.ascending ? -1 : 1;
+            if (valA > valB) return currentSort.ascending ? 1 : -1;
+            return 0;
+        });
+
+        displayBackups(sorted);
+    }
+
+    async function downloadBackup(filename) {
+        try {
+            showToast(`Downloading ${filename}...`, 'info');
+
+            // Create a temporary link and click it
+            const url = BASE_PATH + `/api/backups/${encodeURIComponent(filename)}/download`;
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Show toast after a delay
+            setTimeout(() => {
+                showToast('Download started', 'success');
+            }, 500);
+
+        } catch (error) {
+            showToast('Failed to download backup', 'error');
+        }
+    }
+
+    async function handleFileUpload(file) {
+        if (!file) return;
+
+        // Validate file extension
+        if (!file.name.endsWith('.backup')) {
+            showToast('Only .backup files are allowed', 'error');
+            return;
+        }
+
+        // Check file size
+        const maxSizeGB = {{ settings.max_upload_size_gb }};
+        const maxBytes = maxSizeGB * 1024 * 1024 * 1024;
+
+        if (file.size > maxBytes) {
+            showToast(`File is too large. Maximum size is ${maxSizeGB}GB`, 'error');
+            return;
+        }
+
+        // Show progress UI
+        const progressDiv = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('uploadProgressBar');
+        const statusText = document.getElementById('uploadStatus');
+        const percentText = document.getElementById('uploadPercent');
+
+        progressDiv.style.display = 'block';
+        progressBar.style.width = '0%';
+        statusText.textContent = `Uploading ${file.name}...`;
+        percentText.textContent = '0%';
+
+        // Create FormData
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Use XMLHttpRequest for progress tracking
+        const xhr = new XMLHttpRequest();
+
+        // Progress handler
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percentComplete = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percentComplete + '%';
+                percentText.textContent = percentComplete + '%';
+            }
+        });
+
+        // Success handler
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+                const result = JSON.parse(xhr.responseText);
+                showToast(`Uploaded ${result.filename} (${result.size_human})`, 'success');
+                progressDiv.style.display = 'none';
+                loadBackups(); // Reload the list
+            } else {
+                const error = JSON.parse(xhr.responseText);
+                showToast(`Upload failed: ${error.detail || 'Unknown error'}`, 'error');
+                progressDiv.style.display = 'none';
+            }
+
+            // Reset file input
+            document.getElementById('uploadFileInput').value = '';
+        });
+
+        // Error handler
+        xhr.addEventListener('error', () => {
+            showToast('Upload failed: Network error', 'error');
+            progressDiv.style.display = 'none';
+            document.getElementById('uploadFileInput').value = '';
+        });
+
+        // Send request
+        xhr.open('POST', BASE_PATH + '/api/backups/upload');
+        xhr.send(formData);
+    }
+
+    async function deleteBackup(filename) {
+        if (confirm(`Delete backup "${filename}"?\n\nThis action cannot be undone.`)) {
+            const result = await apiCall(`/api/backups/${encodeURIComponent(filename)}`, 'DELETE');
+            if (result.success) {
+                showToast('Backup deleted', 'success');
+                loadBackups();
+            } else {
+                showToast(result.error || 'Failed to delete backup', 'error');
+            }
+        }
+    }
+
+    // Auto-load backups when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadBackups();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,978 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - PostgreSQL Backup/Restore{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header with Storage Info -->
+<div class="row align-items-center mb-4">
+    <div class="col">
+        <h2 class="mb-0"><i class="bi bi-speedometer2"></i> Dashboard</h2>
+    </div>
+    <div class="col-auto">
+        <div class="storage-badge">
+            <i class="bi bi-hdd-stack"></i>
+            <span class="storage-value">{{ backup_stats.total_size_human }}</span>
+            <span class="storage-label">{{ backup_stats.count }} file(s)</span>
+        </div>
+    </div>
+</div>
+<hr class="mt-0 mb-4">
+
+<!-- Quick Actions - Full Width Row (hidden for viewers) -->
+{% if user_role != 'viewer' %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h5 class="section-title"><i class="bi bi-lightning-charge"></i> Quick Actions</h5>
+        <div class="quick-actions-grid">
+            <a href="{{ base_path }}/backup" class="action-card-horizontal">
+                <div class="action-icon backup">
+                    <i class="bi bi-download"></i>
+                </div>
+                <div class="action-content">
+                    <h6>Backup Database</h6>
+                    <p>Export a database to a backup file</p>
+                </div>
+                <i class="bi bi-chevron-right action-arrow"></i>
+            </a>
+
+            <a href="{{ base_path }}/restore" class="action-card-horizontal">
+                <div class="action-icon restore">
+                    <i class="bi bi-upload"></i>
+                </div>
+                <div class="action-content">
+                    <h6>Restore Database</h6>
+                    <p>Import a backup file to a database</p>
+                </div>
+                <i class="bi bi-chevron-right action-arrow"></i>
+            </a>
+
+            <a href="{{ base_path }}/transfer" class="action-card-horizontal">
+                <div class="action-icon transfer">
+                    <i class="bi bi-arrow-left-right"></i>
+                </div>
+                <div class="action-content">
+                    <h6>Transfer Database</h6>
+                    <p>Backup and restore in one step</p>
+                </div>
+                <i class="bi bi-chevron-right action-arrow"></i>
+            </a>
+
+            <a href="{{ base_path }}/files" class="action-card-horizontal">
+                <div class="action-icon files">
+                    <i class="bi bi-folder2-open"></i>
+                </div>
+                <div class="action-content">
+                    <h6>Manage Files</h6>
+                    <p>Upload, download and delete backups</p>
+                </div>
+                <i class="bi bi-chevron-right action-arrow"></i>
+            </a>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info d-flex align-items-center" role="alert">
+            <i class="bi bi-info-circle me-2"></i>
+            <span>You have <strong>Viewer</strong> access. You can monitor operations and endpoints but cannot run backups, restores, or transfers.</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Main Content: Database Endpoints (Left) + Recent Operations (Right) -->
+<div class="row">
+    <!-- Database Endpoints - Left Side -->
+    <div class="col-lg-4 col-md-5 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="section-title mb-0"><i class="bi bi-database"></i> Database Endpoints</h5>
+            {% if user_role == 'admin' %}
+            <a href="{{ base_path }}/admin" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus"></i> Add
+            </a>
+            {% endif %}
+        </div>
+        <div class="card endpoints-card">
+            <div class="card-body p-0">
+                {% if endpoints %}
+                <div class="endpoints-list">
+                    {% for name, endpoint in endpoints.items() %}
+                    <div class="endpoint-item">
+                        <div class="endpoint-status">
+                            <span class="status-dot active"></span>
+                        </div>
+                        <div class="endpoint-info">
+                            <div class="endpoint-name">{{ name }}</div>
+                            <div class="endpoint-details">
+                                <span class="endpoint-host" title="{{ endpoint.host }}:{{ endpoint.port }}">
+                                    <i class="bi bi-server"></i> {{ endpoint.host }}:{{ endpoint.port }}
+                                </span>
+                                <span class="endpoint-user">
+                                    <i class="bi bi-person"></i> {{ endpoint.username }}
+                                </span>
+                            </div>
+                        </div>
+                        {% if user_role != 'viewer' %}
+                        <div class="endpoint-actions">
+                            <a href="{{ base_path }}/backup" class="btn btn-sm btn-outline-primary" title="Backup">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            <a href="{{ base_path }}/restore" class="btn btn-sm btn-outline-success" title="Restore">
+                                <i class="bi bi-upload"></i>
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-database-x"></i>
+                    <h6>No endpoints configured</h6>
+                    <p>Add your first database endpoint to get started</p>
+                    <a href="{{ base_path }}/admin" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add Endpoint
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if endpoints %}
+        <div class="endpoints-summary">
+            <span><i class="bi bi-check-circle text-success"></i> {{ endpoints|length }} endpoint(s) ready</span>
+            {% if user_role == 'admin' %}
+            <a href="{{ base_path }}/admin" class="text-decoration-none">Manage <i class="bi bi-arrow-right"></i></a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Operations - Right Side -->
+    <div class="col-lg-8 col-md-7 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="section-title mb-0"><i class="bi bi-clock-history"></i> Recent Operations</h5>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small" id="operationsRefreshTime"></span>
+                <button class="btn btn-sm btn-outline-danger" onclick="clearOperationsHistory()" title="Clear history" id="clearHistoryBtn" style="display: none;">
+                    <i class="bi bi-trash3"></i> Clear
+                </button>
+            </div>
+        </div>
+        <div class="card operations-card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover operations-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Endpoint / Database</th>
+                                <th style="width: 100px;">Started</th>
+                                <th style="width: 90px;">Status</th>
+                                <th style="width: 90px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="operationsTableBody">
+                            <tr>
+                                <td colspan="5">
+                                    <div class="operations-loading">
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                        Loading operations...
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Operation Console Modal -->
+<div class="modal fade" id="operationConsoleModal" tabindex="-1" aria-labelledby="operationConsoleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="operationConsoleModalLabel">
+                        <i class="bi bi-terminal me-2"></i>Operation Console
+                    </h5>
+                    <small class="text-muted" id="consoleOperationInfo"></small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span id="consoleLiveIndicator" class="badge bg-danger" style="display: none;">
+                        <span class="spinner-border spinner-border-sm" style="width: 0.6rem; height: 0.6rem;"></span>
+                        LIVE
+                    </span>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0">
+                <div id="consoleOutput" class="output-console" style="height: 450px; margin: 0; border-radius: 0;"></div>
+            </div>
+            <div class="modal-footer">
+                <span id="consoleStatusText" class="me-auto text-muted small"></span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Section Titles */
+    .section-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .section-title i {
+        color: var(--accent-primary);
+        margin-right: 0.5rem;
+    }
+
+    /* Storage Badge (header) */
+    .storage-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--accent-gradient);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 10px;
+        font-size: 0.85rem;
+    }
+
+    .storage-badge i {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+
+    .storage-value {
+        font-weight: 700;
+    }
+
+    .storage-label {
+        opacity: 0.8;
+        font-size: 0.75rem;
+    }
+
+    /* Quick Actions Grid - Full Width */
+    .quick-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.75rem;
+    }
+
+    .action-card-horizontal {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem 1rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        text-decoration: none;
+        color: var(--text-primary);
+        transition: all 0.2s ease;
+    }
+
+    .action-card-horizontal:hover {
+        border-color: var(--accent-primary);
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+        color: var(--text-primary);
+    }
+
+    .action-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+
+    .action-icon.backup {
+        background: rgba(99, 102, 241, 0.15);
+        color: #6366f1;
+    }
+
+    .action-icon.restore {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .action-icon.transfer {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+
+    .action-icon.files {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+    }
+
+    .action-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .action-content h6 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .action-content p {
+        margin: 0;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .action-arrow {
+        color: var(--text-muted);
+        transition: transform 0.2s ease;
+    }
+
+    .action-card-horizontal:hover .action-arrow {
+        transform: translateX(4px);
+        color: var(--accent-primary);
+    }
+
+    /* Endpoints Card */
+    .endpoints-card {
+        border: 1px solid var(--border-color);
+    }
+
+    .endpoints-list {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .endpoint-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border-light);
+        transition: background 0.15s ease;
+    }
+
+    .endpoint-item:last-child {
+        border-bottom: none;
+    }
+
+    .endpoint-item:hover {
+        background: var(--bg-tertiary);
+    }
+
+    .endpoint-status {
+        flex-shrink: 0;
+    }
+
+    .status-dot {
+        display: block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--text-muted);
+    }
+
+    .status-dot.active {
+        background: var(--success);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+
+    .endpoint-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .endpoint-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--text-primary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .endpoint-details {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-top: 0.2rem;
+    }
+
+    .endpoint-host,
+    .endpoint-user {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .endpoint-host {
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .endpoint-host i,
+    .endpoint-user i {
+        margin-right: 0.25rem;
+    }
+
+    .endpoint-actions {
+        display: flex;
+        gap: 0.375rem;
+        flex-shrink: 0;
+    }
+
+    .endpoint-actions .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 2rem 1.5rem;
+        color: var(--text-muted);
+    }
+
+    .empty-state i {
+        font-size: 2.5rem;
+        margin-bottom: 0.75rem;
+        opacity: 0.5;
+    }
+
+    .empty-state h6 {
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+        margin-bottom: 1rem;
+        font-size: 0.85rem;
+    }
+
+    /* Endpoints Summary */
+    .endpoints-summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 0.5rem;
+        padding: 0 0.25rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .endpoints-summary a {
+        color: var(--accent-primary);
+    }
+
+    .endpoints-summary a:hover {
+        text-decoration: underline !important;
+    }
+
+    /* Operations History */
+    .operations-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+
+    .operations-table thead th {
+        background-color: var(--bg-secondary);
+        color: var(--text-secondary);
+        font-weight: 600;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0.625rem 0.75rem;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .operations-table tbody td {
+        padding: 0.625rem 0.75rem;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.85rem;
+    }
+
+    .operations-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .operations-table tbody tr:hover {
+        background-color: var(--bg-tertiary) !important;
+    }
+
+    .operation-type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .operation-type-backup {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+    }
+
+    .operation-type-restore {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .operation-type-transfer {
+        background: rgba(139, 92, 246, 0.15);
+        color: #8b5cf6;
+    }
+
+    .operation-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .operation-status-completed {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .operation-status-failed {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+    }
+
+    .operation-status-cancelled {
+        background: rgba(156, 163, 175, 0.15);
+        color: #9ca3af;
+    }
+
+    .operation-status-running {
+        background: rgba(251, 191, 36, 0.15);
+        color: #fbbf24;
+    }
+
+    .operation-status-running .spinner-border {
+        width: 0.65rem;
+        height: 0.65rem;
+        border-width: 2px;
+    }
+
+    .operations-loading {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+    }
+
+    .operations-empty {
+        text-align: center;
+        padding: 2rem 1.5rem;
+        color: var(--text-muted);
+    }
+
+    .operations-empty i {
+        font-size: 2.5rem;
+        margin-bottom: 0.75rem;
+        opacity: 0.3;
+        display: block;
+    }
+
+    .operations-empty h6 {
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .op-endpoint-db {
+        line-height: 1.3;
+    }
+
+    .op-endpoint-db .op-endpoint {
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .op-endpoint-db .op-database {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    /* Responsive */
+    @media (max-width: 991px) {
+        .quick-actions-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .quick-actions-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .storage-badge {
+            font-size: 0.75rem;
+            padding: 0.375rem 0.75rem;
+        }
+
+        .endpoint-item {
+            flex-wrap: wrap;
+        }
+
+        .endpoint-actions {
+            width: 100%;
+            margin-top: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        .endpoint-details {
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .operations-table {
+            font-size: 0.8rem;
+        }
+
+        .operations-table thead th,
+        .operations-table tbody td {
+            padding: 0.5rem 0.375rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ============================================
+    // Operations History
+    // ============================================
+
+    async function loadOperationsHistory() {
+        const tbody = document.getElementById('operationsTableBody');
+        const refreshTime = document.getElementById('operationsRefreshTime');
+        const clearBtn = document.getElementById('clearHistoryBtn');
+
+        try {
+            const response = await fetch(BASE_PATH + '/api/operations?limit=10');
+            const data = await response.json();
+
+            _adjustPollingRate(data.operations || []);
+
+            if (data.success && data.operations && data.operations.length > 0) {
+                // Show clear button only if there are non-running operations
+                const hasFinished = data.operations.some(op => op.status !== 'running');
+                clearBtn.style.display = hasFinished ? 'inline-flex' : 'none';
+
+                tbody.innerHTML = data.operations.map(op => {
+                    const startedDate = new Date(op.started_at);
+                    const typeClass = `operation-type-${op.type}`;
+                    const statusClass = `operation-status-${op.status}`;
+
+                    let statusIcon = '';
+                    let statusLabel = '';
+                    let errorHint = '';
+                    if (op.status === 'running') {
+                        statusIcon = '<span class="spinner-border"></span>';
+                        statusLabel = 'Running';
+                    } else if (op.status === 'completed') {
+                        statusIcon = '<i class="bi bi-check-circle-fill"></i>';
+                        statusLabel = 'Success';
+                    } else if (op.status === 'cancelled') {
+                        statusIcon = '<i class="bi bi-slash-circle-fill"></i>';
+                        statusLabel = 'Cancelled';
+                    } else if (op.status === 'failed') {
+                        statusIcon = '<i class="bi bi-x-circle-fill"></i>';
+                        statusLabel = 'Failed';
+                        if (op.error) {
+                            errorHint = `<br><small class="text-danger text-truncate d-inline-block" style="max-width: 200px;" title="${escapeAttr(op.error)}">${escapeHtml(op.error)}</small>`;
+                        }
+                    }
+
+                    return `
+                        <tr>
+                            <td>
+                                <span class="operation-type-badge ${typeClass}">
+                                    <i class="bi bi-${op.type === 'backup' ? 'download' : op.type === 'restore' ? 'upload' : 'arrow-left-right'}"></i>
+                                    ${op.type}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="op-endpoint-db">
+                                    <div class="op-endpoint text-truncate" style="max-width: 200px;" title="${escapeAttr(op.endpoint)}">${escapeHtml(op.endpoint)}</div>
+                                    <div class="op-database text-truncate" style="max-width: 200px;" title="${escapeAttr(op.database)}">${escapeHtml(op.database)}</div>
+                                </div>
+                            </td>
+                            <td>
+                                <small class="text-muted">${formatDateTime(startedDate)}</small>
+                            </td>
+                            <td>
+                                <span class="operation-status-badge ${statusClass}">${statusIcon} ${statusLabel}</span>
+                                ${errorHint}
+                            </td>
+                            <td>
+                                ${op.status === 'running' ? `
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-warning"
+                                            onclick="watchOperation('${op.operation_id}', '${op.type}', '${escapeAttr(op.endpoint)}', '${escapeAttr(op.database)}', '${op.status}')"
+                                            title="Watch Live">
+                                        <i class="bi bi-terminal"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger"
+                                            onclick="cancelOperation('${op.operation_id}')"
+                                            title="Cancel">
+                                        <i class="bi bi-stop-fill"></i>
+                                    </button>
+                                </div>
+                                ` : `
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            onclick="watchOperation('${op.operation_id}', '${op.type}', '${escapeAttr(op.endpoint)}', '${escapeAttr(op.database)}', '${op.status}')"
+                                            title="View Log">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            onclick="downloadOperationLog('${op.operation_id}')"
+                                            title="Download Log">
+                                        <i class="bi bi-file-earmark-text"></i>
+                                    </button>
+                                </div>
+                                `}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                refreshTime.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+            } else {
+                clearBtn.style.display = 'none';
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5">
+                            <div class="operations-empty">
+                                <i class="bi bi-clock-history"></i>
+                                <h6>No operations yet</h6>
+                                <p>Start a backup, restore, or transfer to see operations here</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                refreshTime.textContent = '';
+            }
+        } catch (error) {
+            console.error('Error loading operations:', error);
+            clearBtn.style.display = 'none';
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Failed to load operations
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    function formatDateTime(date) {
+        const now = new Date();
+        const diff = now - date;
+        const seconds = Math.floor(diff / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+
+        if (seconds < 60) return 'Just now';
+        if (minutes < 60) return `${minutes}m ago`;
+        if (hours < 24) return `${hours}h ago`;
+        if (days < 7) return `${days}d ago`;
+
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    }
+
+    function downloadOperationLog(operationId) {
+        window.location.href = BASE_PATH + `/api/operations/${operationId}/log`;
+    }
+
+    async function cancelOperation(operationId) {
+        if (!confirm('Are you sure you want to cancel this operation?')) return;
+        try {
+            const response = await fetch(BASE_PATH + `/api/operations/${operationId}/cancel`, { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Cancel signal sent', 'success');
+            } else {
+                showToast(data.detail || 'Failed to cancel', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to cancel operation', 'error');
+        }
+    }
+
+    async function clearOperationsHistory() {
+        if (!confirm('Clear all completed operations from history? Running operations will be preserved.')) return;
+        try {
+            const response = await fetch(BASE_PATH + '/api/operations/clear', { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast(`Cleared ${data.removed} operation(s)`, 'success');
+                loadOperationsHistory();
+            } else {
+                showToast(data.detail || 'Failed to clear history', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to clear operations history', 'error');
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function escapeAttr(text) {
+        return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    // ============================================
+    // Watch / View Log
+    // ============================================
+
+    let consoleWs = null;
+
+    function watchOperation(operationId, type, endpoint, database, status) {
+        const consoleOutput = document.getElementById('consoleOutput');
+        const consoleInfo = document.getElementById('consoleOperationInfo');
+        const liveIndicator = document.getElementById('consoleLiveIndicator');
+        const statusText = document.getElementById('consoleStatusText');
+
+        // Reset modal
+        consoleOutput.innerHTML = '';
+        consoleInfo.textContent = `${type.toUpperCase()} \u2022 ${endpoint} \u2022 ${database}`;
+        statusText.textContent = status === 'running' ? 'Connecting...' : 'Loading log...';
+        liveIndicator.style.display = status === 'running' ? 'inline-flex' : 'none';
+
+        // Close any previous WebSocket
+        if (consoleWs) {
+            consoleWs.close();
+            consoleWs = null;
+        }
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('operationConsoleModal'));
+        modal.show();
+
+        // Connect to follow endpoint
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        consoleWs = new WebSocket(`${protocol}//${window.location.host}${BASE_PATH}/ws/operation/${operationId}/follow`);
+
+        consoleWs.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            // For transfer operations, "complete" messages with phase "backup" or "restore"
+            // are intermediate — treat them as output, not as the final result.
+            const isFinalComplete = data.type === 'complete' &&
+                (!data.phase || data.phase === 'transfer');
+
+            if (data.type === 'output' || data.type === 'progress' ||
+                (data.type === 'complete' && !isFinalComplete)) {
+                const line = document.createElement('div');
+                if (data.type === 'complete') {
+                    line.className = data.success ? 'text-success' : 'text-warning';
+                    line.innerHTML = `<i class="bi bi-${data.success ? 'check-circle' : 'exclamation-triangle'} me-1"></i>${escapeHtml(data.message)}`;
+                } else {
+                    line.textContent = data.message;
+                }
+                consoleOutput.appendChild(line);
+                consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            } else if (isFinalComplete) {
+                liveIndicator.style.display = 'none';
+                if (data.success) {
+                    statusText.innerHTML = '<i class="bi bi-check-circle text-success me-1"></i> Operation completed successfully';
+                    const line = document.createElement('div');
+                    line.className = 'text-success fw-bold';
+                    line.textContent = data.message;
+                    consoleOutput.appendChild(line);
+                } else {
+                    statusText.innerHTML = '<i class="bi bi-x-circle text-danger me-1"></i> Operation failed';
+                    const line = document.createElement('div');
+                    line.className = 'text-danger fw-bold';
+                    line.textContent = data.message;
+                    consoleOutput.appendChild(line);
+                }
+                consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                // Refresh the operations table
+                loadOperationsHistory();
+            } else if (data.type === 'error') {
+                liveIndicator.style.display = 'none';
+                statusText.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-1"></i> ' + escapeHtml(data.message);
+            }
+        };
+
+        consoleWs.onopen = function() {
+            if (status === 'running') {
+                statusText.textContent = 'Streaming live output...';
+            }
+        };
+
+        consoleWs.onerror = function() {
+            liveIndicator.style.display = 'none';
+            statusText.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-1"></i> Connection error';
+        };
+
+        consoleWs.onclose = function() {
+            if (statusText.textContent === 'Connecting...' || statusText.textContent === 'Streaming live output...') {
+                statusText.textContent = 'Disconnected';
+            }
+        };
+    }
+
+    // Clean up WebSocket when modal is closed
+    document.getElementById('operationConsoleModal').addEventListener('hidden.bs.modal', function() {
+        if (consoleWs) {
+            consoleWs.close();
+            consoleWs = null;
+        }
+    });
+
+    // Adaptive polling: 3s when running ops exist, 30s otherwise
+    let _opsPollingInterval = null;
+    let _hasRunningOps = false;
+
+    function _adjustPollingRate(operations) {
+        const hasRunning = operations && operations.some(op => op.status === 'running');
+        if (hasRunning !== _hasRunningOps) {
+            _hasRunningOps = hasRunning;
+            if (_opsPollingInterval) clearInterval(_opsPollingInterval);
+            _opsPollingInterval = setInterval(loadOperationsHistory, hasRunning ? 3000 : 30000);
+        }
+    }
+
+    // Load operations on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadOperationsHistory();
+
+        // Start with 30s polling
+        _opsPollingInterval = setInterval(loadOperationsHistory, 30000);
+    });
+</script>
+{% endblock %}

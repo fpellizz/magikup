@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MagikUp - Manuale Utente</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2cm 2.5cm;
+  }
+  body {
+    font-family: 'Segoe UI', Calibri, Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: #2c3e50;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 20px 40px;
+  }
+
+  /* Cover page */
+  .cover {
+    page-break-after: always;
+    text-align: center;
+    padding-top: 120px;
+  }
+  .cover h1 {
+    font-size: 36pt;
+    color: #6f42c1;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+  }
+  .cover .subtitle {
+    font-size: 16pt;
+    color: #6c757d;
+    margin-bottom: 60px;
+  }
+  .cover .version {
+    font-size: 12pt;
+    color: #6c757d;
+    margin-top: 40px;
+  }
+  .cover .meta {
+    font-size: 10pt;
+    color: #adb5bd;
+    margin-top: 200px;
+  }
+
+  /* Headings */
+  h1 {
+    font-size: 22pt;
+    color: #6f42c1;
+    border-bottom: 3px solid #6f42c1;
+    padding-bottom: 8px;
+    margin-top: 40px;
+    page-break-after: avoid;
+  }
+  h2 {
+    font-size: 16pt;
+    color: #495057;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 6px;
+    margin-top: 30px;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 13pt;
+    color: #495057;
+    margin-top: 20px;
+    page-break-after: avoid;
+  }
+  h4 {
+    font-size: 11pt;
+    color: #6c757d;
+    margin-top: 15px;
+    page-break-after: avoid;
+  }
+
+  /* TOC */
+  .toc {
+    page-break-after: always;
+  }
+  .toc h1 {
+    text-align: center;
+    border-bottom: none;
+  }
+  .toc ul {
+    list-style: none;
+    padding: 0;
+  }
+  .toc > ul > li {
+    margin: 8px 0;
+    font-size: 12pt;
+    font-weight: 600;
+  }
+  .toc > ul > li > ul > li {
+    margin: 4px 0;
+    padding-left: 25px;
+    font-size: 11pt;
+    font-weight: 400;
+  }
+  .toc a {
+    color: #2c3e50;
+    text-decoration: none;
+  }
+  .toc a:hover {
+    color: #6f42c1;
+  }
+
+  /* Content elements */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    font-size: 10pt;
+    page-break-inside: avoid;
+  }
+  th {
+    background-color: #6f42c1;
+    color: white;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+  }
+  td {
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+  }
+  tr:nth-child(even) {
+    background-color: #f8f9fa;
+  }
+  tr:hover {
+    background-color: #e9ecef;
+  }
+
+  code {
+    background-color: #f1f3f5;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 10pt;
+    color: #e83e8c;
+  }
+
+  pre {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    padding: 15px 20px;
+    border-radius: 6px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 9.5pt;
+    line-height: 1.5;
+    overflow-x: auto;
+    page-break-inside: avoid;
+  }
+
+  .note {
+    background-color: #e8f4fd;
+    border-left: 4px solid #0d6efd;
+    padding: 12px 16px;
+    margin: 15px 0;
+    border-radius: 0 4px 4px 0;
+    page-break-inside: avoid;
+  }
+  .note strong {
+    color: #0d6efd;
+  }
+
+  .warning {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 12px 16px;
+    margin: 15px 0;
+    border-radius: 0 4px 4px 0;
+    page-break-inside: avoid;
+  }
+  .warning strong {
+    color: #856404;
+  }
+
+  .danger {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+    padding: 12px 16px;
+    margin: 15px 0;
+    border-radius: 0 4px 4px 0;
+    page-break-inside: avoid;
+  }
+  .danger strong {
+    color: #842029;
+  }
+
+  .tip {
+    background-color: #d1e7dd;
+    border-left: 4px solid #198754;
+    padding: 12px 16px;
+    margin: 15px 0;
+    border-radius: 0 4px 4px 0;
+    page-break-inside: avoid;
+  }
+  .tip strong {
+    color: #0f5132;
+  }
+
+  .screenshot {
+    border: 2px dashed #adb5bd;
+    background-color: #f8f9fa;
+    padding: 40px 20px;
+    margin: 15px 0;
+    text-align: center;
+    color: #6c757d;
+    border-radius: 6px;
+    font-style: italic;
+    page-break-inside: avoid;
+  }
+  .screenshot img {
+    max-width: 100%;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 9pt;
+    font-weight: 600;
+    color: white;
+  }
+  .badge-admin { background-color: #dc3545; }
+  .badge-operator { background-color: #0d6efd; }
+  .badge-viewer { background-color: #6c757d; }
+
+  .step {
+    counter-increment: step-counter;
+    padding-left: 40px;
+    position: relative;
+    margin: 12px 0;
+  }
+  .step::before {
+    content: counter(step-counter);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 28px;
+    height: 28px;
+    background-color: #6f42c1;
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 28px;
+    font-size: 10pt;
+    font-weight: 700;
+  }
+  .steps {
+    counter-reset: step-counter;
+    margin: 15px 0;
+  }
+
+  .chapter {
+    page-break-before: always;
+  }
+
+  ul, ol {
+    margin: 8px 0;
+    padding-left: 25px;
+  }
+  li {
+    margin: 4px 0;
+  }
+
+  .kbd {
+    background-color: #eee;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: 'Consolas', monospace;
+    font-size: 9pt;
+    box-shadow: 0 1px 0 #999;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid #dee2e6;
+    margin: 25px 0;
+  }
+
+  .role-matrix td:nth-child(1) {
+    font-weight: 600;
+  }
+  .role-matrix td.yes {
+    color: #198754;
+    text-align: center;
+    font-weight: 600;
+  }
+  .role-matrix td.no {
+    color: #dc3545;
+    text-align: center;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== COVER PAGE ==================== -->
+<div class="cover">
+  <h1>Magiku(r)p</h1>
+  <div class="subtitle">PostgreSQL Backup &amp; Restore Web Application</div>
+  <div class="subtitle" style="font-size:14pt; color:#495057;">Manuale Utente</div>
+  <div class="version">Versione 3.3.0</div>
+  <div class="meta">
+    MagikUp<br>
+    Aprile 2026
+  </div>
+</div>
+
+<!-- ==================== TABLE OF CONTENTS ==================== -->
+<div class="toc">
+  <h1>Indice</h1>
+  <ul>
+    <li><a href="#cap1">1. Introduzione</a>
+      <ul>
+        <li><a href="#cap1-1">1.1 Panoramica</a></li>
+        <li><a href="#cap1-2">1.2 Requisiti</a></li>
+        <li><a href="#cap1-3">1.3 Architettura</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap2">2. Installazione e Deploy</a>
+      <ul>
+        <li><a href="#cap2-1">2.1 Deploy su Kubernetes</a></li>
+        <li><a href="#cap2-2">2.2 Docker Standalone</a></li>
+        <li><a href="#cap2-3">2.3 Sviluppo Locale</a></li>
+        <li><a href="#cap2-4">2.4 Primo Avvio</a></li>
+        <li><a href="#cap2-5">2.5 Context Path / Reverse Proxy</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap3">3. Autenticazione e Ruoli</a>
+      <ul>
+        <li><a href="#cap3-1">3.1 Login</a></li>
+        <li><a href="#cap3-2">3.2 Ruoli Utente</a></li>
+        <li><a href="#cap3-3">3.3 Matrice Permessi</a></li>
+        <li><a href="#cap3-4">3.4 Cambio Password</a></li>
+        <li><a href="#cap3-5">3.5 Sicurezza: Rate Limiting e Lockout</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap4">4. Dashboard</a>
+      <ul>
+        <li><a href="#cap4-1">4.1 Quick Actions</a></li>
+        <li><a href="#cap4-2">4.2 Endpoint Database</a></li>
+        <li><a href="#cap4-3">4.3 Operazioni Recenti</a></li>
+        <li><a href="#cap4-4">4.4 Console Live</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap5">5. Backup</a>
+      <ul>
+        <li><a href="#cap5-1">5.1 Backup Completo</a></li>
+        <li><a href="#cap5-2">5.2 Backup per Schema</a></li>
+        <li><a href="#cap5-3">5.3 Parametri Avanzati</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap6">6. Restore</a>
+      <ul>
+        <li><a href="#cap6-1">6.1 Restore Completo</a></li>
+        <li><a href="#cap6-2">6.2 Restore per Schema</a></li>
+        <li><a href="#cap6-3">6.3 Parametri Avanzati</a></li>
+        <li><a href="#cap6-4">6.4 Role Mapping</a></li>
+        <li><a href="#cap6-5">6.5 Restore TimescaleDB</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap7">7. Transfer</a>
+      <ul>
+        <li><a href="#cap7-1">7.1 Trasferimento Database</a></li>
+        <li><a href="#cap7-2">7.2 Monitoraggio Fasi</a></li>
+        <li><a href="#cap7-3">7.3 Parametri Avanzati</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap8">8. Query Editor</a>
+      <ul>
+        <li><a href="#cap8-1">8.1 Interfaccia</a></li>
+        <li><a href="#cap8-2">8.2 Connessione</a></li>
+        <li><a href="#cap8-3">8.3 Object Browser</a></li>
+        <li><a href="#cap8-4">8.4 Esecuzione Query</a></li>
+        <li><a href="#cap8-5">8.5 Funzionalit&agrave; Aggiuntive</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap9">9. Gestione File</a>
+      <ul>
+        <li><a href="#cap9-1">9.1 Upload</a></li>
+        <li><a href="#cap9-2">9.2 Download e Cancellazione</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap10">10. Amministrazione</a>
+      <ul>
+        <li><a href="#cap10-1">10.1 Gestione Endpoint</a></li>
+        <li><a href="#cap10-2">10.2 Jump Host (SSM)</a></li>
+        <li><a href="#cap10-3">10.3 Account AWS</a></li>
+        <li><a href="#cap10-4">10.4 Impostazioni</a></li>
+        <li><a href="#cap10-5">10.5 Import/Export Configurazione</a></li>
+        <li><a href="#cap10-6">10.6 Sicurezza (Cifratura Password)</a></li>
+        <li><a href="#cap10-7">10.7 Gestione Utenti</a></li>
+        <li><a href="#cap10-8">10.8 Audit Log</a></li>
+        <li><a href="#cap10-info">10.9 Pagina Info</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap11">11. SSM Tunnel</a>
+      <ul>
+        <li><a href="#cap11-1">11.1 Come Funziona</a></li>
+        <li><a href="#cap11-2">11.2 Configurazione</a></li>
+      </ul>
+    </li>
+    <li><a href="#cap12">12. Troubleshooting</a></li>
+    <li><a href="#cap13">13. Appendice &mdash; Riferimento API</a></li>
+  </ul>
+</div>
+
+<!-- ==================== CHAPTER 1 ==================== -->
+<div class="chapter" id="cap1">
+<h1>1. Introduzione</h1>
+
+<h2 id="cap1-1">1.1 Panoramica</h2>
+<p>
+  <strong>Magiku(r)p</strong> &egrave; un&rsquo;applicazione web per la gestione di backup, restore e trasferimento di database PostgreSQL.
+  Supporta connessioni dirette e connessioni tramite <strong>tunnel AWS SSM</strong> attraverso jump host EC2 configurabili.
+</p>
+<p>Funzionalit&agrave; principali:</p>
+<ul>
+  <li><strong>Backup</strong> &mdash; Backup completi o per schema con output in tempo reale</li>
+  <li><strong>Restore</strong> &mdash; Ripristino con selezione schema e remapping ruoli</li>
+  <li><strong>Transfer</strong> &mdash; Copia database one-click tra qualsiasi endpoint</li>
+  <li><strong>Query Editor</strong> &mdash; Esecuzione query SQL con object browser e esportazione risultati</li>
+  <li><strong>File Manager</strong> &mdash; Upload, download e gestione file di backup (fino a 5&nbsp;GB)</li>
+  <li><strong>Multi-Utente</strong> &mdash; Tre ruoli (Admin, Operator, Viewer) con permessi granulari</li>
+  <li><strong>Sicurezza</strong> &mdash; Rate limiting, lockout account, policy password, audit log</li>
+  <li><strong>SSM Tunnel</strong> &mdash; Port forwarding attraverso EC2 jump host con AWS Systems Manager</li>
+</ul>
+
+<h2 id="cap1-2">1.2 Requisiti</h2>
+<h3>Per il deploy Kubernetes</h3>
+<ul>
+  <li>Cluster Kubernetes con <code>kubectl</code> configurato</li>
+  <li>Nginx Ingress Controller installato</li>
+  <li>Storage class disponibile per i Persistent Volume Claim</li>
+  <li>Accesso a un container registry (es. GHCR)</li>
+</ul>
+
+<h3>Per l&rsquo;uso</h3>
+<ul>
+  <li>Browser moderno (Chrome, Firefox, Edge, Safari)</li>
+  <li>Credenziali di accesso fornite dall&rsquo;amministratore</li>
+  <li>(Opzionale) Credenziali AWS con permessi SSM per tunnel</li>
+</ul>
+
+<h2 id="cap1-3">1.3 Architettura</h2>
+<p>L&rsquo;applicazione &egrave; composta da:</p>
+<ul>
+  <li><strong>Backend</strong>: FastAPI (Python) con WebSocket per streaming real-time</li>
+  <li><strong>Frontend</strong>: HTML/CSS/JS con Bootstrap 5 e tema chiaro/scuro</li>
+  <li><strong>Storage</strong>: File system per backup e configurazione (PVC in Kubernetes)</li>
+  <li><strong>Autenticazione</strong>: Sessioni firmate con token, gestione utenti su file JSON</li>
+</ul>
+
+<pre>
+Browser (UI)
+    │ HTTP / WebSocket
+    ▼
+FastAPI (main.py) ── Auth (auth.py) ── Users (users.json)
+    │
+    ├── Config (config.py) ── config.ini
+    ├── Backup/Restore (backup_restore.py) ── pg_dump / pg_restore
+    ├── SSM Tunnel (ssm_tunnel.py) ── AWS SSM Session
+    ├── DB Service (db_service.py) ── psycopg2
+    └── AWS Service (aws_service.py) ── boto3
+</pre>
+</div>
+
+<!-- ==================== CHAPTER 2 ==================== -->
+<div class="chapter" id="cap2">
+<h1>2. Installazione e Deploy</h1>
+
+<h2 id="cap2-1">2.1 Deploy su Kubernetes</h2>
+
+<h3>Build e Push dell&rsquo;immagine</h3>
+<pre>
+# Build dell'immagine Docker
+docker build -t ghcr.io/fpellizz/magikup:v3.3.0 .
+
+# Push al registry
+docker push ghcr.io/fpellizz/magikup:v3.3.0
+</pre>
+
+<h3>Configurazione Secrets</h3>
+<div class="steps">
+  <div class="step">Copiare il template del secret:<br>
+    <code>cp kubernetes/secret.yaml.example kubernetes/secret.yaml</code>
+  </div>
+  <div class="step">Generare la chiave di cifratura Fernet:<br>
+    <code>python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code>
+  </div>
+  <div class="step">Sostituire <code>REPLACE_WITH_GENERATED_KEY</code> in <code>secret.yaml</code> con la chiave generata.</div>
+</div>
+
+<h3>Configurazione Ingress</h3>
+<p>Modificare il file <code>kubernetes/ingress.yaml</code> e sostituire <code>magikup.example.com</code> con l&rsquo;hostname reale.</p>
+
+<div class="tip">
+  <strong>Context Path:</strong> Per il deploy sotto un prefisso URL (es. <code>/magikup</code>),
+  impostare la variabile d&rsquo;ambiente <code>ROOT_PATH</code> nel file <code>kubernetes/deployment.yaml</code>
+  e configurare le regole di path nell&rsquo;ingress. Vedi la sezione <a href="#cap2-5">2.5 Context Path / Reverse Proxy</a> per i dettagli.
+</div>
+
+<h3>Deploy con Kustomize</h3>
+<pre>
+# Applica tutti i manifest
+kubectl apply -k kubernetes/
+
+# Verifica lo stato
+kubectl get pods -l app=magikup
+kubectl logs deploy/magikup
+</pre>
+
+<h3>Accesso all&rsquo;applicazione</h3>
+<pre>
+# Via port-forward (per test)
+kubectl port-forward svc/magikup 8000:8000
+
+# Via Ingress (produzione)
+# Accedere a https://magikup.tuodominio.com
+</pre>
+
+<h3>Risorse Kubernetes create</h3>
+<table>
+  <tr><th>Risorsa</th><th>Nome</th><th>Descrizione</th></tr>
+  <tr><td>ServiceAccount</td><td><code>magikup</code></td><td>Identit&agrave; del pod</td></tr>
+  <tr><td>ConfigMap</td><td><code>magikup-config</code></td><td>Template config.ini iniziale</td></tr>
+  <tr><td>Secret</td><td><code>magikup-secret</code></td><td>Chiave Fernet per cifratura</td></tr>
+  <tr><td>PVC</td><td><code>magikup-backups</code></td><td>50 Gi &mdash; File di backup</td></tr>
+  <tr><td>PVC</td><td><code>magikup-config</code></td><td>1 Gi &mdash; config.ini, users.json, audit.log</td></tr>
+  <tr><td>PVC</td><td><code>magikup-logs</code></td><td>1 Gi &mdash; Log applicazione</td></tr>
+  <tr><td>Deployment</td><td><code>magikup</code></td><td>1 replica, strategy Recreate</td></tr>
+  <tr><td>Service</td><td><code>magikup</code></td><td>ClusterIP con session affinity</td></tr>
+  <tr><td>Ingress</td><td><code>magikup</code></td><td>Nginx con supporto WebSocket</td></tr>
+</table>
+
+<h2 id="cap2-2">2.2 Docker Standalone</h2>
+<pre>
+# Build
+docker build -t magikup-full:latest .
+
+# Run
+docker run -d \
+  -p 8000:8000 \
+  -v magikup-backups:/backups \
+  -v magikup-config:/app/config \
+  -v magikup-logs:/app/logs \
+  --name magikup \
+  magikup-full:latest
+</pre>
+
+<div class="tip">
+  <strong>Context Path:</strong> Per servire l&rsquo;applicazione sotto un prefisso URL (es. <code>/magikup</code>),
+  aggiungere la variabile d&rsquo;ambiente <code>-e ROOT_PATH=/magikup</code> al comando <code>docker run</code>.
+  Vedi la sezione <a href="#cap2-5">2.5 Context Path / Reverse Proxy</a> per i dettagli.
+</div>
+
+<h2 id="cap2-3">2.3 Sviluppo Locale</h2>
+<pre>
+pip install -r requirements.txt
+python run.py --reload
+</pre>
+<p>L&rsquo;applicazione sar&agrave; disponibile su <code>http://localhost:8000</code>.</p>
+
+<h2 id="cap2-4">2.4 Primo Avvio</h2>
+<p>Al primo avvio l&rsquo;applicazione:</p>
+<ol>
+  <li>Crea automaticamente il file <code>users.json</code> con l&rsquo;utente <strong>admin</strong> predefinito</li>
+  <li>Genera una <strong>password casuale</strong> e la stampa nei log dell&rsquo;applicazione (cercare la riga <code>INITIAL ADMIN PASSWORD</code>)</li>
+</ol>
+
+<div class="note">
+  <strong>Come trovare la password iniziale:</strong> Consultare i log all&rsquo;avvio dell&rsquo;applicazione. La password viene stampata tra una serie di <code>====</code> con il messaggio <code>INITIAL ADMIN PASSWORD: &lt;password&gt;</code>.<br>
+  Con Docker: <code>docker logs &lt;container_name&gt; 2&gt;&amp;1 | grep "INITIAL ADMIN"</code>
+</div>
+
+<div class="danger">
+  <strong>Importante!</strong> Cambiare immediatamente la password dell&rsquo;utente admin dopo il primo login.
+</div>
+
+<h2 id="cap2-5">2.5 Context Path / Reverse Proxy</h2>
+<p>
+  MagikUp supporta il deploy sotto un prefisso URL (context path) per configurazioni con reverse proxy.
+  Ad esempio, l&rsquo;applicazione pu&ograve; essere accessibile all&rsquo;indirizzo <code>https://example.com/magikup/</code>
+  anzich&eacute; alla root del dominio.
+</p>
+
+<h3>Configurazione</h3>
+<p>Il context path pu&ograve; essere configurato in tre modi (in ordine di priorit&agrave;):</p>
+<ol>
+  <li><strong>Variabile d&rsquo;ambiente <code>ROOT_PATH</code></strong> (priorit&agrave; massima) &mdash; Impostare nel Docker Compose, nel deployment Kubernetes o nella shell. Questo &egrave; l&rsquo;approccio raccomandato per i deploy in container.</li>
+  <li><strong>Parametro <code>context_path</code> in <code>config.ini</code></strong> nella sezione <code>[settings]</code> &mdash; Configurabile dal pannello Admin (tab Settings). Richiede il riavvio dell&rsquo;applicazione per avere effetto.</li>
+  <li><strong>Default: vuoto</strong> &mdash; L&rsquo;applicazione viene servita al path root <code>/</code>.</li>
+</ol>
+
+<h3>Esempio Docker Compose</h3>
+<pre>
+services:
+  magikup:
+    image: magikup:latest
+    environment:
+      - ROOT_PATH=/magikup
+    ports:
+      - "8000:8000"
+</pre>
+
+<h3>Esempio Nginx Reverse Proxy</h3>
+<pre>
+location /magikup/ {
+    proxy_pass http://localhost:8000/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # WebSocket support
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+</pre>
+
+<h3>Esempio Kubernetes Ingress</h3>
+<p>Per il routing basato su path nell&rsquo;ingress, decommentare le annotazioni e le regole di path rilevanti in
+<code>kubernetes/ingress.yaml</code> e impostare <code>ROOT_PATH</code> in <code>kubernetes/deployment.yaml</code>:</p>
+<pre>
+# In deployment.yaml, aggiungere alla sezione env:
+- name: ROOT_PATH
+  value: "/magikup"
+</pre>
+
+<h3>Configurazione da Admin UI</h3>
+<p>Il context path pu&ograve; essere visualizzato e configurato dal pannello Admin in <strong>Settings &gt; Network</strong>.</p>
+<div class="note">
+  <strong>Nota:</strong> Se <code>ROOT_PATH</code> &egrave; impostato come variabile d&rsquo;ambiente, ha la precedenza sul valore in config.ini.
+  Nella UI questo viene indicato con un badge informativo.
+  Le modifiche al context path richiedono un riavvio dell&rsquo;applicazione per avere effetto.
+</div>
+
+<h3>Note Importanti</h3>
+<ul>
+  <li>L&rsquo;endpoint di health check <code>/health</code> funziona sempre a livello di container senza il prefisso.</li>
+  <li>Quando si utilizza un reverse proxy, il proxy deve rimuovere il prefisso del context path prima di inoltrare le richieste all&rsquo;applicazione.</li>
+  <li>Anche le connessioni WebSocket sono context-path aware.</li>
+</ul>
+
+</div>
+
+<!-- ==================== CHAPTER 3 ==================== -->
+<div class="chapter" id="cap3">
+<h1>3. Autenticazione e Ruoli</h1>
+
+<h2 id="cap3-1">3.1 Login</h2>
+<p>
+  All&rsquo;apertura dell&rsquo;applicazione viene mostrata la pagina di login.
+  Inserire username e password per accedere.
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/01_login.png" alt="Pagina di Login"><br>
+  <em>Figura 3.1 &mdash; Pagina di Login</em>
+</div>
+
+<p>Funzionalit&agrave; della pagina di login:</p>
+<ul>
+  <li><strong>Visibilit&agrave; password</strong> &mdash; Cliccare l&rsquo;icona occhio per mostrare/nascondere la password</li>
+  <li><strong>Ricordami</strong> &mdash; Checkbox per sessioni persistenti</li>
+  <li><strong>Tema</strong> &mdash; Toggle in alto a destra per passare da tema chiaro a scuro</li>
+</ul>
+
+<p>L&rsquo;applicazione supporta un tema scuro, attivabile dal toggle in alto a destra:</p>
+<div class="screenshot">
+  <img src="screenshots/24_login_dark.png" alt="Login - Tema Scuro"><br>
+  <em>Figura 3.3 &mdash; Pagina di Login in Tema Scuro</em>
+</div>
+
+<p>Dopo il login, il menu utente mostra il ruolo e le opzioni disponibili:</p>
+<div class="screenshot">
+  <img src="screenshots/25_navbar_dropdown.png" alt="Menu Utente"><br>
+  <em>Figura 3.4 &mdash; Menu Utente con Badge Ruolo</em>
+</div>
+
+<h2 id="cap3-2">3.2 Ruoli Utente</h2>
+<p>L&rsquo;applicazione supporta tre ruoli con livelli crescenti di permessi:</p>
+
+<table>
+  <tr><th>Ruolo</th><th>Descrizione</th><th>Badge</th></tr>
+  <tr>
+    <td><span class="badge badge-viewer">Viewer</span></td>
+    <td>Accesso in sola lettura: pu&ograve; visualizzare dashboard, endpoint e operazioni. Non pu&ograve; scaricare backup n&eacute; eseguire operazioni.</td>
+    <td>Grigio</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-operator">Operator</span></td>
+    <td>Pu&ograve; eseguire backup, restore, transfer, query SQL e tunnel SSM usando le <strong>credenziali memorizzate dell&rsquo;endpoint</strong>. Pu&ograve; gestire i file. Non pu&ograve; accedere al pannello admin.</td>
+    <td>Blu</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-admin">Admin</span></td>
+    <td>Accesso completo: gestione utenti, endpoint, configurazione, operazioni</td>
+    <td>Rosso</td>
+  </tr>
+</table>
+
+<h2 id="cap3-3">3.3 Matrice Permessi</h2>
+
+<table class="role-matrix">
+  <tr><th>Funzionalit&agrave;</th><th>Admin</th><th>Operator</th><th>Viewer</th></tr>
+  <tr><td>Visualizzare Dashboard</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td></tr>
+  <tr><td>Visualizzare endpoint e operazioni</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td></tr>
+  <tr><td>Scaricare file di backup</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Cambiare la propria password</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td></tr>
+  <tr><td>Eseguire backup/restore/transfer</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Utilizzare il Query Editor</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Caricare/eliminare file</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Avviare/fermare tunnel SSM</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Annullare operazioni</td><td class="yes">&#10003;</td><td class="yes">&#10003;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Pannello Amministrazione</td><td class="yes">&#10003;</td><td class="no">&#10007;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Gestire utenti</td><td class="yes">&#10003;</td><td class="no">&#10007;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Configurare endpoint/jumphost</td><td class="yes">&#10003;</td><td class="no">&#10007;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Import/export configurazione</td><td class="yes">&#10003;</td><td class="no">&#10007;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Cancellare storico operazioni</td><td class="yes">&#10003;</td><td class="no">&#10007;</td><td class="no">&#10007;</td></tr>
+  <tr><td>Accesso agli endpoint</td><td class="yes">Tutti</td><td class="yes">Lista assegnata*</td><td class="yes">Lista assegnata*</td></tr>
+</table>
+
+<p><strong>* Scoping degli endpoint per utente.</strong> Ogni utente non-admin ha una <em>lista di endpoint consentiti</em> (predefinito: tutti). La si imposta in <em>Admin &gt; Users</em> (campo &ldquo;Allowed endpoints&rdquo;, nomi separati da virgola; vuoto o <code>*</code> = tutti). Un utente con scope ristretto vede e pu&ograve; operare solo sui propri endpoint; gli altri restituiscono 403. Gli Admin hanno sempre accesso a tutti gli endpoint.</p>
+
+<h3>Endpoint in sola lettura (read-only)</h3>
+<p>Un endpoint pu&ograve; essere contrassegnato come <strong>Read-only</strong> in <em>Admin &gt; Endpoints</em>. In tal caso:</p>
+<ul>
+  <li>Il Query Editor si connette in modalit&agrave; sola lettura (<code>default_transaction_read_only=on</code>): ogni istruzione di scrittura viene rifiutata da PostgreSQL stesso.</li>
+  <li><strong>Restore</strong> e <strong>transfer verso</strong> quell&rsquo;endpoint sono rifiutati.</li>
+  <li>I backup (che leggono soltanto) continuano a funzionare.</li>
+</ul>
+<p>Utile per esporre database di produzione a query sicure senza rischio di scritture accidentali.</p>
+
+<h2 id="cap3-4">3.4 Cambio Password</h2>
+<p>Ogni utente pu&ograve; cambiare la propria password dal menu utente in alto a destra &rarr; &ldquo;Change Password&rdquo;.</p>
+
+<div class="screenshot">
+  <img src="screenshots/20_change_password.png" alt="Pagina Cambio Password"><br>
+  <em>Figura 3.2 &mdash; Pagina Cambio Password</em>
+</div>
+
+<p><strong>Policy password:</strong></p>
+<ul>
+  <li>Minimo 8 caratteri</li>
+  <li>Almeno 1 lettera maiuscola</li>
+  <li>Almeno 1 lettera minuscola</li>
+  <li>Almeno 1 cifra numerica</li>
+</ul>
+
+<h2 id="cap3-5">3.5 Sicurezza: Rate Limiting e Lockout</h2>
+
+<h3>Rate Limiting (per IP)</h3>
+<p>Dopo <strong>5 tentativi di login falliti</strong> dallo stesso indirizzo IP, l&rsquo;accesso viene bloccato per <strong>5 minuti</strong>. Viene mostrato un messaggio che indica il tempo rimanente.</p>
+
+<h3>Account Lockout (per utente)</h3>
+<p>Dopo <strong>10 tentativi di login falliti</strong> per lo stesso username, l&rsquo;account viene bloccato. Solo un amministratore pu&ograve; sbloccarlo dal pannello Admin &rarr; Users.</p>
+
+<h3>Audit Log</h3>
+<p>Tutti gli eventi di sicurezza vengono registrati:</p>
+<ul>
+  <li>Login riusciti e falliti</li>
+  <li>Cambio password</li>
+  <li>Creazione/modifica/eliminazione utenti</li>
+  <li>Blocco e sblocco account</li>
+</ul>
+</div>
+
+<!-- ==================== CHAPTER 4 ==================== -->
+<div class="chapter" id="cap4">
+<h1>4. Dashboard</h1>
+
+<p>La Dashboard &egrave; la pagina principale dell&rsquo;applicazione. Offre una panoramica dello stato del sistema e accesso rapido alle funzionalit&agrave;.</p>
+
+<div class="screenshot">
+  <img src="screenshots/02_dashboard.png" alt="Dashboard"><br>
+  <em>Figura 4.1 &mdash; Dashboard</em>
+</div>
+
+<h2 id="cap4-1">4.1 Quick Actions</h2>
+<p>La sezione Quick Actions (visibile solo per <span class="badge badge-admin">Admin</span> e <span class="badge badge-operator">Operator</span>) mostra 4 card cliccabili:</p>
+
+<table>
+  <tr><th>Azione</th><th>Descrizione</th><th>Collegamento</th></tr>
+  <tr><td><strong>Backup Database</strong></td><td>Avvia un nuovo backup</td><td>Pagina Backup</td></tr>
+  <tr><td><strong>Restore Database</strong></td><td>Ripristina un backup</td><td>Pagina Restore</td></tr>
+  <tr><td><strong>Transfer Database</strong></td><td>Copia tra database</td><td>Pagina Transfer</td></tr>
+  <tr><td><strong>Manage Files</strong></td><td>Gestisci file di backup</td><td>Pagina Files</td></tr>
+</table>
+
+<div class="note">
+  <strong>Nota:</strong> Gli utenti <span class="badge badge-viewer">Viewer</span> vedono un banner informativo al posto delle Quick Actions.
+</div>
+
+<p>La dashboard in tema scuro:</p>
+<div class="screenshot">
+  <img src="screenshots/21_dashboard_dark.png" alt="Dashboard - Tema Scuro"><br>
+  <em>Figura 4.3 &mdash; Dashboard in Tema Scuro</em>
+</div>
+
+<h2 id="cap4-2">4.2 Endpoint Database</h2>
+<p>La colonna sinistra mostra tutti gli endpoint configurati. Per ogni endpoint vengono visualizzati:</p>
+<ul>
+  <li><strong>Nome</strong> dell&rsquo;endpoint</li>
+  <li><strong>Host</strong> e <strong>porta</strong></li>
+  <li><strong>Username</strong> di connessione</li>
+  <li>Pulsanti rapidi <strong>Backup</strong> e <strong>Restore</strong> (non visibili ai Viewer)</li>
+</ul>
+
+<h2 id="cap4-3">4.3 Operazioni Recenti</h2>
+<p>La colonna destra mostra lo storico delle operazioni con:</p>
+<ul>
+  <li><strong>Tipo</strong> &mdash; Badge colorato: Backup (blu), Restore (verde), Transfer (arancio)</li>
+  <li><strong>Endpoint/Database</strong> &mdash; Target dell&rsquo;operazione</li>
+  <li><strong>Ora inizio</strong> &mdash; Timestamp</li>
+  <li><strong>Stato</strong> &mdash; Running (spinner), Success (verde), Failed (rosso), Cancelled (grigio)</li>
+  <li><strong>Azioni</strong> &mdash; Watch Live, View Log, Download Log, Cancel</li>
+</ul>
+
+<div class="screenshot">
+  <img src="screenshots/03_dashboard_operations.png" alt="Operazioni Recenti"><br>
+  <em>Figura 4.2 &mdash; Operazioni Recenti</em>
+</div>
+
+<h2 id="cap4-4">4.4 Console Live</h2>
+<p>Cliccando <strong>&ldquo;Watch Live&rdquo;</strong> su un&rsquo;operazione in corso si apre un modale con l&rsquo;output in tempo reale via WebSocket.</p>
+
+<div class="note">
+  <strong>Nota:</strong> La console live si apre in un modale a schermo intero con sfondo scuro e font monospace, mostrando l&rsquo;output riga per riga in tempo reale.
+</div>
+</div>
+
+<!-- ==================== CHAPTER 5 ==================== -->
+<div class="chapter" id="cap5">
+<h1>5. Backup</h1>
+<p>
+  La pagina Backup permette di eseguire backup di database PostgreSQL.
+  Accessibile solo a <span class="badge badge-admin">Admin</span> e <span class="badge badge-operator">Operator</span>.
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/04_backup.png" alt="Pagina Backup"><br>
+  <em>Figura 5.1 &mdash; Pagina Backup</em>
+</div>
+
+<h2 id="cap5-1">5.1 Backup Completo</h2>
+
+<div class="steps">
+  <div class="step">Selezionare l&rsquo;<strong>Endpoint</strong> dal menu a tendina. Se l&rsquo;endpoint usa SSM, verr&agrave; mostrato un badge informativo.</div>
+  <div class="step">Selezionare il <strong>Database</strong> dal menu a tendina (viene caricato automaticamente dall&rsquo;endpoint).</div>
+  <div class="step">Verificare il <strong>nome file</strong> generato automaticamente (formato: <code>database_YYYYMMDD_HHMMSS.backup</code>). &Egrave; modificabile.</div>
+  <div class="step">Configurare le <strong>opzioni</strong> se necessario (vedi sezione 5.3).</div>
+  <div class="step">Cliccare <strong>&ldquo;Start Backup&rdquo;</strong>.</div>
+  <div class="step">Monitorare l&rsquo;output in tempo reale nella console a destra.</div>
+  <div class="step">Al termine, un banner di successo mostra il percorso e la dimensione del file.</div>
+</div>
+
+<h2 id="cap5-2">5.2 Backup per Schema</h2>
+<p>Per eseguire il backup di schema specifici invece dell&rsquo;intero database:</p>
+
+<div class="steps">
+  <div class="step">Selezionare endpoint e database come per il backup completo.</div>
+  <div class="step">Attivare il toggle <strong>&ldquo;Schema Mode&rdquo;</strong>.</div>
+  <div class="step">Selezionare uno o pi&ugrave; schema cliccando sui chip che appaiono. Ogni chip mostra il nome dello schema e pu&ograve; essere selezionato/deselezionato con un click.</div>
+  <div class="step">Usare i pulsanti <strong>&ldquo;Select All&rdquo;</strong> e <strong>&ldquo;Clear&rdquo;</strong> per selezione rapida.</div>
+  <div class="step">Cliccare <strong>&ldquo;Start Backup&rdquo;</strong>.</div>
+</div>
+
+<div class="screenshot">
+  <img src="screenshots/05_backup_endpoint_selected.png" alt="Backup con Endpoint Selezionato"><br>
+  <em>Figura 5.2 &mdash; Backup con Endpoint e Database Selezionati</em>
+</div>
+
+<h2 id="cap5-3">5.3 Parametri Avanzati</h2>
+<p>
+  La pagina Backup include un toggle <strong>&ldquo;Advanced Parameters&rdquo;</strong> che, una volta attivato,
+  mostra un pannello con parametri avanzati di <code>pg_dump</code>. Ogni parametro &egrave; accompagnato
+  da un&rsquo;icona tooltip (<code>?</code>) che ne spiega la funzione in dettaglio.
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/05b_backup_advanced_params.png" alt="Pannello Parametri Avanzati"><br>
+  <em>Figura 5.3 &mdash; Pannello Parametri Avanzati</em>
+</div>
+
+<h3>Opzioni di Dump</h3>
+<table>
+  <tr><th>Parametro</th><th>Default</th><th>Descrizione</th></tr>
+  <tr><td><code>--large-objects</code></td><td>Attivo</td><td>Include i large object (BLOB) nel dump. Disattivare per ridurre la dimensione del backup.</td></tr>
+  <tr><td><code>--no-owner</code></td><td>Attivo</td><td>Non emette comandi per impostare la propriet&agrave; degli oggetti. Gli oggetti ripristinati saranno di propriet&agrave; dell&rsquo;utente che esegue il restore.</td></tr>
+  <tr><td><code>--no-privileges</code></td><td>Attivo</td><td>Non include comandi GRANT/REVOKE per impostare i privilegi di accesso.</td></tr>
+  <tr><td><code>--no-tablespaces</code></td><td>Attivo</td><td>Non emette comandi per impostare i tablespace. Tutti gli oggetti verranno ripristinati nel tablespace predefinito.</td></tr>
+  <tr><td><code>--no-comments</code></td><td>Attivo</td><td>Non include comandi COMMENT. Utile per ridurre la dimensione del dump.</td></tr>
+  <tr><td><code>--data-only</code></td><td>Disattivo</td><td>Esporta solo i dati, non lo schema (DDL). <strong>Mutuamente esclusivo</strong> con <code>--schema-only</code>.</td></tr>
+  <tr><td><code>--schema-only</code></td><td>Disattivo</td><td>Esporta solo le definizioni degli oggetti (DDL), non i dati. <strong>Mutuamente esclusivo</strong> con <code>--data-only</code>.</td></tr>
+  <tr><td><code>--clean</code></td><td>Disattivo</td><td>Aggiunge comandi DROP prima dei CREATE nel dump. Con il formato custom, questo ha effetto solo durante il restore.</td></tr>
+  <tr><td><code>--create</code></td><td>Disattivo</td><td>Include il comando CREATE DATABASE nel dump. Se combinato con <code>--clean</code>, aggiunge anche DROP DATABASE.</td></tr>
+</table>
+
+<div class="warning">
+  <strong>Attenzione:</strong> <code>--data-only</code> e <code>--schema-only</code> sono mutuamente esclusivi.
+  L&rsquo;interfaccia impedisce di attivarli entrambi contemporaneamente.
+</div>
+
+<h3>Esclusione Tabelle</h3>
+<p>
+  Due parametri aggiuntivi permettono di escludere tabelle specifiche dal backup tramite pattern glob:
+</p>
+
+<table>
+  <tr><th>Parametro</th><th>Descrizione</th></tr>
+  <tr><td><code>--exclude-table</code></td><td>Esclude completamente (struttura e dati) le tabelle che corrispondono al pattern. Esempio: <code>public.temp_*</code> esclude tutte le tabelle che iniziano con <code>temp_</code> nello schema <code>public</code>.</td></tr>
+  <tr><td><code>--exclude-table-data</code></td><td>Esclude solo i dati (mantiene la struttura DDL) delle tabelle che corrispondono al pattern. Utile per tabelle di audit/log molto grandi.</td></tr>
+</table>
+
+<p>
+  Quando si abilita uno di questi toggle, appare un campo di testo dove specificare il pattern.
+  I pattern supportano i caratteri wildcard <code>*</code> e <code>?</code> e vengono validati
+  contro caratteri potenzialmente pericolosi.
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/05c_backup_advanced_exclusions.png" alt="Esclusione Tabelle"><br>
+  <em>Figura 5.4 &mdash; Esclusione Tabelle con Pattern</em>
+</div>
+
+<div class="tip">
+  <strong>Suggerimento:</strong> Le opzioni <code>--no-owner</code>, <code>--no-privileges</code> e <code>--no-tablespaces</code>
+  sono consigliate quando si ripristina su un server diverso dall&rsquo;originale, dove utenti, ruoli e tablespace potrebbero non esistere.
+</div>
+</div>
+
+<!-- ==================== CHAPTER 6 ==================== -->
+<div class="chapter" id="cap6">
+<h1>6. Restore</h1>
+<p>
+  La pagina Restore permette di ripristinare un database da un file di backup.
+  Accessibile solo a <span class="badge badge-admin">Admin</span> e <span class="badge badge-operator">Operator</span>.
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/06_restore.png" alt="Pagina Restore"><br>
+  <em>Figura 6.1 &mdash; Pagina Restore</em>
+</div>
+
+<h2 id="cap6-1">6.1 Restore Completo</h2>
+
+<div class="steps">
+  <div class="step">Selezionare il <strong>file di backup</strong> dal menu a tendina. Mostra nome, dimensione e data.</div>
+  <div class="step">Selezionare l&rsquo;<strong>Endpoint di destinazione</strong>.</div>
+  <div class="step">Selezionare il <strong>Database di destinazione</strong>.</div>
+  <div class="step">(Opzionale) Selezionare un <strong>Ruolo</strong> per il remapping dell&rsquo;ownership degli oggetti.</div>
+  <div class="step">(Opzionale) Configurare l&rsquo;<strong>Exclude Schema</strong> (default: <code>public</code>) per escludere schema specifici dal restore.</div>
+  <div class="step">(Opzionale) Attivare il toggle <strong>&ldquo;Advanced Parameters&rdquo;</strong> per configurare le opzioni avanzate di pg_restore (vedi sezione 6.3).</div>
+  <div class="step">Cliccare <strong>&ldquo;Start Restore&rdquo;</strong>.</div>
+</div>
+
+<div class="warning">
+  <strong>Attenzione:</strong> L&rsquo;opzione &ldquo;Clean&rdquo; elimina gli oggetti esistenti nel database di destinazione prima del ripristino. Assicurarsi di selezionare il database corretto.
+</div>
+
+<h2 id="cap6-2">6.2 Restore per Schema</h2>
+<p>Per ripristinare solo schema specifici:</p>
+<div class="steps">
+  <div class="step">Selezionare file di backup, endpoint e database.</div>
+  <div class="step">Attivare il toggle <strong>&ldquo;Schema Mode&rdquo;</strong>.</div>
+  <div class="step">Selezionare gli schema da ripristinare usando i chip.</div>
+  <div class="step">Cliccare <strong>&ldquo;Start Restore&rdquo;</strong>.</div>
+</div>
+
+<div class="note">
+  <strong>Nota:</strong> In modalit&agrave; schema, le opzioni cambiano: il campo &ldquo;Exclude Schema&rdquo; non &egrave; disponibile.
+</div>
+
+<h2 id="cap6-3">6.3 Parametri Avanzati</h2>
+<p>
+  La pagina Restore include un toggle <strong>&ldquo;Advanced Parameters&rdquo;</strong> che, una volta attivato,
+  mostra un pannello con parametri avanzati di <code>pg_restore</code>. Ogni parametro &egrave; accompagnato
+  da un&rsquo;icona tooltip (<code>?</code>) che ne spiega la funzione in dettaglio.
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/06b_restore_advanced_params.png" alt="Pannello Parametri Avanzati Restore"><br>
+  <em>Figura 6.2 &mdash; Pannello Parametri Avanzati Restore</em>
+</div>
+
+<h3>Opzioni di Restore</h3>
+<table>
+  <tr><th>Parametro</th><th>Default</th><th>Descrizione</th></tr>
+  <tr><td><code>--clean</code></td><td>Attivo</td><td>Elimina gli oggetti esistenti prima di ricrearli. Usa <code>--if-exists</code> per evitare errori se gli oggetti non esistono.</td></tr>
+  <tr><td><code>--no-owner</code></td><td>Attivo</td><td>Non esegue comandi per impostare la propriet&agrave; degli oggetti. Gli oggetti saranno di propriet&agrave; dell&rsquo;utente di connessione.</td></tr>
+  <tr><td><code>--no-privileges</code></td><td>Attivo</td><td>Non ripristina i comandi GRANT/REVOKE per i privilegi di accesso.</td></tr>
+  <tr><td><code>--no-tablespaces</code></td><td>Attivo</td><td>Non ripristina le assegnazioni di tablespace. Tutti gli oggetti verranno ripristinati nel tablespace predefinito.</td></tr>
+  <tr><td><code>--no-comments</code></td><td>Attivo</td><td>Non ripristina i commenti sugli oggetti. Riduce il rumore durante il restore.</td></tr>
+  <tr><td><code>--data-only</code></td><td>Disattivo</td><td>Ripristina solo i dati, non lo schema (DDL). Le tabelle devono gi&agrave; esistere nel database di destinazione. <strong>Mutuamente esclusivo</strong> con <code>--schema-only</code>.</td></tr>
+  <tr><td><code>--schema-only</code></td><td>Disattivo</td><td>Ripristina solo le definizioni degli oggetti (DDL), non i dati. <strong>Mutuamente esclusivo</strong> con <code>--data-only</code>.</td></tr>
+  <tr><td><code>--exit-on-error</code></td><td>Disattivo</td><td>Termina immediatamente al primo errore invece di continuare. Per default pg_restore prosegue dopo gli errori.</td></tr>
+  <tr><td><code>--no-publications</code></td><td>Attivo</td><td>Non ripristina le definizioni di pubblicazione. Utile quando si ripristina su un server che non deve replicare dati.</td></tr>
+  <tr><td><code>--no-subscriptions</code></td><td>Attivo</td><td>Non ripristina le definizioni di sottoscrizione. Impedisce al database ripristinato di tentare connessioni ai publisher.</td></tr>
+  <tr><td><code>TimescaleDB</code></td><td>Disattivo</td><td>Attiva il flusso di restore per database TimescaleDB: esegue <code>timescaledb_pre_restore()</code>, aggiunge <code>--disable-triggers</code> a pg_restore e invoca <code>timescaledb_post_restore()</code> al termine. Vedi sezione 6.5.</td></tr>
+</table>
+
+<div class="warning">
+  <strong>Attenzione:</strong> <code>--data-only</code> e <code>--schema-only</code> sono mutuamente esclusivi.
+  L&rsquo;interfaccia impedisce di attivarli entrambi contemporaneamente.
+</div>
+
+<h3>Parallel Jobs</h3>
+<p>
+  Il parametro <code>--jobs N</code> permette di eseguire il restore usando N processi paralleli (da 1 a 8).
+  Questo pu&ograve; accelerare significativamente il ripristino di database di grandi dimensioni su server multi-core.
+</p>
+<div class="note">
+  <strong>Nota:</strong> L&rsquo;uso di <code>--jobs</code> &egrave; incompatibile con <code>--single-transaction</code>.
+</div>
+
+<h3>Esclusioni</h3>
+<p>
+  Due aree di testo nella sezione Exclusions permettono di escludere schema e tabelle dal restore:
+</p>
+
+<table>
+  <tr><th>Campo</th><th>Descrizione</th></tr>
+  <tr><td><strong>Exclude schemas</strong></td><td>Uno schema per riga. Ogni valore viene passato come <code>--exclude-schema</code> a pg_restore.</td></tr>
+  <tr><td><strong>Exclude tables</strong></td><td>Un pattern per riga. Supporta wildcard <code>*</code> (qualsiasi carattere) e <code>?</code> (singolo carattere).</td></tr>
+</table>
+
+<p>
+  L&rsquo;esclusione tabelle utilizza il <strong>filtraggio TOC</strong> (Table of Contents): pg_restore esegue <code>--list</code> per ottenere
+  l&rsquo;elenco degli oggetti nel backup, le voci corrispondenti ai pattern vengono commentate, e il file filtrato viene passato con <code>--use-list</code>.
+  Questo approccio &egrave; necessario perch&eacute; pg_restore non dispone di un flag nativo <code>--exclude-table</code>.
+</p>
+
+<div class="tip">
+  <strong>Suggerimento:</strong> Le opzioni <code>--no-owner</code>, <code>--no-privileges</code> e <code>--no-tablespaces</code>
+  sono consigliate quando si ripristina su un server diverso dall&rsquo;originale, dove utenti, ruoli e tablespace potrebbero non esistere.
+</div>
+
+<h2 id="cap6-4">6.4 Role Mapping</h2>
+<p>
+  Il campo <strong>&ldquo;Role&rdquo;</strong> permette di assegnare l&rsquo;ownership di tutti gli oggetti ripristinati a un ruolo specifico del database di destinazione.
+  Il menu a tendina elenca i ruoli disponibili sull&rsquo;endpoint selezionato, evidenziando i superuser.
+</p>
+<p>Se non si seleziona un ruolo, pg_restore user&agrave; l&rsquo;utente di connessione dell&rsquo;endpoint.</p>
+
+<h2 id="cap6-5">6.5 Restore TimescaleDB</h2>
+<p>
+  Nella sezione <strong>Advanced Parameters</strong> &egrave; disponibile il toggle <strong>TimescaleDB</strong>.
+  Quando attivo, il restore viene adattato alle specifiche di un database con estensione
+  <code>timescaledb</code> installata, seguendo la procedura ufficiale TimescaleDB.
+</p>
+
+<div class="note">
+  <strong>Flusso attivato dal toggle:</strong>
+  <ol>
+    <li>L&rsquo;applicazione si connette al database di destinazione ed esegue <code>SELECT timescaledb_pre_restore();</code> &mdash; disabilita temporaneamente i background worker e rimuove le restrizioni sugli hypertable.</li>
+    <li>Viene eseguito <code>pg_restore</code> aggiungendo il flag <code>--disable-triggers</code> (utile per evitare l&rsquo;esecuzione di trigger di integrit&agrave; referenziale durante il caricamento dati).</li>
+    <li>Al termine del restore, viene eseguito <code>SELECT timescaledb_post_restore();</code> &mdash; ripristina le protezioni e riattiva i background worker.</li>
+  </ol>
+</div>
+
+<h3>Prerequisiti</h3>
+<ul>
+  <li>Il database di destinazione deve gi&agrave; avere l&rsquo;estensione <code>timescaledb</code> installata (<code>CREATE EXTENSION IF NOT EXISTS timescaledb;</code>).</li>
+  <li>L&rsquo;utente di connessione deve avere privilegi di superuser (richiesto sia da <code>timescaledb_pre_restore()</code> sia da <code>--disable-triggers</code>).</li>
+  <li>La versione di TimescaleDB sul target deve essere uguale o superiore a quella sorgente.</li>
+</ul>
+
+<h3>Gestione errori</h3>
+<table>
+  <tr><th>Errore</th><th>Comportamento</th></tr>
+  <tr>
+    <td><code>timescaledb_pre_restore()</code> fallisce<br>(estensione mancante, utente non superuser)</td>
+    <td>Il restore viene <strong>abortito prima di eseguire pg_restore</strong>. Lo stato finale &egrave; <em>failed</em> con il messaggio d&rsquo;errore originale.</td>
+  </tr>
+  <tr>
+    <td><code>pg_restore</code> fallisce</td>
+    <td>Errore riportato normalmente. <code>timescaledb_post_restore()</code> viene comunque tentata per riattivare i worker.</td>
+  </tr>
+  <tr>
+    <td><code>timescaledb_post_restore()</code> fallisce</td>
+    <td>Lo stato dell&rsquo;operazione viene marcato come <em>failed</em> anche se <code>pg_restore</code> &egrave; terminato correttamente, perch&eacute; il database resta in stato inconsistente (background worker non riattivati).</td>
+  </tr>
+</table>
+
+<p>
+  Il toggle <strong>TimescaleDB</strong> &egrave; disponibile anche nella sezione <em>Advanced Parameters</em> della fase Restore
+  della pagina Transfer, consentendo di attivare lo stesso flusso in operazioni di trasferimento completo.
+</p>
+</div>
+
+<!-- ==================== CHAPTER 7 ==================== -->
+<div class="chapter" id="cap7">
+<h1>7. Transfer</h1>
+<p>
+  La pagina Transfer esegue un trasferimento completo tra due database in un&rsquo;unica operazione (backup &rarr; restore).
+  Accessibile solo a <span class="badge badge-admin">Admin</span> e <span class="badge badge-operator">Operator</span>.
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/07_transfer.png" alt="Pagina Transfer"><br>
+  <em>Figura 7.1 &mdash; Pagina Transfer</em>
+</div>
+
+<h2 id="cap7-1">7.1 Trasferimento Database</h2>
+
+<div class="steps">
+  <div class="step">Nella card <strong>Source</strong> (blu), selezionare endpoint e database sorgente.</div>
+  <div class="step">(Opzionale) Attivare <strong>Schema Mode</strong> e selezionare gli schema da trasferire.</div>
+  <div class="step">Nella card <strong>Destination</strong> (verde), selezionare endpoint e database di destinazione.</div>
+  <div class="step">(Opzionale) Selezionare un ruolo per il remapping ownership.</div>
+  <div class="step">Cliccare <strong>&ldquo;Start Transfer&rdquo;</strong>.</div>
+</div>
+
+<h2 id="cap7-2">7.2 Monitoraggio Fasi</h2>
+<p>Il transfer procede in due fasi, visualizzate con un indicatore di progresso:</p>
+
+<table>
+  <tr><th>Fase</th><th>Indicatore</th><th>Descrizione</th></tr>
+  <tr><td>1. Backup</td><td>Cerchio blu attivo</td><td>Backup dal database sorgente</td></tr>
+  <tr><td>Transizione</td><td>Freccia tra le due fasi</td><td>Preparazione per il restore</td></tr>
+  <tr><td>2. Restore</td><td>Cerchio verde attivo</td><td>Restore sul database di destinazione</td></tr>
+</table>
+
+<p>L&rsquo;output nella console &egrave; prefissato con <code>[BACKUP]</code> e <code>[RESTORE]</code> per distinguere le due fasi.</p>
+
+<div class="note">
+  <strong>Nota:</strong> Durante il transfer, l&rsquo;indicatore di fase si aggiorna automaticamente: il cerchio &ldquo;Backup&rdquo; diventa verde al completamento, poi il cerchio &ldquo;Restore&rdquo; diventa attivo.
+</div>
+
+<h2 id="cap7-3">7.3 Parametri Avanzati</h2>
+<p>
+  La pagina Transfer include due pannelli di parametri avanzati indipendenti, uno per la fase di backup e uno per la fase di restore.
+  Ogni pannello si attiva tramite il proprio toggle <strong>&ldquo;Advanced Parameters&rdquo;</strong> nella card corrispondente.
+</p>
+
+<h3>Parametri Backup (Source)</h3>
+<p>
+  Nella card <strong>Source</strong> (blu), il toggle <strong>&ldquo;Backup Advanced Parameters&rdquo;</strong> mostra le stesse opzioni
+  di <code>pg_dump</code> disponibili nella pagina Backup dedicata (vedi <a href="#cap5-3">sezione 5.3</a>):
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/07b_transfer_backup_advanced_params.png" alt="Transfer - Parametri Avanzati Backup"><br>
+  <em>Figura 7.2 &mdash; Parametri Avanzati Backup nella pagina Transfer</em>
+</div>
+
+<table>
+  <tr><th>Parametro</th><th>Default</th><th>Descrizione</th></tr>
+  <tr><td><code>--large-objects</code></td><td>Attivo</td><td>Include i large object (BLOB) nel dump.</td></tr>
+  <tr><td><code>--no-owner</code></td><td>Attivo</td><td>Non emette comandi per impostare la propriet&agrave; degli oggetti.</td></tr>
+  <tr><td><code>--no-privileges</code></td><td>Attivo</td><td>Non include comandi GRANT/REVOKE.</td></tr>
+  <tr><td><code>--no-tablespaces</code></td><td>Attivo</td><td>Non emette comandi per impostare i tablespace.</td></tr>
+  <tr><td><code>--no-comments</code></td><td>Attivo</td><td>Non include comandi COMMENT.</td></tr>
+  <tr><td><code>--data-only</code></td><td>Disattivo</td><td>Esporta solo i dati. <strong>Mutuamente esclusivo</strong> con <code>--schema-only</code>.</td></tr>
+  <tr><td><code>--schema-only</code></td><td>Disattivo</td><td>Esporta solo le definizioni DDL. <strong>Mutuamente esclusivo</strong> con <code>--data-only</code>.</td></tr>
+  <tr><td><code>--clean</code></td><td>Disattivo</td><td>Aggiunge comandi DROP prima dei CREATE.</td></tr>
+  <tr><td><code>--create</code></td><td>Disattivo</td><td>Include il comando CREATE DATABASE nel dump.</td></tr>
+</table>
+
+<p>Sono disponibili anche le opzioni di esclusione tabelle (<code>--exclude-table</code> e <code>--exclude-table-data</code>) con pattern glob.</p>
+
+<h3>Parametri Restore (Destination)</h3>
+<p>
+  Nella card <strong>Destination</strong> (verde), il toggle <strong>&ldquo;Restore Advanced Parameters&rdquo;</strong> mostra le stesse opzioni
+  di <code>pg_restore</code> disponibili nella pagina Restore dedicata (vedi <a href="#cap6-3">sezione 6.3</a>):
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/07c_transfer_restore_advanced_params.png" alt="Transfer - Parametri Avanzati Restore"><br>
+  <em>Figura 7.3 &mdash; Parametri Avanzati Restore nella pagina Transfer</em>
+</div>
+
+<table>
+  <tr><th>Parametro</th><th>Default</th><th>Descrizione</th></tr>
+  <tr><td><code>--clean</code></td><td>Attivo</td><td>Elimina gli oggetti esistenti prima di ricrearli.</td></tr>
+  <tr><td><code>--no-owner</code></td><td>Attivo</td><td>Non esegue comandi per impostare la propriet&agrave; degli oggetti.</td></tr>
+  <tr><td><code>--no-privileges</code></td><td>Attivo</td><td>Non ripristina i comandi GRANT/REVOKE.</td></tr>
+  <tr><td><code>--no-tablespaces</code></td><td>Attivo</td><td>Non ripristina le assegnazioni di tablespace.</td></tr>
+  <tr><td><code>--no-comments</code></td><td>Attivo</td><td>Non ripristina i commenti sugli oggetti.</td></tr>
+  <tr><td><code>--data-only</code></td><td>Disattivo</td><td>Ripristina solo i dati. <strong>Mutuamente esclusivo</strong> con <code>--schema-only</code>.</td></tr>
+  <tr><td><code>--schema-only</code></td><td>Disattivo</td><td>Ripristina solo le definizioni DDL. <strong>Mutuamente esclusivo</strong> con <code>--data-only</code>.</td></tr>
+  <tr><td><code>--exit-on-error</code></td><td>Disattivo</td><td>Termina immediatamente al primo errore.</td></tr>
+  <tr><td><code>--no-publications</code></td><td>Attivo</td><td>Non ripristina le definizioni di pubblicazione.</td></tr>
+  <tr><td><code>--no-subscriptions</code></td><td>Attivo</td><td>Non ripristina le definizioni di sottoscrizione.</td></tr>
+</table>
+
+<p>
+  Sono disponibili anche il campo <strong>Parallel Jobs</strong> (<code>--jobs N</code>, da 1 a 8) e le aree di testo
+  per escludere schema e tabelle dal restore.
+</p>
+
+<div class="tip">
+  <strong>Suggerimento:</strong> I parametri avanzati del transfer sono indipendenti tra loro: &egrave; possibile configurare
+  opzioni diverse per la fase di backup e per la fase di restore nella stessa operazione.
+  Per una descrizione dettagliata di ciascun parametro, fare riferimento alle sezioni
+  <a href="#cap5-3">5.3</a> (backup) e <a href="#cap6-3">6.3</a> (restore).
+</div>
+</div>
+
+<!-- ==================== CAP 8: QUERY EDITOR ==================== -->
+<div class="chapter" id="cap8">
+<h1>8. Query Editor</h1>
+
+<p>Il <strong>Query Editor</strong> permette di eseguire query SQL direttamente su qualsiasi endpoint configurato.
+Accessibile dalla barra di navigazione (<strong>Query</strong>), offre un ambiente di sviluppo SQL completo
+con editor avanzato, browser degli oggetti e visualizzazione dei risultati.</p>
+
+<div class="note">
+  <strong>Nota:</strong> Il Query Editor &egrave; accessibile solo agli utenti con ruolo
+  <span class="badge badge-operator">Operator</span> o <span class="badge badge-admin">Admin</span>.
+</div>
+
+<h2 id="cap8-1">8.1 Interfaccia</h2>
+
+<p>L&rsquo;interfaccia &egrave; composta da tre pannelli ridimensionabili:</p>
+
+<ol>
+  <li><strong>Barra di connessione</strong> (in alto) &mdash; Selezione endpoint, database, ruolo, timeout e limite righe</li>
+  <li><strong>Object Browser</strong> (a sinistra) &mdash; Albero navigabile degli oggetti del database</li>
+  <li><strong>Editor SQL + Risultati</strong> (a destra) &mdash; Editor di codice, toolbar con pulsanti e tabella dei risultati</li>
+</ol>
+
+<p>La toolbar dell&rsquo;editor include i pulsanti <strong>Run</strong>, <strong>Clear</strong>, <strong>Export CSV</strong>,
+il toggle <strong>Autocommit</strong> e il pulsante <strong>History</strong>. Tutti gli elementi della toolbar
+dispongono di <strong>tooltip esplicativi</strong>: passando il mouse sopra ciascun pulsante o toggle viene
+mostrata una descrizione della sua funzione.</p>
+
+<div class="screenshot">
+  <img src="screenshots/08a_query_editor.png" alt="Query Editor"><br>
+  <em>Figura 8.1 &mdash; Query Editor</em>
+</div>
+
+<h2 id="cap8-2">8.2 Connessione</h2>
+
+<p>Per iniziare, selezionare un <strong>Endpoint</strong> dalla barra di connessione. Il sistema carica automaticamente
+la lista dei database disponibili. Selezionare quindi il <strong>Database</strong> desiderato.</p>
+
+<p>Opzioni aggiuntive:</p>
+
+<table>
+  <tr><th>Campo</th><th>Descrizione</th></tr>
+  <tr><td><strong>Run as Role</strong></td><td>Esegui le query con un ruolo PostgreSQL diverso (opzionale). Utilizza <code>SET ROLE</code>.</td></tr>
+  <tr><td><strong>Timeout</strong></td><td>Timeout massimo per l&rsquo;esecuzione della query (5-300 secondi). Imposta <code>statement_timeout</code> lato server.</td></tr>
+  <tr><td><strong>Row Limit</strong></td><td>Numero massimo di righe restituite (100-10.000).</td></tr>
+</table>
+
+<div class="screenshot">
+  <img src="screenshots/08b_query_editor_connected.png" alt="Query Editor Connected"><br>
+  <em>Figura 8.2 &mdash; Query Editor con endpoint connesso</em>
+</div>
+
+<h2 id="cap8-3">8.3 Object Browser</h2>
+
+<p>Il pannello laterale mostra la struttura del database in un albero espandibile:</p>
+
+<ul>
+  <li><strong>Schemas</strong> &mdash; Elenco degli schemi del database</li>
+  <li><strong>Tables</strong> &mdash; Tabelle con dimensione e numero stimato di righe</li>
+  <li><strong>Views</strong> &mdash; Viste del database</li>
+  <li><strong>Functions</strong> &mdash; Funzioni e procedure</li>
+  <li><strong>Indexes</strong> &mdash; Indici con tipo e definizione</li>
+</ul>
+
+<p>Doppio clic su una tabella o vista inserisce automaticamente una query <code>SELECT * FROM schema.tabella LIMIT 100;</code> nell&rsquo;editor.</p>
+
+<h2 id="cap8-4">8.4 Esecuzione Query</h2>
+
+<p>Scrivere la query nell&rsquo;editor SQL e premere il pulsante <strong>Run</strong> (<i class="bi bi-play-fill"></i>)
+o la scorciatoia <strong>Ctrl+Enter</strong> (Cmd+Enter su Mac).</p>
+
+<p>I risultati vengono visualizzati nella tabella sottostante con:</p>
+<ul>
+  <li>Intestazioni sticky (visibili durante lo scroll)</li>
+  <li>Numero di righe e tempo di esecuzione</li>
+  <li>Valori <code>NULL</code> evidenziati in grigio corsivo</li>
+  <li>Badge &ldquo;TRUNCATED&rdquo; se il risultato supera il limite righe</li>
+</ul>
+
+<div class="tip">
+  <strong>Suggerimento:</strong> Selezionare una porzione di testo nell&rsquo;editor ed eseguire: verr&agrave; eseguita
+  solo la parte selezionata. Utile per eseguire una singola query in un file con pi&ugrave; istruzioni.
+</div>
+
+<h2 id="cap8-5">8.5 Funzionalit&agrave; Aggiuntive</h2>
+
+<table>
+  <tr><th>Funzione</th><th>Descrizione</th></tr>
+  <tr><td><strong>Autocommit</strong></td><td>Toggle nella toolbar, accanto al pulsante History. Quando &egrave; <strong>ON</strong>: ogni istruzione SQL viene eseguita e committata immediatamente (senza transazione esplicita). Quando &egrave; <strong>OFF</strong>: le query vengono eseguite all&rsquo;interno di una transazione con <code>COMMIT</code> al termine. Il valore predefinito &egrave; configurabile nella sezione <code>[query]</code> del file <code>config.ini</code> oppure da Admin &rarr; Settings &rarr; Query Editor.</td></tr>
+  <tr><td><strong>Export CSV</strong></td><td>Esporta i risultati della query in formato CSV</td></tr>
+  <tr><td><strong>Query History</strong></td><td>Mostra le ultime 50 query eseguite (salvate nel browser)</td></tr>
+  <tr><td><strong>Clear</strong></td><td>Pulisce l&rsquo;editor SQL</td></tr>
+  <tr><td><strong>Tooltips</strong></td><td>Tutti gli elementi della toolbar (pulsanti, toggle, campi) dispongono di tooltip esplicativi: passando il mouse sopra ciascun elemento viene mostrata una descrizione della sua funzione.</td></tr>
+  <tr><td><strong>Dark Mode</strong></td><td>L&rsquo;editor si adatta automaticamente al tema chiaro/scuro</td></tr>
+</table>
+
+<div class="warning">
+  <strong>Attenzione:</strong> Le query vengono eseguite con un timeout lato server (<code>statement_timeout</code>).
+  Se una query supera il timeout impostato, viene automaticamente annullata da PostgreSQL.
+</div>
+
+<div class="note">
+  <strong>Nota:</strong> Il toggle <strong>Autocommit</strong> influisce sul comportamento transazionale delle query.
+  Con autocommit attivo, ogni istruzione &egrave; atomica e non pu&ograve; essere annullata (<code>ROLLBACK</code>).
+  Con autocommit disattivo, tutte le istruzioni vengono racchiuse in una transazione e committate solo al termine dell&rsquo;esecuzione completa.
+</div>
+</div>
+
+<!-- ==================== CHAPTER 9 ==================== -->
+<div class="chapter" id="cap9">
+<h1>9. Gestione File</h1>
+<p>
+  La pagina Files permette di gestire i file di backup (.backup).
+  Accessibile solo a <span class="badge badge-admin">Admin</span> e <span class="badge badge-operator">Operator</span>.
+  I <span class="badge badge-viewer">Viewer</span> possono scaricare file dalla Dashboard ma non accedere a questa pagina.
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/09_files.png" alt="Gestione File"><br>
+  <em>Figura 9.1 &mdash; Gestione File</em>
+</div>
+
+<h2 id="cap9-1">9.1 Upload</h2>
+<div class="steps">
+  <div class="step">Cliccare il pulsante <strong>&ldquo;Upload Backup&rdquo;</strong> (verde).</div>
+  <div class="step">Selezionare un file con estensione <code>.backup</code> dal proprio computer.</div>
+  <div class="step">L&rsquo;upload inizia automaticamente. Una barra di progresso mostra l&rsquo;avanzamento.</div>
+  <div class="step">Al termine, il file appare nella lista.</div>
+</div>
+
+<div class="note">
+  <strong>Nota:</strong> La dimensione massima di upload &egrave; configurabile (default: 5&nbsp;GB). Verificare l&rsquo;impostazione in Admin &rarr; Settings.
+</div>
+
+<h2 id="cap9-2">9.2 Download e Cancellazione</h2>
+<p>Per ogni file nella lista sono disponibili:</p>
+<ul>
+  <li><strong>Download</strong> (icona freccia gi&ugrave;) &mdash; Scarica il file sul proprio computer</li>
+  <li><strong>Delete</strong> (icona cestino) &mdash; Elimina il file con richiesta di conferma</li>
+</ul>
+
+<p><strong>Funzionalit&agrave; aggiuntive:</strong></p>
+<ul>
+  <li><strong>Ricerca</strong> &mdash; Filtra i file per nome usando il campo di ricerca</li>
+  <li><strong>Ordinamento</strong> &mdash; Clicca sulle intestazioni colonna (Nome, Dimensione, Data) per ordinare</li>
+  <li><strong>Refresh</strong> &mdash; Aggiorna la lista file</li>
+</ul>
+</div>
+
+<!-- ==================== CHAPTER 10 ==================== -->
+<div class="chapter" id="cap10">
+<h1>10. Amministrazione</h1>
+<p>
+  Il pannello di Amministrazione &egrave; accessibile solo agli utenti <span class="badge badge-admin">Admin</span>.
+  Contiene 7 sezioni organizzate in tab.
+</p>
+
+<div class="screenshot">
+  <img src="screenshots/10_admin_endpoints.png" alt="Pannello Amministrazione - Endpoints"><br>
+  <em>Figura 10.1 &mdash; Pannello Amministrazione &mdash; Tab Endpoints</em>
+</div>
+
+<h2 id="cap10-1">10.1 Gestione Endpoint</h2>
+<p>Il tab <strong>Endpoints</strong> permette di configurare i database a cui l&rsquo;applicazione pu&ograve; connettersi.</p>
+
+<h3>Aggiungere un Endpoint</h3>
+<div class="steps">
+  <div class="step">Cliccare <strong>&ldquo;Add Endpoint&rdquo;</strong>.</div>
+  <div class="step">Compilare il form:
+    <ul>
+      <li><strong>Name</strong> &mdash; Identificativo univoco (es. <code>prod-aurora</code>)</li>
+      <li><strong>Host</strong> &mdash; Hostname o IP del database</li>
+      <li><strong>Port</strong> &mdash; Porta (default: 5432)</li>
+      <li><strong>Username</strong> &mdash; Utente PostgreSQL</li>
+      <li><strong>Password</strong> &mdash; Password (verr&agrave; cifrata)</li>
+      <li><strong>Use SSM Tunnel</strong> &mdash; Toggle per connessione tramite SSM</li>
+      <li><strong>Jump Host</strong> &mdash; (se SSM attivo) Selezionare il jump host</li>
+      <li><strong>Read-only endpoint</strong> &mdash; Toggle: il Query Editor opera in sola lettura e restore/transfer verso questo endpoint sono rifiutati (vedi 3.3)</li>
+    </ul>
+  </div>
+  <div class="step">Cliccare <strong>&ldquo;Save&rdquo;</strong>.</div>
+</div>
+
+<div class="screenshot">
+  <img src="screenshots/11_admin_jumphosts.png" alt="Tab Jump Hosts"><br>
+  <em>Figura 10.2 &mdash; Tab Jump Hosts</em>
+</div>
+
+<h3>Modificare un Endpoint</h3>
+<div class="steps">
+  <div class="step">Nella tabella degli endpoint, cliccare il pulsante <strong>Edit</strong> (icona matita, giallo) nella riga dell&rsquo;endpoint da modificare.</div>
+  <div class="step">Si apre il modal pre-compilato con tutti i dati dell&rsquo;endpoint. Il campo <strong>Name</strong> &egrave; in sola lettura.</div>
+  <div class="step">Modificare i campi desiderati (host, porta, username, password, SSM, jump host).</div>
+  <div class="step">La password &egrave; mostrata in chiaro; usare l&rsquo;icona <strong>&ldquo;occhiolino&rdquo;</strong> per visualizzarla/nasconderla.</div>
+  <div class="step">Cliccare <strong>&ldquo;Save Changes&rdquo;</strong> per salvare le modifiche.</div>
+</div>
+
+<div class="screenshot">
+  <img src="screenshots/10b_admin_edit_endpoint_modal.png" alt="Modal Modifica Endpoint"><br>
+  <em>Figura 10.1b &mdash; Modal di Modifica Endpoint</em>
+</div>
+
+<h3>Test Connessione</h3>
+<p>Per ogni endpoint &egrave; disponibile il pulsante <strong>&ldquo;Test Connection&rdquo;</strong> (icona spina) che verifica la connettivit&agrave; al database.</p>
+
+<h2 id="cap10-2">10.2 Jump Host (SSM)</h2>
+<p>Il tab <strong>Jump Hosts</strong> permette di configurare le istanze EC2 usate come jump host per i tunnel SSM.</p>
+
+<div class="steps">
+  <div class="step">Cliccare <strong>&ldquo;Add Jump Host&rdquo;</strong>.</div>
+  <div class="step">Compilare:
+    <ul>
+      <li><strong>Alias</strong> &mdash; Nome identificativo (es. <code>production-jh</code>)</li>
+      <li><strong>Instance ID</strong> &mdash; ID dell&rsquo;istanza EC2 (es. <code>i-0123456789abcdef0</code>)</li>
+      <li><strong>AWS Account</strong> &mdash; Account AWS associato</li>
+    </ul>
+  </div>
+  <div class="step">Cliccare <strong>&ldquo;Save&rdquo;</strong>.</div>
+</div>
+
+<h2 id="cap10-3">10.3 Account AWS</h2>
+<p>Il tab <strong>AWS Accounts</strong> gestisce le credenziali AWS necessarie per i tunnel SSM.</p>
+
+<div class="steps">
+  <div class="step">Cliccare <strong>&ldquo;Add AWS Account&rdquo;</strong>.</div>
+  <div class="step">Compilare:
+    <ul>
+      <li><strong>Alias</strong> &mdash; Nome identificativo</li>
+      <li><strong>Access Key ID</strong> &mdash; AWS Access Key</li>
+      <li><strong>Secret Access Key</strong> &mdash; AWS Secret Key</li>
+      <li><strong>Region</strong> &mdash; Regione AWS (default: <code>us-east-1</code>)</li>
+    </ul>
+  </div>
+  <div class="step">Cliccare <strong>&ldquo;Save&rdquo;</strong>.</div>
+</div>
+
+<div class="screenshot">
+  <img src="screenshots/12_admin_aws.png" alt="Tab AWS Accounts"><br>
+  <em>Figura 10.6 &mdash; Tab AWS Accounts</em>
+</div>
+
+<h2 id="cap10-4">10.4 Impostazioni</h2>
+<p>Il tab <strong>Settings</strong> permette di configurare i parametri dell&rsquo;applicazione:</p>
+
+<table>
+  <tr><th>Sezione</th><th>Parametro</th><th>Descrizione</th></tr>
+  <tr><td rowspan="2">Storage</td><td>Backup Directory</td><td>Percorso della directory backup</td></tr>
+  <tr><td>Max Upload Size (GB)</td><td>Dimensione massima upload (1-50 GB)</td></tr>
+  <tr><td rowspan="2">PostgreSQL Tools</td><td>pg_dump Path</td><td>Percorso eseguibile pg_dump</td></tr>
+  <tr><td>pg_restore Path</td><td>Percorso eseguibile pg_restore</td></tr>
+  <tr><td>Query Editor</td><td>Default Autocommit</td><td>Valore predefinito del toggle Autocommit nel Query Editor (ON/OFF). Corrisponde alla chiave <code>autocommit</code> nella sezione <code>[query]</code> del file <code>config.ini</code>.</td></tr>
+  <tr><td>Logging</td><td>Log Level</td><td>Livello di log (DEBUG, INFO, WARNING, ERROR)</td></tr>
+</table>
+
+<div class="screenshot">
+  <img src="screenshots/13_admin_settings.png" alt="Tab Settings"><br>
+  <em>Figura 10.7 &mdash; Tab Impostazioni Applicazione</em>
+</div>
+
+<h2 id="cap10-5">10.5 Import/Export Configurazione</h2>
+<p>Il tab <strong>Import/Export</strong> permette di esportare e importare la configurazione completa dell&rsquo;applicazione.</p>
+
+<h3>Export</h3>
+<p>Cliccare <strong>&ldquo;Download Configuration&rdquo;</strong> per scaricare il file <code>config.ini</code> con tutte le impostazioni, endpoint e jump host.</p>
+
+<h3>Import</h3>
+<div class="warning">
+  <strong>Attenzione:</strong> L&rsquo;importazione sovrascrive TUTTE le impostazioni correnti, inclusi endpoint e credenziali.
+</div>
+<div class="steps">
+  <div class="step">Selezionare il file di configurazione (formati accettati: .ini, .yaml, .yml, .json, .conf).</div>
+  <div class="step">Cliccare <strong>&ldquo;Import Configuration&rdquo;</strong>.</div>
+  <div class="step">L&rsquo;applicazione ricaricher&agrave; la configurazione.</div>
+</div>
+
+<div class="screenshot">
+  <img src="screenshots/14_admin_importexport.png" alt="Tab Import/Export"><br>
+  <em>Figura 10.8 &mdash; Tab Import/Export Configurazione</em>
+</div>
+
+<h2 id="cap10-6">10.6 Sicurezza (Cifratura Password)</h2>
+<p>Il tab <strong>Security</strong> contiene la funzione di cifratura delle password degli endpoint.</p>
+<p>Cliccando <strong>&ldquo;Encrypt Existing Passwords&rdquo;</strong>, tutte le password in chiaro degli endpoint vengono cifrate con Fernet (AES-128). Le password gi&agrave; cifrate (prefisso <code>ENC:</code>) vengono ignorate.</p>
+
+<div class="screenshot">
+  <img src="screenshots/15_admin_security.png" alt="Tab Security"><br>
+  <em>Figura 10.9 &mdash; Tab Security &mdash; Cifratura Password</em>
+</div>
+
+<h2 id="cap10-7">10.7 Gestione Utenti</h2>
+<p>Il tab <strong>Users</strong> mostra la tabella di tutti gli utenti del sistema.</p>
+
+<div class="screenshot">
+  <img src="screenshots/16_admin_users.png" alt="Gestione Utenti"><br>
+  <em>Figura 10.3 &mdash; Tab Users &mdash; Gestione Utenti</em>
+</div>
+
+<h3>Creare un Nuovo Utente</h3>
+<div class="steps">
+  <div class="step">Cliccare <strong>&ldquo;Add User&rdquo;</strong>.</div>
+  <div class="step">Compilare:
+    <ul>
+      <li><strong>Username</strong> &mdash; Alfanumerico, trattini e underscore (2-50 caratteri)</li>
+      <li><strong>Password</strong> &mdash; Deve rispettare la policy (min 8 caratteri, 1 maiuscola, 1 minuscola, 1 cifra)</li>
+      <li><strong>Role</strong> &mdash; Viewer, Operator o Admin</li>
+      <li><strong>Allowed endpoints</strong> &mdash; Nomi di endpoint separati da virgola a cui l&rsquo;utente pu&ograve; accedere; vuoto o <code>*</code> = tutti. Ignorato per gli Admin (sempre tutti). Vedi 3.3.</li>
+    </ul>
+  </div>
+  <div class="step">Cliccare <strong>&ldquo;Create User&rdquo;</strong>.</div>
+</div>
+
+<div class="screenshot">
+  <img src="screenshots/17_admin_add_user_modal.png" alt="Modale Aggiungi Utente"><br>
+  <em>Figura 10.4 &mdash; Modale Creazione Utente</em>
+</div>
+
+<h3>Modificare un Utente</h3>
+<p>Cliccare l&rsquo;icona <strong>matita</strong> per modificare ruolo, stato (abilitato/disabilitato) e la lista <strong>Allowed endpoints</strong> di un utente.</p>
+
+<h3>Reset Password</h3>
+<p>Cliccare l&rsquo;icona <strong>chiave</strong> per reimpostare la password di un utente. La nuova password deve rispettare la policy.</p>
+
+<h3>Sbloccare Account</h3>
+<p>Se un account &egrave; bloccato (badge giallo &ldquo;Locked&rdquo;), cliccare l&rsquo;icona <strong>lucchetto aperto</strong> per sbloccarlo.</p>
+
+<h3>Eliminare Utente</h3>
+<p>Cliccare l&rsquo;icona <strong>cestino</strong> per eliminare un utente (con conferma).
+Il pulsante di eliminazione per il proprio account &egrave; sempre visibile ma <strong>disabilitato</strong> (grigio, non cliccabile),
+in modo da rendere chiaro che non &egrave; possibile eliminare se stessi.
+Non &egrave; inoltre possibile eliminare l&rsquo;ultimo utente Admin.</p>
+
+<h2 id="cap10-8">10.8 Audit Log</h2>
+<p>Sotto la tabella utenti &egrave; presente la sezione <strong>Audit Log</strong> che mostra tutti gli eventi di sicurezza.</p>
+
+<div class="screenshot">
+  <img src="screenshots/18_admin_audit_log.png" alt="Audit Log"><br>
+  <em>Figura 10.5 &mdash; Audit Log</em>
+</div>
+
+<p>Colonne visualizzate:</p>
+<table>
+  <tr><th>Colonna</th><th>Descrizione</th></tr>
+  <tr><td>Time</td><td>Timestamp dell&rsquo;evento</td></tr>
+  <tr><td>Event</td><td>Tipo evento (login_success, login_failed, password_changed, user_created, ecc.)</td></tr>
+  <tr><td>User</td><td>Username coinvolto</td></tr>
+  <tr><td>IP</td><td>Indirizzo IP del client</td></tr>
+  <tr><td>Details</td><td>Dettagli aggiuntivi dell&rsquo;evento</td></tr>
+</table>
+
+<p>Cliccare <strong>&ldquo;Refresh&rdquo;</strong> per aggiornare il log.</p>
+
+<h2 id="cap10-info">10.9 Pagina Info</h2>
+
+<p>La pagina <strong>Info</strong> &egrave; accessibile da tutti gli utenti tramite il pulsante
+<i class="bi bi-info-circle"></i> nella barra di navigazione (route: <code>/info</code>).
+La vecchia route <code>/about</code> effettua un redirect automatico a <code>/info</code>.</p>
+
+<p>La pagina presenta un <strong>layout orizzontale</strong> organizzato in card:</p>
+
+<h3>Prima riga</h3>
+<ul>
+  <li><strong>Logo/Versione</strong> &mdash; Logo dell&rsquo;applicazione e numero di versione corrente</li>
+  <li><strong>Autore/Progetto</strong> &mdash; Informazioni sull&rsquo;autore, contatti e link al repository del codice sorgente</li>
+  <li><strong>Documentazione</strong> &mdash; Link al manuale utente:
+    <ul>
+      <li><strong>Manuale HTML</strong> &mdash; Si apre in una nuova scheda del browser (route: <code>/docs/manual</code>)</li>
+      <li><strong>Manuale PDF</strong> &mdash; Download diretto del file PDF (route: <code>/docs/manual.pdf</code>)</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>Seconda riga</h3>
+<ul>
+  <li><strong>Built With</strong> &mdash; Tecnologie utilizzate per lo sviluppo dell&rsquo;applicazione</li>
+  <li><strong>Version History</strong> &mdash; Cronologia delle versioni con dettaglio delle funzionalit&agrave; introdotte</li>
+</ul>
+
+
+
+<h3>Cronologia Versioni</h3>
+<p>La card <strong>Version History</strong> nella pagina Info riporta il changelog dell&rsquo;applicazione. Di seguito il dettaglio della versione corrente:</p>
+
+<h4>Versione 3.2.0</h4>
+<ul>
+  <li><strong>Restore TimescaleDB-aware</strong> &mdash; Nuovo toggle &laquo;TimescaleDB&raquo; nella sezione <em>Advanced Parameters</em> di Restore e Transfer. Quando attivo, l&rsquo;applicazione esegue <code>SELECT timescaledb_pre_restore()</code> prima del restore, aggiunge <code>--disable-triggers</code> a <code>pg_restore</code> e invoca <code>SELECT timescaledb_post_restore()</code> al termine</li>
+  <li><strong>Gestione errori robusta</strong> &mdash; Se la procedura di pre-restore fallisce (estensione TimescaleDB non installata, utente non superuser, ecc.) il restore viene abortito; se fallisce la post-restore, lo stato finale &egrave; riportato come <em>failed</em> anche se <code>pg_restore</code> &egrave; terminato correttamente</li>
+</ul>
+
+<h4>Versione 3.1.0</h4>
+<ul>
+  <li><strong>Context Path / Reverse Proxy</strong> &mdash; Supporto per il deploy sotto un prefisso URL (es. <code>/magikup</code>) tramite variabile d&rsquo;ambiente <code>ROOT_PATH</code> o configurazione <code>context_path</code> in <code>config.ini</code></li>
+  <li><strong>Sezione Network nell&rsquo;Admin</strong> &mdash; Gestione del context path direttamente dalla pagina di amministrazione, con avviso di riavvio e indicatore di override da variabile d&rsquo;ambiente</li>
+  <li><strong>Dual-source priority</strong> &mdash; Il context path pu&ograve; essere configurato sia da variabile d&rsquo;ambiente (<code>ROOT_PATH</code>, priorit&agrave; massima) sia da <code>config.ini</code>, risolvendo il problema del primo avvio</li>
+  <li><strong>Manifest Kubernetes aggiornati</strong> &mdash; Deployment, Ingress e ConfigMap aggiornati con supporto context path ed esempi di configurazione</li>
+</ul>
+
+<h4>Versione 3.0.0</h4>
+<ul>
+  <li><strong>Query Editor</strong> &mdash; Ambiente di sviluppo SQL completo con editor avanzato e visualizzazione risultati</li>
+  <li><strong>Object Browser</strong> &mdash; Albero navigabile degli oggetti del database (schemi, tabelle, viste, funzioni, indici)</li>
+  <li><strong>Cambio ruolo (Run as Role)</strong> &mdash; Possibilit&agrave; di eseguire query con un ruolo PostgreSQL diverso tramite <code>SET ROLE</code></li>
+  <li><strong>Autocommit</strong> &mdash; Toggle per controllare il comportamento transazionale delle query (commit immediato o transazione esplicita)</li>
+  <li><strong>Query History</strong> &mdash; Storico delle ultime 50 query eseguite, salvato nel browser</li>
+  <li><strong>Export CSV</strong> &mdash; Esportazione dei risultati delle query in formato CSV</li>
+  <li><strong>Pagina Info con documentazione</strong> &mdash; Nuova pagina Info con layout a card orizzontali, link al manuale HTML e download PDF</li>
+  <li><strong>Tooltips</strong> &mdash; Tooltip esplicativi su tutti gli elementi del Query Editor</li>
+  <li><strong>Tema chiaro/scuro</strong> &mdash; Supporto completo per tema Dark e Light in tutte le pagine</li>
+</ul>
+</div>
+
+<!-- ==================== CHAPTER 11 ==================== -->
+<div class="chapter" id="cap11">
+<h1>11. SSM Tunnel</h1>
+
+<h2 id="cap11-1">11.1 Come Funziona</h2>
+<p>
+  AWS Systems Manager (SSM) permette di creare tunnel di port forwarding attraverso istanze EC2 senza bisogno di accesso SSH diretto.
+  Questo consente di raggiungere database RDS/Aurora in reti private.
+</p>
+
+<pre>
+MagikUp Pod ──&gt; SSM Session ──&gt; EC2 Jump Host ──&gt; VPC Network ──&gt; RDS/Aurora
+(localhost:15432)                 (SSM Agent)                    (db.rds:5432)
+</pre>
+
+<h3>Flusso operativo</h3>
+<ol>
+  <li>L&rsquo;utente avvia un&rsquo;operazione su un endpoint con SSM attivo</li>
+  <li>L&rsquo;applicazione apre automaticamente un tunnel SSM attraverso il jump host configurato</li>
+  <li>pg_dump/pg_restore si connettono al database attraverso il tunnel</li>
+  <li>Se esiste gi&agrave; un tunnel attivo per lo stesso endpoint, viene riutilizzato</li>
+  <li>Il tunnel rimane attivo fino alla chiusura manuale o al riavvio del pod</li>
+</ol>
+
+<h2 id="cap11-2">11.2 Configurazione</h2>
+<h3>Prerequisiti</h3>
+<ul>
+  <li><strong>Credenziali AWS</strong> configurate nel tab AWS Accounts con permessi <code>ssm:StartSession</code></li>
+  <li><strong>Istanza EC2</strong> con SSM Agent attivo e in stato &ldquo;Online&rdquo;</li>
+  <li><strong>Rete</strong>: il jump host deve poter raggiungere il database target (security group, routing)</li>
+</ul>
+
+<h3>Passi di configurazione</h3>
+<div class="steps">
+  <div class="step">In <strong>Admin &rarr; AWS Accounts</strong>: aggiungere le credenziali AWS e verificare con &ldquo;Test Connection&rdquo;.</div>
+  <div class="step">In <strong>Admin &rarr; Jump Hosts</strong>: aggiungere il jump host EC2 con Instance ID e account AWS associato.</div>
+  <div class="step">In <strong>Admin &rarr; Endpoints</strong>: creare l&rsquo;endpoint con &ldquo;Use SSM Tunnel&rdquo; attivo e selezionare il jump host.</div>
+  <div class="step">Testare la connessione con il pulsante &ldquo;Test Connection&rdquo; sull&rsquo;endpoint.</div>
+</div>
+
+<div class="tip">
+  <strong>Suggerimento:</strong> Nella dashboard, gli endpoint con SSM attivo mostrano un badge blu &ldquo;SSM&rdquo;. Nella pagina Backup/Restore/Transfer, un banner informativo mostra il jump host in uso.
+</div>
+</div>
+
+<!-- ==================== CHAPTER 12 ==================== -->
+<div class="chapter" id="cap12">
+<h1>12. Troubleshooting</h1>
+
+<h2>Problemi di Connessione</h2>
+<table>
+  <tr><th>Problema</th><th>Causa possibile</th><th>Soluzione</th></tr>
+  <tr>
+    <td>&ldquo;Connection failed&rdquo;</td>
+    <td>Host/porta/credenziali errati</td>
+    <td>Verificare la configurazione dell&rsquo;endpoint in Admin &rarr; Endpoints</td>
+  </tr>
+  <tr>
+    <td>Timeout</td>
+    <td>Rete non raggiungibile</td>
+    <td>Verificare firewall, security group e routing</td>
+  </tr>
+  <tr>
+    <td>&ldquo;Authentication failed&rdquo;</td>
+    <td>Username o password errati</td>
+    <td>Verificare credenziali PostgreSQL. Controllare pg_hba.conf se necessario</td>
+  </tr>
+</table>
+
+<h2>Problemi SSM</h2>
+<table>
+  <tr><th>Problema</th><th>Causa possibile</th><th>Soluzione</th></tr>
+  <tr>
+    <td>&ldquo;No jumphost ID configured&rdquo;</td>
+    <td>Jump host non configurato</td>
+    <td>Aggiungere un jump host in Admin &rarr; Jump Hosts</td>
+  </tr>
+  <tr>
+    <td>&ldquo;Tunnel failed to start&rdquo;</td>
+    <td>Credenziali AWS errate o SSM Agent offline</td>
+    <td>Verificare credenziali AWS e stato SSM dell&rsquo;istanza EC2</td>
+  </tr>
+  <tr>
+    <td>&ldquo;Port not accessible&rdquo;</td>
+    <td>Rete tra jump host e database</td>
+    <td>Verificare che il jump host possa raggiungere il database (security group)</td>
+  </tr>
+  <tr>
+    <td>Tunnel si disconnette</td>
+    <td>Timeout o problemi di rete</td>
+    <td>Verificare la stabilit&agrave; della connessione. Riprovare l&rsquo;operazione</td>
+  </tr>
+</table>
+
+<h2>Problemi Backup/Restore</h2>
+<table>
+  <tr><th>Problema</th><th>Causa possibile</th><th>Soluzione</th></tr>
+  <tr>
+    <td>&ldquo;pg_dump not found&rdquo;</td>
+    <td>Percorso errato</td>
+    <td>Verificare <code>pg_dump_path</code> in Admin &rarr; Settings</td>
+  </tr>
+  <tr>
+    <td>&ldquo;Restore completed with warnings&rdquo;</td>
+    <td>Oggetti non esistenti</td>
+    <td>Normale con opzione &ldquo;Clean&rdquo;: tenta di eliminare oggetti che non esistono</td>
+  </tr>
+  <tr>
+    <td>Upload file fallisce</td>
+    <td>File troppo grande</td>
+    <td>Verificare <code>max_upload_size_gb</code> e l&rsquo;annotation ingress <code>proxy-body-size</code></td>
+  </tr>
+</table>
+
+<h2>Problemi Autenticazione</h2>
+<table>
+  <tr><th>Problema</th><th>Causa possibile</th><th>Soluzione</th></tr>
+  <tr>
+    <td>Account bloccato</td>
+    <td>Troppi tentativi falliti</td>
+    <td>Un Admin pu&ograve; sbloccare dal tab Users. Oppure attendere il reset (riavvio pod)</td>
+  </tr>
+  <tr>
+    <td>&ldquo;Too many failed attempts&rdquo;</td>
+    <td>Rate limiting IP attivo</td>
+    <td>Attendere 5 minuti. Il rate limit IP &egrave; in memoria e si resetta al riavvio del pod</td>
+  </tr>
+  <tr>
+    <td>Password dimenticata</td>
+    <td>&mdash;</td>
+    <td>Un Admin pu&ograve; reimpostare la password dal tab Users &rarr; icona chiave</td>
+  </tr>
+  <tr>
+    <td>Sessione scaduta</td>
+    <td>Timeout sessione (default 8h)</td>
+    <td>Effettuare nuovamente il login. Il timeout &egrave; configurabile in config.ini</td>
+  </tr>
+</table>
+</div>
+
+<!-- ==================== CHAPTER 13 ==================== -->
+<div class="chapter" id="cap13">
+<h1>13. Appendice &mdash; Riferimento API</h1>
+<p>L&rsquo;applicazione espone API REST per tutte le operazioni. Di seguito il riferimento completo.</p>
+
+<h2>Pagine Web</h2>
+<table>
+  <tr><th>Metodo</th><th>Path</th><th>Ruolo Minimo</th><th>Descrizione</th></tr>
+  <tr><td>GET</td><td><code>/login</code></td><td>Pubblico</td><td>Pagina di login</td></tr>
+  <tr><td>GET</td><td><code>/</code></td><td>Viewer</td><td>Dashboard</td></tr>
+  <tr><td>GET</td><td><code>/backup</code></td><td>Operator</td><td>Pagina backup</td></tr>
+  <tr><td>GET</td><td><code>/restore</code></td><td>Operator</td><td>Pagina restore</td></tr>
+  <tr><td>GET</td><td><code>/transfer</code></td><td>Operator</td><td>Pagina transfer</td></tr>
+  <tr><td>GET</td><td><code>/query</code></td><td>Operator</td><td>Query Editor</td></tr>
+  <tr><td>GET</td><td><code>/files</code></td><td>Operator</td><td>Gestione file</td></tr>
+  <tr><td>GET</td><td><code>/admin</code></td><td>Admin</td><td>Pannello admin</td></tr>
+  <tr><td>GET</td><td><code>/change-password</code></td><td>Viewer</td><td>Cambio password</td></tr>
+  <tr><td>GET</td><td><code>/info</code></td><td>Viewer</td><td>Pagina Info (versione, autore, documentazione)</td></tr>
+  <tr><td>GET</td><td><code>/about</code></td><td>Viewer</td><td>Redirect a <code>/info</code></td></tr>
+  <tr><td>GET</td><td><code>/docs/manual</code></td><td>Viewer</td><td>Manuale utente HTML (apre in nuova scheda)</td></tr>
+  <tr><td>GET</td><td><code>/docs/manual.pdf</code></td><td>Viewer</td><td>Manuale utente PDF (download)</td></tr>
+</table>
+
+<h2>API Gestione Utenti (solo Admin)</h2>
+<table>
+  <tr><th>Metodo</th><th>Path</th><th>Descrizione</th></tr>
+  <tr><td>GET</td><td><code>/api/users</code></td><td>Lista utenti</td></tr>
+  <tr><td>POST</td><td><code>/api/users</code></td><td>Crea utente</td></tr>
+  <tr><td>PUT</td><td><code>/api/users/{username}</code></td><td>Modifica utente</td></tr>
+  <tr><td>DELETE</td><td><code>/api/users/{username}</code></td><td>Elimina utente</td></tr>
+  <tr><td>POST</td><td><code>/api/users/{username}/reset-password</code></td><td>Reset password</td></tr>
+  <tr><td>POST</td><td><code>/api/users/{username}/unlock</code></td><td>Sblocca account</td></tr>
+  <tr><td>GET</td><td><code>/api/audit-log</code></td><td>Audit log</td></tr>
+</table>
+
+<h2>API Endpoint</h2>
+<table>
+  <tr><th>Metodo</th><th>Path</th><th>Ruolo Minimo</th><th>Descrizione</th></tr>
+  <tr><td>GET</td><td><code>/api/endpoints</code></td><td>Viewer</td><td>Lista endpoint</td></tr>
+  <tr><td>GET</td><td><code>/api/endpoints/{name}</code></td><td>Admin</td><td>Dettaglio endpoint (con password decifrata)</td></tr>
+  <tr><td>POST</td><td><code>/api/endpoints</code></td><td>Admin</td><td>Crea/modifica endpoint</td></tr>
+  <tr><td>DELETE</td><td><code>/api/endpoints/{name}</code></td><td>Admin</td><td>Elimina endpoint</td></tr>
+</table>
+
+<h2>API Jump Hosts</h2>
+<table>
+  <tr><th>Metodo</th><th>Path</th><th>Ruolo Minimo</th><th>Descrizione</th></tr>
+  <tr><td>GET</td><td><code>/api/jumphosts</code></td><td>Viewer</td><td>Lista jump host</td></tr>
+  <tr><td>POST</td><td><code>/api/jumphosts</code></td><td>Admin</td><td>Crea/modifica jump host</td></tr>
+  <tr><td>DELETE</td><td><code>/api/jumphosts/{alias}</code></td><td>Admin</td><td>Elimina jump host</td></tr>
+</table>
+
+<h2>API AWS</h2>
+<table>
+  <tr><th>Metodo</th><th>Path</th><th>Descrizione</th></tr>
+  <tr><td>GET</td><td><code>/api/aws/status</code></td><td>Verifica connessione AWS</td></tr>
+  <tr><td>GET</td><td><code>/api/aws/clusters</code></td><td>Lista cluster Aurora</td></tr>
+  <tr><td>GET</td><td><code>/api/aws/instances</code></td><td>Lista istanze Aurora</td></tr>
+  <tr><td>GET</td><td><code>/api/aws/ssm-instances</code></td><td>Lista istanze EC2 con SSM</td></tr>
+</table>
+
+<h2>API Database</h2>
+<table>
+  <tr><th>Metodo</th><th>Path</th><th>Descrizione</th></tr>
+  <tr><td>GET</td><td><code>/api/databases/{endpoint}</code></td><td>Lista database</td></tr>
+  <tr><td>GET</td><td><code>/api/schemas/{endpoint}/{db}</code></td><td>Lista schema</td></tr>
+  <tr><td>GET</td><td><code>/api/users/{endpoint}</code></td><td>Lista ruoli/utenti</td></tr>
+  <tr><td>GET</td><td><code>/api/test-connection/{endpoint}</code></td><td>Test connessione</td></tr>
+</table>
+
+<h2>Query Editor API</h2>
+<table>
+  <tr><th>Metodo</th><th>Endpoint</th><th>Auth</th><th>Descrizione</th></tr>
+  <tr><td><code>POST</code></td><td><code>/api/query/execute</code></td><td><span class="badge badge-operator">Operator</span></td><td>Esegue una query SQL</td></tr>
+  <tr><td><code>GET</code></td><td><code>/api/tables/{ep}/{db}/{schema}</code></td><td>Auth</td><td>Lista tabelle</td></tr>
+  <tr><td><code>GET</code></td><td><code>/api/columns/{ep}/{db}/{schema}/{table}</code></td><td>Auth</td><td>Lista colonne</td></tr>
+  <tr><td><code>GET</code></td><td><code>/api/views/{ep}/{db}/{schema}</code></td><td>Auth</td><td>Lista viste</td></tr>
+  <tr><td><code>GET</code></td><td><code>/api/functions/{ep}/{db}/{schema}</code></td><td>Auth</td><td>Lista funzioni</td></tr>
+  <tr><td><code>GET</code></td><td><code>/api/indexes/{ep}/{db}/{schema}</code></td><td>Auth</td><td>Lista indici</td></tr>
+</table>
+
+<h2>API File Backup</h2>
+<table>
+  <tr><th>Metodo</th><th>Path</th><th>Ruolo Minimo</th><th>Descrizione</th></tr>
+  <tr><td>GET</td><td><code>/api/backups</code></td><td>Viewer</td><td>Lista file backup</td></tr>
+  <tr><td>POST</td><td><code>/api/backups/upload</code></td><td>Operator</td><td>Upload file backup</td></tr>
+  <tr><td>GET</td><td><code>/api/backups/{file}/download</code></td><td>Viewer</td><td>Download file backup</td></tr>
+  <tr><td>DELETE</td><td><code>/api/backups/{file}</code></td><td>Operator</td><td>Elimina file backup</td></tr>
+</table>
+
+<h2>API Tunnel</h2>
+<table>
+  <tr><th>Metodo</th><th>Path</th><th>Ruolo Minimo</th><th>Descrizione</th></tr>
+  <tr><td>GET</td><td><code>/api/tunnels</code></td><td>Viewer</td><td>Lista tunnel attivi</td></tr>
+  <tr><td>POST</td><td><code>/api/tunnels/start</code></td><td>Operator</td><td>Avvia tunnel SSM</td></tr>
+  <tr><td>POST</td><td><code>/api/tunnels/stop/{id}</code></td><td>Operator</td><td>Ferma tunnel</td></tr>
+</table>
+
+<h2>API Configurazione (solo Admin)</h2>
+<table>
+  <tr><th>Metodo</th><th>Path</th><th>Descrizione</th></tr>
+  <tr><td>GET</td><td><code>/api/config/download</code></td><td>Download config.ini</td></tr>
+  <tr><td>POST</td><td><code>/api/config/import</code></td><td>Import config.ini</td></tr>
+  <tr><td>GET</td><td><code>/api/config/aws</code></td><td>Configurazione AWS</td></tr>
+  <tr><td>POST</td><td><code>/api/config/aws</code></td><td>Salva configurazione AWS</td></tr>
+  <tr><td>GET</td><td><code>/api/config/settings</code></td><td>Impostazioni applicazione</td></tr>
+  <tr><td>POST</td><td><code>/api/config/settings</code></td><td>Salva impostazioni</td></tr>
+  <tr><td>GET</td><td><code>/api/config/query-settings</code></td><td>Impostazioni predefinite Query Editor</td></tr>
+  <tr><td>POST</td><td><code>/api/config/query-settings</code></td><td>Salva impostazioni Query Editor</td></tr>
+  <tr><td>POST</td><td><code>/api/encrypt-passwords</code></td><td>Cifra password in chiaro</td></tr>
+</table>
+
+<h2>WebSocket</h2>
+<table>
+  <tr><th>Path</th><th>Ruolo Minimo</th><th>Descrizione</th></tr>
+  <tr><td><code>/ws/backup</code></td><td>Operator</td><td>Backup con output real-time</td></tr>
+  <tr><td><code>/ws/restore</code></td><td>Operator</td><td>Restore con output real-time</td></tr>
+  <tr><td><code>/ws/transfer</code></td><td>Operator</td><td>Transfer con output real-time</td></tr>
+  <tr><td><code>/ws/operation/{id}/follow</code></td><td>Viewer</td><td>Segui operazione in corso o visualizza completata</td></tr>
+</table>
+
+</div>
+
+<!-- ==================== FOOTER ==================== -->
+<div style="margin-top:60px; padding-top:20px; border-top:2px solid #6f42c1; text-align:center; color:#6c757d; font-size:9pt;">
+  <p><strong>Magiku(r)p</strong> &mdash; PostgreSQL Backup &amp; Restore Web Application</p>
+  <p>Versione 3.3.0 &mdash; 2026 &mdash; MagikUp</p>
+  <p><em>Manuale utente</em></p>
+</div>
+
+</body>
+</html>

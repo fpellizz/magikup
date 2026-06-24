@@ -1,0 +1,78 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: magikup
+  labels:
+    app: magikup
+  annotations:
+    # --- TLS / HTTPS ---
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # --- Security Headers ---
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Permissions-Policy: camera=(), microphone=(), geolocation=()";
+
+    # --- Rate Limiting ---
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+    nginx.ingress.kubernetes.io/limit-connections: "5"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
+
+    # --- Upload size limit (5GB for backup files) ---
+    nginx.ingress.kubernetes.io/proxy-body-size: "5g"
+
+    # --- Timeouts for WebSocket and large operations ---
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+
+    # --- WebSocket support ---
+    nginx.ingress.kubernetes.io/websocket-services: "magikup"
+    nginx.ingress.kubernetes.io/enable-websocket: "true"
+
+    # --- Additional hardening ---
+    nginx.ingress.kubernetes.io/server-snippet: |
+      # Hide nginx version
+      server_tokens off;
+
+    # --- Context path (uncomment for path-based routing) ---
+    # When deploying under a context path (e.g., /magikup), uncomment the
+    # rewrite-target annotation and use the alternative path rule below.
+    # Also set ROOT_PATH=/magikup in the deployment env vars.
+    # IMPORTANT: the ingress MUST strip the prefix before forwarding to the app.
+    # FastAPI's root_path only affects URL generation in templates, it does NOT
+    # strip the prefix from incoming requests. Without the rewrite below, the
+    # app receives /magikup/login and returns 404 (routes are /login, not /magikup/login).
+    # nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - magikup.example.com
+      secretName: magikup-tls
+  rules:
+    - host: magikup.example.com
+      http:
+        paths:
+          # Default: root path deployment
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: magikup
+                port:
+                  number: 8000
+          # Context path deployment (uncomment and comment out the root path above):
+          # - path: /magikup(/|$)(.*)
+          #   pathType: ImplementationSpecific
+          #   backend:
+          #     service:
+          #       name: magikup
+          #       port:
+          #         number: 8000

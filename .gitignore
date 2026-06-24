@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+
+# Environment files
+.env
+.env.*
+.env.local
+
+# Node
+node_modules/
+
+# Application secrets and config
+config/config.ini
+config/config.ini.bak
+config/users.json
+config/.encryption_key
+config/.session_key
+config/audit.log
+
+# Kubernetes secrets (generated)
+kubernetes/secret.yaml
+
+# Backups
+backups/
+
+# Logs
+logs/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

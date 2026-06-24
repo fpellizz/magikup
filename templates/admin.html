@@ -1,0 +1,1843 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Magiku(r)p{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ============================================
+       Admin Page Styles
+       ============================================ */
+
+    .admin-tabs {
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 1.5rem;
+    }
+
+    .admin-tabs .nav-link {
+        border: none;
+        border-radius: 8px 8px 0 0;
+        padding: 0.75rem 1.25rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        transition: all 0.2s ease;
+        margin-right: 0.25rem;
+    }
+
+    .admin-tabs .nav-link:hover {
+        color: var(--text-primary);
+        background: var(--bg-tertiary);
+    }
+
+    .admin-tabs .nav-link.active {
+        background: var(--accent-primary);
+        color: white;
+    }
+
+    .admin-tabs .nav-link i {
+        margin-right: 0.5rem;
+    }
+
+    /* Tab Content */
+    .tab-pane {
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Config Cards */
+    .config-card {
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .config-card .card-header {
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border-color);
+        padding: 1rem 1.25rem;
+    }
+
+    .config-card .card-body {
+        padding: 1.25rem;
+    }
+
+    /* Form Styles */
+    .form-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-section-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-section-title i {
+        color: var(--accent-primary);
+    }
+
+    /* Endpoints Table */
+    .endpoints-table-container {
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+    }
+
+    .endpoints-table-container .table {
+        margin-bottom: 0;
+    }
+
+    .endpoint-row {
+        transition: background-color 0.15s ease;
+    }
+
+    .endpoint-row:hover {
+        background-color: var(--bg-tertiary) !important;
+    }
+
+    .endpoint-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .endpoint-host-cell {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+    }
+
+    .endpoint-port {
+        background: var(--bg-tertiary);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+    }
+
+    .endpoint-actions {
+        display: flex;
+        gap: 0.375rem;
+        justify-content: flex-end;
+    }
+
+    /* SSM Badge */
+    .badge-ssm {
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 0.3rem 0.6rem;
+        border-radius: 6px;
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 2.5rem;
+        color: var(--text-muted);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.3;
+        display: block;
+    }
+
+    .empty-state h6 {
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+    }
+
+    /* Security Info Box */
+    .security-info-box {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        border-left: 4px solid var(--warning, #f59e0b);
+    }
+
+    .security-info-box i {
+        font-size: 1.5rem;
+        color: var(--warning, #f59e0b);
+        flex-shrink: 0;
+    }
+
+    .security-info-box p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    .security-info-box code {
+        background: var(--bg-secondary);
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+
+    /* Security Card */
+    .security-card {
+        border-color: var(--warning, #f59e0b) !important;
+        overflow: hidden;
+    }
+
+    .security-card .card-header {
+        background: linear-gradient(135deg, var(--warning, #f59e0b) 0%, #f97316 100%) !important;
+        color: white;
+        border-bottom: none;
+    }
+
+    .security-card .card-header i {
+        color: white !important;
+    }
+
+    /* Import/Export Card */
+    .import-export-card .card-header {
+        background: var(--bg-secondary);
+    }
+
+    /* Password Toggle */
+    .password-toggle {
+        cursor: pointer;
+        color: var(--text-muted);
+    }
+
+    .password-toggle:hover {
+        color: var(--text-primary);
+    }
+
+    /* SSM Toggle Switch */
+    .ssm-toggle-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+
+    .ssm-toggle-wrapper .form-check-label {
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .jumphost-select-wrapper {
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+
+    .jumphost-select-wrapper.hidden {
+        max-height: 0;
+        opacity: 0;
+        margin: 0;
+        padding: 0;
+    }
+
+    .jumphost-select-wrapper.visible {
+        max-height: 200px;
+        opacity: 1;
+    }
+
+    /* Modal Enhancements */
+    .modal-body .form-label {
+        font-weight: 500;
+    }
+
+    .modal-body .form-control,
+    .modal-body .form-select {
+        border-radius: 8px;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .admin-tabs .nav-link {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .admin-tabs .nav-link i {
+            margin-right: 0.25rem;
+        }
+
+        .endpoint-host-cell {
+            max-width: 150px !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-gear"></i> Administration</h2>
+        <p class="text-muted">Manage database endpoints, jump hosts, AWS credentials, and application settings.</p>
+        <hr>
+    </div>
+</div>
+
+<!-- Tab Navigation -->
+<ul class="nav admin-tabs" id="adminTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="endpoints-tab" data-bs-toggle="tab" data-bs-target="#endpoints-panel" type="button" role="tab">
+            <i class="bi bi-database"></i> Endpoints
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="jumphosts-tab" data-bs-toggle="tab" data-bs-target="#jumphosts-panel" type="button" role="tab">
+            <i class="bi bi-server"></i> Jump Hosts
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="aws-tab" data-bs-toggle="tab" data-bs-target="#aws-panel" type="button" role="tab">
+            <i class="bi bi-cloud"></i> AWS Accounts
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings-panel" type="button" role="tab">
+            <i class="bi bi-gear"></i> Settings
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="importexport-tab" data-bs-toggle="tab" data-bs-target="#importexport-panel" type="button" role="tab">
+            <i class="bi bi-arrow-repeat"></i> Import/Export
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security-panel" type="button" role="tab">
+            <i class="bi bi-shield-lock"></i> Security
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-panel" type="button" role="tab">
+            <i class="bi bi-people"></i> Users
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content" id="adminTabContent">
+
+    <!-- ============================================
+         Database Endpoints Tab
+         ============================================ -->
+    <div class="tab-pane fade show active" id="endpoints-panel" role="tabpanel">
+        <div class="card config-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-database"></i> Database Endpoints</span>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addEndpointModal">
+                    <i class="bi bi-plus"></i> Add Endpoint
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="endpoints-table-container m-3">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Host</th>
+                                <th>Port</th>
+                                <th>Username</th>
+                                <th>SSM</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="endpointsTable">
+                            {% for name, endpoint in endpoints.items() %}
+                            <tr class="endpoint-row">
+                                <td><span class="endpoint-name">{{ name }}</span></td>
+                                <td class="endpoint-host-cell text-truncate" style="max-width: 300px;" title="{{ endpoint.host }}">
+                                    {{ endpoint.host }}
+                                </td>
+                                <td><span class="endpoint-port">{{ endpoint.port }}</span></td>
+                                <td>{{ endpoint.username }}</td>
+                                <td>
+                                    {% if endpoint.use_ssm %}
+                                        <span class="badge bg-info badge-ssm" title="Jump Host: {{ endpoint.jumphost_alias or 'N/A' }}">
+                                            <i class="bi bi-check-circle me-1"></i>SSM
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary badge-ssm">
+                                            <i class="bi bi-dash-circle me-1"></i>Direct
+                                        </span>
+                                    {% endif %}
+                                    {% if endpoint.read_only %}
+                                        <span class="badge bg-warning text-dark" title="Read-only: no restore/transfer, query editor read-only">
+                                            <i class="bi bi-lock me-1"></i>Read-only
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="endpoint-actions">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="testEndpoint('{{ name }}')" title="Test Connection">
+                                            <i class="bi bi-plug"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning" onclick="editEndpoint('{{ name }}')" title="Edit Endpoint">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteEndpoint('{{ name }}')" title="Delete Endpoint">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6">
+                                    <div class="empty-state">
+                                        <i class="bi bi-database-x"></i>
+                                        <h6>No endpoints configured</h6>
+                                        <p>Add a database endpoint to start managing backups</p>
+                                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addEndpointModal">
+                                            <i class="bi bi-plus me-1"></i> Add Endpoint
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         Jump Hosts Tab
+         ============================================ -->
+    <div class="tab-pane fade" id="jumphosts-panel" role="tabpanel">
+        <div class="card config-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-server"></i> Jump Hosts</span>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addJumphostModal">
+                    <i class="bi bi-plus"></i> Add Jump Host
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="security-info-box m-3">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <div>
+                        <p>
+                            Jump hosts are EC2 instances used as SSM tunneling targets.
+                            They must have the <strong>AWS SSM Agent</strong> installed and the instance must be reachable via AWS Systems Manager.
+                        </p>
+                    </div>
+                </div>
+                <div class="endpoints-table-container mx-3 mb-3">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Alias</th>
+                                <th>Instance ID</th>
+                                <th>AWS Account</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jumphostsTable">
+                            {% for alias, jumphost in jumphosts.items() %}
+                            <tr class="endpoint-row">
+                                <td><span class="endpoint-name">{{ alias }}</span></td>
+                                <td class="endpoint-host-cell">
+                                    <code>{{ jumphost.instance_id }}</code>
+                                </td>
+                                <td>
+                                    {% if jumphost.aws_account_alias %}
+                                        <span class="badge bg-info">{{ jumphost.aws_account_alias }}</span>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="endpoint-actions">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteJumphost('{{ alias }}')" title="Delete Jump Host">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4">
+                                    <div class="empty-state">
+                                        <i class="bi bi-server"></i>
+                                        <h6>No jump hosts configured</h6>
+                                        <p>Add a jump host to enable SSM tunneling for database connections</p>
+                                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addJumphostModal">
+                                            <i class="bi bi-plus me-1"></i> Add Jump Host
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         AWS Accounts Tab
+         ============================================ -->
+    <div class="tab-pane fade" id="aws-panel" role="tabpanel">
+        <div class="card config-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-cloud"></i> AWS Accounts</span>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addAwsAccountModal">
+                    <i class="bi bi-plus"></i> Add AWS Account
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="endpoints-table-container m-3">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Alias</th>
+                                <th>Access Key</th>
+                                <th>Region</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="awsAccountsTable">
+                            {% for alias, account in aws_accounts.items() %}
+                            <tr class="endpoint-row">
+                                <td><span class="endpoint-name">{{ alias }}</span></td>
+                                <td class="endpoint-host-cell">
+                                    <code>{{ account.access_key_id[:8] }}...</code>
+                                </td>
+                                <td>{{ account.region }}</td>
+                                <td>
+                                    <div class="endpoint-actions">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="testAwsAccount('{{ alias }}')" title="Test Connection">
+                                            <i class="bi bi-plug"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAwsAccount('{{ alias }}')" title="Delete AWS Account">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4">
+                                    <div class="empty-state">
+                                        <i class="bi bi-cloud"></i>
+                                        <h6>No AWS accounts configured</h6>
+                                        <p>Add an AWS account to enable SSM tunneling and other AWS services</p>
+                                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addAwsAccountModal">
+                                            <i class="bi bi-plus me-1"></i> Add AWS Account
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         Application Settings Tab
+         ============================================ -->
+    <div class="tab-pane fade" id="settings-panel" role="tabpanel">
+        <div class="card config-card">
+            <div class="card-header">
+                <span><i class="bi bi-gear"></i> Application Settings</span>
+            </div>
+            <div class="card-body">
+                <form id="settingsForm" onsubmit="return false;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-section">
+                                <div class="form-section-title">
+                                    <i class="bi bi-folder"></i> Storage
+                                </div>
+                                <div class="mb-3">
+                                    <label for="settingsBackupDir" class="form-label">Backup Directory</label>
+                                    <input type="text" class="form-control" id="settingsBackupDir"
+                                           value="{{ settings.backup_dir }}"
+                                           placeholder="/var/backups/postgres">
+                                    <div class="form-text">Directory where backup files are stored</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="settingsMaxUploadSize" class="form-label">Max Upload Size (GB)</label>
+                                    <input type="number" class="form-control" id="settingsMaxUploadSize"
+                                           value="{{ settings.max_upload_size_gb }}"
+                                           min="1" max="50" step="1">
+                                    <div class="form-text">Maximum file upload size for restore operations</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-section">
+                                <div class="form-section-title">
+                                    <i class="bi bi-terminal"></i> PostgreSQL Tools
+                                </div>
+                                <div class="mb-3">
+                                    <label for="settingsPgDumpPath" class="form-label">pg_dump Path</label>
+                                    <input type="text" class="form-control" id="settingsPgDumpPath"
+                                           value="{{ settings.pg_dump_path }}"
+                                           placeholder="/usr/bin/pg_dump">
+                                    <div class="form-text">Full path to the pg_dump binary</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="settingsPgRestorePath" class="form-label">pg_restore Path</label>
+                                    <input type="text" class="form-control" id="settingsPgRestorePath"
+                                           value="{{ settings.pg_restore_path }}"
+                                           placeholder="/usr/bin/pg_restore">
+                                    <div class="form-text">Full path to the pg_restore binary</div>
+                                </div>
+                            </div>
+                            <div class="form-section">
+                                <div class="form-section-title">
+                                    <i class="bi bi-journal-text"></i> Logging
+                                </div>
+                                <div class="mb-3">
+                                    <label for="settingsLogLevel" class="form-label">Log Level</label>
+                                    <select class="form-select" id="settingsLogLevel">
+                                        <option value="DEBUG" {% if settings.log_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                                        <option value="INFO" {% if settings.log_level == 'INFO' %}selected{% endif %}>INFO</option>
+                                        <option value="WARNING" {% if settings.log_level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                                        <option value="ERROR" {% if settings.log_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                                    </select>
+                                    <div class="form-text">Application log verbosity level (applied immediately on save)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-section">
+                                <div class="form-section-title">
+                                    <i class="bi bi-code-square"></i> Query Editor
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="settingsQueryAutocommit"
+                                               {% if query_settings.autocommit %}checked{% endif %}>
+                                        <label class="form-check-label" for="settingsQueryAutocommit">
+                                            Autocommit (default)
+                                        </label>
+                                    </div>
+                                    <div class="form-text">Se attivo, il Query Editor esegue ogni query con autocommit abilitato per default. Gli utenti possono sovrascrivere questa impostazione dalla toolbar del Query Editor.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-section">
+                                <div class="form-section-title">
+                                    <i class="bi bi-globe"></i> Network
+                                </div>
+                                <div class="mb-3">
+                                    <label for="settingsContextPath" class="form-label">Context Path</label>
+                                    <input type="text" class="form-control" id="settingsContextPath"
+                                           value="{{ settings.context_path }}" placeholder="/magikup">
+                                    <div class="form-text">
+                                        URL prefix for reverse proxy deployment (e.g., <code>/magikup</code>). Leave empty if the app is served at the root.
+                                        {% if context_path_from_env %}
+                                        <br><span class="badge bg-info"><i class="bi bi-info-circle"></i> Overridden by ROOT_PATH environment variable: <code>{{ effective_context_path }}</code></span>
+                                        {% endif %}
+                                        <br><span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Requires application restart to take effect.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="saveSettings()">
+                        <i class="bi bi-save me-1"></i> Save Application Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         Configuration Import/Export Tab
+         ============================================ -->
+    <div class="tab-pane fade" id="importexport-panel" role="tabpanel">
+        <div class="row">
+            <!-- Export -->
+            <div class="col-md-6 mb-4">
+                <div class="card config-card import-export-card h-100">
+                    <div class="card-header">
+                        <span><i class="bi bi-download"></i> Export Configuration</span>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <p class="text-muted mb-3">
+                            Download the complete configuration file including all endpoints, jump hosts, AWS credentials, and application settings.
+                        </p>
+                        <div class="mt-auto">
+                            <a href="{{ base_path }}/api/config/download" class="btn btn-primary">
+                                <i class="bi bi-download me-1"></i> Download Configuration
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Import -->
+            <div class="col-md-6 mb-4">
+                <div class="card config-card import-export-card h-100">
+                    <div class="card-header">
+                        <span><i class="bi bi-upload"></i> Import Configuration</span>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <p class="text-muted mb-3">
+                            Upload a configuration file to replace the current settings. This will overwrite all existing configuration.
+                        </p>
+                        <div class="security-info-box">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <div>
+                                <p><strong>Warning:</strong> Importing a configuration file will overwrite all current settings. Make sure to export a backup first.</p>
+                            </div>
+                        </div>
+                        <form id="importConfigForm" enctype="multipart/form-data" class="mt-auto">
+                            <div class="mb-3">
+                                <label for="configFileInput" class="form-label">Configuration File</label>
+                                <input type="file" class="form-control" id="configFileInput" accept=".ini,.yaml,.yml,.json,.conf">
+                            </div>
+                            <button type="button" class="btn btn-warning" onclick="importConfig()">
+                                <i class="bi bi-upload me-1"></i> Import Configuration
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         Users Tab
+         ============================================ -->
+    <div class="tab-pane fade" id="users-panel" role="tabpanel">
+        <div class="card config-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-people"></i> User Management</span>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                    <i class="bi bi-plus"></i> Add User
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="endpoints-table-container m-3">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Last Login</th>
+                                <th>Created</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTable">
+                            {% for username, u in all_users.items() %}
+                            <tr class="endpoint-row">
+                                <td>
+                                    <span class="endpoint-name">{{ username }}</span>
+                                    {% if username == user %}
+                                    <span class="badge bg-info ms-1" style="font-size: 0.65rem;">you</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if u.role == 'admin' %}
+                                    <span class="badge bg-danger">Admin</span>
+                                    {% elif u.role == 'operator' %}
+                                    <span class="badge bg-primary">Operator</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Viewer</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if u.locked %}
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-lock-fill me-1"></i>Locked</span>
+                                    {% elif not u.enabled %}
+                                    <span class="badge bg-secondary"><i class="bi bi-slash-circle me-1"></i>Disabled</span>
+                                    {% else %}
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if u.last_login %}
+                                    <small class="text-muted">{{ u.last_login[:16].replace('T', ' ') }}</small>
+                                    {% else %}
+                                    <small class="text-muted">Never</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ u.created_at[:10] }}</small>
+                                </td>
+                                <td>
+                                    <div class="endpoint-actions">
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                onclick="editUser('{{ username }}', '{{ u.role }}', {{ 'true' if u.enabled else 'false' }}, '{{ u.endpoints | join(',') }}')"
+                                                title="Edit User">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning"
+                                                onclick="resetUserPassword('{{ username }}')"
+                                                title="Reset Password">
+                                            <i class="bi bi-key"></i>
+                                        </button>
+                                        {% if u.locked %}
+                                        <button class="btn btn-sm btn-outline-success"
+                                                onclick="unlockUser('{{ username }}')"
+                                                title="Unlock Account">
+                                            <i class="bi bi-unlock"></i>
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                onclick="deleteUser('{{ username }}')"
+                                                title="Delete User"
+                                                {% if username == user %}disabled{% endif %}>
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6">
+                                    <div class="empty-state">
+                                        <i class="bi bi-people"></i>
+                                        <h6>No users found</h6>
+                                        <p>This shouldn't happen - there should be at least one admin user</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Log Section -->
+        <div class="card config-card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-journal-text"></i> Audit Log</span>
+                <button class="btn btn-sm btn-outline-primary" onclick="loadAuditLog()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="endpoints-table-container m-3" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Event</th>
+                                <th>User</th>
+                                <th>IP</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditLogTable">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-3">
+                                    Click "Refresh" to load audit log
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         Security Tab
+         ============================================ -->
+    <div class="tab-pane fade" id="security-panel" role="tabpanel">
+        <div class="card config-card security-card">
+            <div class="card-header">
+                <span><i class="bi bi-shield-lock"></i> Security</span>
+            </div>
+            <div class="card-body">
+                <div class="security-info-box">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <div>
+                        <p>
+                            Database passwords are automatically encrypted when added via the web interface using <strong>AES-128 (Fernet)</strong>.
+                        </p>
+                        <p class="mt-2 mb-0">
+                            Passwords with prefix <code>ENC:</code> are encrypted. If you have added passwords manually to the config file in plain text,
+                            use the button below to encrypt them.
+                        </p>
+                    </div>
+                </div>
+                <button class="btn btn-warning" onclick="encryptPasswords()">
+                    <i class="bi bi-shield-lock me-1"></i> Encrypt Existing Passwords
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ============================================
+     Add Endpoint Modal
+     ============================================ -->
+<div class="modal fade" id="addEndpointModal" tabindex="-1" aria-labelledby="addEndpointModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addEndpointModalLabel">
+                    <i class="bi bi-database-add me-2"></i>Add Database Endpoint
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addEndpointForm">
+                    <div class="mb-3">
+                        <label for="endpointName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="endpointName" placeholder="production-db" required>
+                        <div class="form-text">A unique identifier for this endpoint</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="endpointHost" class="form-label">Host</label>
+                        <input type="text" class="form-control" id="endpointHost" placeholder="aurora-cluster.rds.amazonaws.com" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="endpointPort" class="form-label">Port</label>
+                                <input type="number" class="form-control" id="endpointPort" value="5432" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="endpointUsername" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="endpointUsername" placeholder="postgres" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="endpointPassword" class="form-label">Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="endpointPassword" required>
+                            <button class="btn btn-outline-secondary password-toggle" type="button" onclick="togglePassword('endpointPassword')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Password will be encrypted automatically</div>
+                    </div>
+
+                    <!-- SSM Tunnel Toggle -->
+                    <div class="ssm-toggle-wrapper">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="endpointUseSSM" onchange="toggleSSMOptions()">
+                            <label class="form-check-label" for="endpointUseSSM">Requires SSM Tunnel</label>
+                        </div>
+                    </div>
+
+                    <!-- Read-only Toggle -->
+                    <div class="ssm-toggle-wrapper">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="endpointReadOnly">
+                            <label class="form-check-label" for="endpointReadOnly">Read-only endpoint</label>
+                        </div>
+                        <div class="form-text">Query Editor runs in read-only mode; restore and transfer to this endpoint are refused.</div>
+                    </div>
+
+                    <!-- Jump Host Selection (hidden by default) -->
+                    <div id="jumphostSelectWrapper" class="jumphost-select-wrapper hidden">
+                        <div class="mb-3">
+                            <label for="endpointJumphostAlias" class="form-label">Jump Host</label>
+                            <select class="form-select" id="endpointJumphostAlias">
+                                <option value="">-- Select Jump Host --</option>
+                                {% for alias, jumphost in jumphosts.items() %}
+                                <option value="{{ alias }}">{{ alias }} ({{ jumphost.instance_id }}) - AWS: {{ jumphost.aws_account_alias }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Select the jump host to use for SSM tunneling</div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="endpointModalSaveBtn" onclick="saveEndpoint()">
+                    <i class="bi bi-plus me-1" id="endpointModalSaveIcon"></i>
+                    <span id="endpointModalSaveText">Add Endpoint</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     Add Jump Host Modal
+     ============================================ -->
+<div class="modal fade" id="addJumphostModal" tabindex="-1" aria-labelledby="addJumphostModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addJumphostModalLabel">
+                    <i class="bi bi-server me-2"></i>Add Jump Host
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addJumphostForm">
+                    <div class="mb-3">
+                        <label for="jumphostAlias" class="form-label">Alias</label>
+                        <input type="text" class="form-control" id="jumphostAlias" placeholder="prod-jumphost" required>
+                        <div class="form-text">A friendly name for this jump host</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="jumphostInstanceId" class="form-label">Instance ID</label>
+                        <input type="text" class="form-control" id="jumphostInstanceId" placeholder="i-0abc123def456789a" required>
+                        <div class="form-text">The EC2 instance ID (e.g., i-0abc123...)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="jumphostAwsAccount" class="form-label">AWS Account</label>
+                        <select class="form-select" id="jumphostAwsAccount" required>
+                            <option value="">-- Select AWS Account --</option>
+                            {% for alias, account in aws_accounts.items() %}
+                            <option value="{{ alias }}">{{ alias }} ({{ account.region }})</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">The AWS account this jump host belongs to</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addJumphost()">
+                    <i class="bi bi-plus me-1"></i> Add Jump Host
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     Add AWS Account Modal
+     ============================================ -->
+<div class="modal fade" id="addAwsAccountModal" tabindex="-1" aria-labelledby="addAwsAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addAwsAccountModalLabel">
+                    <i class="bi bi-cloud-plus me-2"></i>Add AWS Account
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addAwsAccountForm">
+                    <div class="mb-3">
+                        <label for="awsAccountAlias" class="form-label">Alias</label>
+                        <input type="text" class="form-control" id="awsAccountAlias" placeholder="prod-account" required>
+                        <div class="form-text">A unique identifier for this AWS account</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="awsAccountAccessKeyId" class="form-label">Access Key ID</label>
+                        <input type="text" class="form-control" id="awsAccountAccessKeyId" placeholder="AKIAIOSFODNN7EXAMPLE" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="awsAccountSecretAccessKey" class="form-label">Secret Access Key</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="awsAccountSecretAccessKey"
+                                   placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" required>
+                            <button class="btn btn-outline-secondary password-toggle" type="button" onclick="togglePassword('awsAccountSecretAccessKey')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="awsAccountRegion" class="form-label">Region</label>
+                        <input type="text" class="form-control" id="awsAccountRegion" value="us-east-1" placeholder="us-east-1">
+                        <div class="form-text">AWS region for SSM and other services (e.g., eu-west-1, us-east-1)</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addAwsAccount()">
+                    <i class="bi bi-plus me-1"></i> Add AWS Account
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     Add User Modal
+     ============================================ -->
+<div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addUserModalLabel">
+                    <i class="bi bi-person-plus me-2"></i>Add User
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="mb-3">
+                        <label for="newUsername" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="newUsername" placeholder="john_doe" required
+                               pattern="[a-zA-Z0-9_-]+" minlength="2" maxlength="50">
+                        <div class="form-text">Alphanumeric characters, hyphens and underscores only</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="newPassword" required minlength="8">
+                            <button class="btn btn-outline-secondary password-toggle" type="button" onclick="togglePassword('newPassword')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Min 8 chars, 1 uppercase, 1 lowercase, 1 digit</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newUserRole" class="form-label">Role</label>
+                        <select class="form-select" id="newUserRole">
+                            <option value="viewer">Viewer — read-only UI</option>
+                            <option value="operator">Operator — backup/restore, transfer, SQL queries, tunnels</option>
+                            <option value="admin">Admin — full access + config &amp; user management</option>
+                        </select>
+                        <div class="form-text text-warning">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Operator can run arbitrary SQL and open SSM tunnels with the stored
+                            endpoint credentials — grant it as you would database operator access,
+                            not as a limited role.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newUserEndpoints" class="form-label">Allowed endpoints</label>
+                        <input type="text" class="form-control" id="newUserEndpoints" placeholder="* (all endpoints)">
+                        <div class="form-text">Comma-separated endpoint names this user may access. Empty or <code>*</code> = all. Ignored for admins (always all).</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addUser()">
+                    <i class="bi bi-plus me-1"></i> Create User
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     Edit User Modal
+     ============================================ -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editUserModalLabel">
+                    <i class="bi bi-pencil me-2"></i>Edit User
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" id="editUsername" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUserRole" class="form-label">Role</label>
+                        <select class="form-select" id="editUserRole">
+                            <option value="viewer">Viewer — read-only UI</option>
+                            <option value="operator">Operator — backup/restore, transfer, SQL queries, tunnels</option>
+                            <option value="admin">Admin — full access + config &amp; user management</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="editUserEnabled" checked>
+                            <label class="form-check-label" for="editUserEnabled">Account Enabled</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUserEndpoints" class="form-label">Allowed endpoints</label>
+                        <input type="text" class="form-control" id="editUserEndpoints" placeholder="* (all endpoints)">
+                        <div class="form-text">Comma-separated endpoint names this user may access. Empty or <code>*</code> = all. Ignored for admins (always all).</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveUserEdit()">
+                    <i class="bi bi-save me-1"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     Reset Password Modal
+     ============================================ -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resetPasswordModalLabel">
+                    <i class="bi bi-key me-2"></i>Reset Password
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="resetPasswordForm">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" id="resetPasswordUsername" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="resetNewPassword" class="form-label">New Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="resetNewPassword" required minlength="8">
+                            <button class="btn btn-outline-secondary password-toggle" type="button" onclick="togglePassword('resetNewPassword')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Min 8 chars, 1 uppercase, 1 lowercase, 1 digit</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="confirmResetPassword()">
+                    <i class="bi bi-key me-1"></i> Reset Password
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ========================================
+    // HTML Escaping Utility
+    // ========================================
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+    }
+
+    // ========================================
+    // Password Toggle
+    // ========================================
+
+    function togglePassword(inputId) {
+        const input = document.getElementById(inputId);
+        const icon = input.parentElement.querySelector('.password-toggle i');
+
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    }
+
+    // ========================================
+    // SSM Toggle in Add Endpoint Modal
+    // ========================================
+
+    function toggleSSMOptions() {
+        const checkbox = document.getElementById('endpointUseSSM');
+        const wrapper = document.getElementById('jumphostSelectWrapper');
+
+        if (checkbox.checked) {
+            wrapper.classList.remove('hidden');
+            wrapper.classList.add('visible');
+        } else {
+            wrapper.classList.remove('visible');
+            wrapper.classList.add('hidden');
+            document.getElementById('endpointJumphostAlias').value = '';
+        }
+    }
+
+    // ========================================
+    // Database Endpoints
+    // ========================================
+
+    async function testEndpoint(name) {
+        try {
+            showToast(`Testing connection to ${name}...`, 'info');
+            const response = await apiCall(`/api/test-connection/${name}`);
+            if (response.success) {
+                showToast(`Connection successful to ${name}`, 'success');
+            } else {
+                showToast(`Connection failed: ${response.error}`, 'error');
+            }
+        } catch (error) {
+            showToast('Failed to test connection', 'error');
+        }
+    }
+
+    async function deleteEndpoint(name) {
+        if (!confirm(`Delete endpoint "${name}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await apiCall(`/api/endpoints/${name}`, 'DELETE');
+            showToast('Endpoint deleted', 'success');
+            location.reload();
+        } catch (error) {
+            showToast('Failed to delete endpoint', 'error');
+        }
+    }
+
+    // Track whether the modal is in edit mode
+    let endpointEditMode = false;
+
+    function openEndpointModalForAdd() {
+        endpointEditMode = false;
+        document.getElementById('addEndpointForm').reset();
+        document.getElementById('endpointPort').value = '5432';
+        document.getElementById('endpointName').readOnly = false;
+        document.getElementById('addEndpointModalLabel').innerHTML = '<i class="bi bi-database-add me-2"></i>Add Database Endpoint';
+        document.getElementById('endpointModalSaveIcon').className = 'bi bi-plus me-1';
+        document.getElementById('endpointModalSaveText').textContent = 'Add Endpoint';
+        document.getElementById('endpointUseSSM').checked = false;
+        document.getElementById('endpointReadOnly').checked = false;
+        toggleSSMOptions();
+        // Reset password visibility
+        const pwInput = document.getElementById('endpointPassword');
+        pwInput.type = 'password';
+        const pwIcon = pwInput.parentElement.querySelector('.password-toggle i');
+        if (pwIcon) pwIcon.className = 'bi bi-eye';
+    }
+
+    async function editEndpoint(name) {
+        try {
+            showToast(`Loading endpoint ${name}...`, 'info');
+            const data = await apiCall(`/api/endpoints/${name}`);
+
+            // Switch modal to edit mode
+            endpointEditMode = true;
+            document.getElementById('addEndpointModalLabel').innerHTML = '<i class="bi bi-pencil me-2"></i>Edit Database Endpoint';
+            document.getElementById('endpointModalSaveIcon').className = 'bi bi-check-lg me-1';
+            document.getElementById('endpointModalSaveText').textContent = 'Save Changes';
+
+            // Pre-fill fields
+            document.getElementById('endpointName').value = data.name;
+            document.getElementById('endpointName').readOnly = true;
+            document.getElementById('endpointHost').value = data.host;
+            document.getElementById('endpointPort').value = data.port;
+            document.getElementById('endpointUsername').value = data.username;
+            document.getElementById('endpointPassword').value = data.password;
+
+            // Reset password visibility
+            const pwInput = document.getElementById('endpointPassword');
+            pwInput.type = 'password';
+            const pwIcon = pwInput.parentElement.querySelector('.password-toggle i');
+            if (pwIcon) pwIcon.className = 'bi bi-eye';
+
+            // SSM toggle
+            document.getElementById('endpointUseSSM').checked = data.use_ssm;
+            toggleSSMOptions();
+            if (data.use_ssm && data.jumphost_alias) {
+                document.getElementById('endpointJumphostAlias').value = data.jumphost_alias;
+            }
+
+            // Read-only toggle
+            document.getElementById('endpointReadOnly').checked = !!data.read_only;
+
+            // Show modal
+            new bootstrap.Modal(document.getElementById('addEndpointModal')).show();
+        } catch (error) {
+            showToast('Failed to load endpoint details', 'error');
+        }
+    }
+
+    async function saveEndpoint() {
+        const name = document.getElementById('endpointName').value.trim();
+        const host = document.getElementById('endpointHost').value.trim();
+        const port = document.getElementById('endpointPort').value;
+        const username = document.getElementById('endpointUsername').value.trim();
+        const password = document.getElementById('endpointPassword').value;
+        const useSSM = document.getElementById('endpointUseSSM').checked;
+        const readOnly = document.getElementById('endpointReadOnly').checked;
+        const jumphostAlias = document.getElementById('endpointJumphostAlias').value;
+
+        if (!name || !host || !port || !username || !password) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        if (useSSM && !jumphostAlias) {
+            showToast('Please select a jump host when SSM tunnel is enabled', 'error');
+            return;
+        }
+
+        const action = endpointEditMode ? 'updated' : 'added';
+
+        try {
+            await apiCall('/api/endpoints', 'POST', {
+                name,
+                host,
+                port: parseInt(port),
+                username,
+                password,
+                use_ssm: useSSM,
+                jumphost_alias: useSSM ? jumphostAlias : null,
+                read_only: readOnly
+            });
+            showToast(`Endpoint ${action} successfully`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('addEndpointModal')).hide();
+            location.reload();
+        } catch (error) {
+            showToast(`Failed to save endpoint`, 'error');
+        }
+    }
+
+    // Keep backward compatibility
+    function addEndpoint() { saveEndpoint(); }
+
+    // ========================================
+    // Jump Hosts
+    // ========================================
+
+    async function deleteJumphost(alias) {
+        if (!confirm(`Delete jump host "${alias}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await apiCall(`/api/jumphosts/${alias}`, 'DELETE');
+            showToast('Jump host deleted', 'success');
+            location.reload();
+        } catch (error) {
+            showToast('Failed to delete jump host', 'error');
+        }
+    }
+
+    async function addJumphost() {
+        const alias = document.getElementById('jumphostAlias').value.trim();
+        const instanceId = document.getElementById('jumphostInstanceId').value.trim();
+        const awsAccountAlias = document.getElementById('jumphostAwsAccount').value;
+
+        if (!alias || !instanceId) {
+            showToast('Please fill in all fields', 'error');
+            return;
+        }
+
+        if (!awsAccountAlias) {
+            showToast('Please select an AWS account', 'error');
+            return;
+        }
+
+        try {
+            await apiCall('/api/jumphosts', 'POST', {
+                alias,
+                instance_id: instanceId,
+                aws_account_alias: awsAccountAlias
+            });
+            showToast('Jump host added successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('addJumphostModal')).hide();
+            location.reload();
+        } catch (error) {
+            showToast('Failed to add jump host', 'error');
+        }
+    }
+
+    // ========================================
+    // AWS Accounts
+    // ========================================
+
+    async function addAwsAccount() {
+        const alias = document.getElementById('awsAccountAlias').value.trim();
+        const accessKeyId = document.getElementById('awsAccountAccessKeyId').value.trim();
+        const secretAccessKey = document.getElementById('awsAccountSecretAccessKey').value;
+        const region = document.getElementById('awsAccountRegion').value.trim() || 'us-east-1';
+
+        if (!alias || !accessKeyId || !secretAccessKey) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        try {
+            await apiCall('/api/config/aws', 'POST', {
+                alias,
+                access_key_id: accessKeyId,
+                secret_access_key: secretAccessKey,
+                region
+            });
+            showToast('AWS account added successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('addAwsAccountModal')).hide();
+            location.reload();
+        } catch (error) {
+            showToast('Failed to add AWS account', 'error');
+        }
+    }
+
+    async function testAwsAccount(alias) {
+        try {
+            showToast(`Testing AWS connection for ${alias}...`, 'info');
+            const response = await apiCall(`/api/aws/status?account=${encodeURIComponent(alias)}`);
+            if (response.success) {
+                showToast(`AWS connection successful for ${alias}`, 'success');
+            } else {
+                showToast(`AWS connection failed for ${alias}: ${response.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            showToast('Failed to test AWS connection', 'error');
+        }
+    }
+
+    async function deleteAwsAccount(alias) {
+        if (!confirm(`Delete AWS account "${alias}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await apiCall(`/api/config/aws/${alias}`, 'DELETE');
+            showToast('AWS account deleted', 'success');
+            location.reload();
+        } catch (error) {
+            showToast('Failed to delete AWS account', 'error');
+        }
+    }
+
+    // ========================================
+    // Application Settings
+    // ========================================
+
+    async function saveSettings() {
+        const data = {
+            backup_dir: document.getElementById('settingsBackupDir').value.trim(),
+            pg_dump_path: document.getElementById('settingsPgDumpPath').value.trim(),
+            pg_restore_path: document.getElementById('settingsPgRestorePath').value.trim(),
+            max_upload_size_gb: parseInt(document.getElementById('settingsMaxUploadSize').value),
+            log_level: document.getElementById('settingsLogLevel').value,
+            context_path: document.getElementById('settingsContextPath').value.trim()
+        };
+
+        const queryData = {
+            autocommit: document.getElementById('settingsQueryAutocommit').checked
+        };
+
+        try {
+            const [settingsResult] = await Promise.all([
+                apiCall('/api/config/settings', 'POST', data),
+                apiCall('/api/config/query-settings', 'POST', queryData),
+            ]);
+            showToast('Application settings saved', 'success');
+            if (settingsResult && settingsResult.restart_required) {
+                showToast('Context path changed. Application restart required for changes to take effect.', 'warning');
+            }
+        } catch (error) {
+            showToast('Failed to save application settings', 'error');
+        }
+    }
+
+    // ========================================
+    // Configuration Import/Export
+    // ========================================
+
+    async function importConfig() {
+        const fileInput = document.getElementById('configFileInput');
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            showToast('Please select a configuration file to import', 'error');
+            return;
+        }
+
+        if (!confirm('Importing will overwrite all current configuration. Are you sure?')) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        try {
+            showToast('Importing configuration...', 'info');
+            const response = await fetch(BASE_PATH + '/api/config/import', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showToast('Configuration imported successfully', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(`Import failed: ${result.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            showToast('Failed to import configuration', 'error');
+        }
+    }
+
+    // ========================================
+    // Security
+    // ========================================
+
+    async function encryptPasswords() {
+        if (!confirm('This will encrypt all plain-text passwords in the configuration. Continue?')) {
+            return;
+        }
+
+        try {
+            showToast('Encrypting passwords...', 'info');
+            const response = await apiCall('/api/encrypt-passwords', 'POST');
+            if (response.success) {
+                if (response.encrypted_count > 0) {
+                    showToast(`Encrypted ${response.encrypted_count} password(s)`, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast('All passwords are already encrypted', 'info');
+                }
+            } else {
+                showToast(`Encryption failed: ${response.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            showToast('Failed to encrypt passwords', 'error');
+        }
+    }
+
+    // ========================================
+    // User Management
+    // ========================================
+
+    // Parse the "Allowed endpoints" field: empty or "*" => ["*"] (all), else a list.
+    function parseEndpointsField(val) {
+        const t = (val || '').trim();
+        if (!t || t === '*') return ['*'];
+        return t.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+    }
+
+    async function addUser() {
+        const username = document.getElementById('newUsername').value.trim();
+        const password = document.getElementById('newPassword').value;
+        const role = document.getElementById('newUserRole').value;
+        const endpoints = parseEndpointsField(document.getElementById('newUserEndpoints').value);
+
+        if (!username || !password) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(BASE_PATH + '/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, role, endpoints })
+            });
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showToast(`User '${username}' created successfully`, 'success');
+                bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
+                location.reload();
+            } else {
+                showToast(result.detail || result.error || 'Failed to create user', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to create user', 'error');
+        }
+    }
+
+    function editUser(username, role, enabled, endpoints) {
+        document.getElementById('editUsername').value = username;
+        document.getElementById('editUserRole').value = role;
+        document.getElementById('editUserEnabled').checked = enabled;
+        // endpoints arrives as a comma-joined string ("*" or "a,b"); show as-is.
+        document.getElementById('editUserEndpoints').value = (endpoints === undefined || endpoints === null) ? '*' : endpoints;
+        const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+        modal.show();
+    }
+
+    async function saveUserEdit() {
+        const username = document.getElementById('editUsername').value;
+        const role = document.getElementById('editUserRole').value;
+        const enabled = document.getElementById('editUserEnabled').checked;
+        const endpoints = parseEndpointsField(document.getElementById('editUserEndpoints').value);
+
+        try {
+            const response = await fetch(BASE_PATH + `/api/users/${encodeURIComponent(username)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role, enabled, endpoints })
+            });
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showToast(`User '${username}' updated`, 'success');
+                bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+                location.reload();
+            } else {
+                showToast(result.detail || result.error || 'Failed to update user', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to update user', 'error');
+        }
+    }
+
+    async function deleteUser(username) {
+        if (!confirm(`Delete user "${username}"? This action cannot be undone.`)) return;
+
+        try {
+            const response = await fetch(BASE_PATH + `/api/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showToast(`User '${username}' deleted`, 'success');
+                location.reload();
+            } else {
+                showToast(result.detail || result.error || 'Failed to delete user', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to delete user', 'error');
+        }
+    }
+
+    function resetUserPassword(username) {
+        document.getElementById('resetPasswordUsername').value = username;
+        document.getElementById('resetNewPassword').value = '';
+        const modal = new bootstrap.Modal(document.getElementById('resetPasswordModal'));
+        modal.show();
+    }
+
+    async function confirmResetPassword() {
+        const username = document.getElementById('resetPasswordUsername').value;
+        const newPassword = document.getElementById('resetNewPassword').value;
+
+        if (!newPassword) {
+            showToast('Please enter a new password', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(BASE_PATH + `/api/users/${encodeURIComponent(username)}/reset-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_password: newPassword })
+            });
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showToast(`Password reset for '${username}'`, 'success');
+                bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
+            } else {
+                showToast(result.detail || result.error || 'Failed to reset password', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to reset password', 'error');
+        }
+    }
+
+    async function unlockUser(username) {
+        if (!confirm(`Unlock account "${username}"?`)) return;
+
+        try {
+            const response = await fetch(BASE_PATH + `/api/users/${encodeURIComponent(username)}/unlock`, { method: 'POST' });
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showToast(`Account '${username}' unlocked`, 'success');
+                location.reload();
+            } else {
+                showToast(result.detail || result.error || 'Failed to unlock account', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to unlock account', 'error');
+        }
+    }
+
+    // ========================================
+    // Audit Log
+    // ========================================
+
+    async function loadAuditLog() {
+        const tbody = document.getElementById('auditLogTable');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</td></tr>';
+
+        try {
+            const response = await fetch(BASE_PATH + '/api/audit-log?limit=100');
+            const entries = await response.json();
+
+            if (entries && entries.length > 0) {
+                tbody.innerHTML = entries.map(entry => {
+                    const eventClass = entry.event.includes('failed') || entry.event.includes('locked') ? 'text-danger' :
+                                       entry.event.includes('success') || entry.event.includes('created') || entry.event.includes('unlocked') ? 'text-success' :
+                                       '';
+                    return `
+                        <tr>
+                            <td><small>${entry.timestamp ? escapeHtml(entry.timestamp.substring(0, 19).replace('T', ' ')) : ''}</small></td>
+                            <td><span class="${eventClass}"><strong>${escapeHtml(entry.event || '')}</strong></span></td>
+                            <td>${escapeHtml(entry.username || '')}</td>
+                            <td><small class="text-muted">${escapeHtml(entry.ip || '')}</small></td>
+                            <td><small class="text-muted">${escapeHtml(entry.details || '')}</small></td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No audit log entries</td></tr>';
+            }
+        } catch (error) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-3">Failed to load audit log</td></tr>';
+        }
+    }
+
+    // ========================================
+    // Modal Reset on Close
+    // ========================================
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Reset Endpoint modal when closed (restore to "add" mode)
+        const addEndpointModal = document.getElementById('addEndpointModal');
+        addEndpointModal.addEventListener('hidden.bs.modal', function() {
+            openEndpointModalForAdd();
+        });
+
+        // Reset Add Jump Host modal when closed
+        const addJumphostModal = document.getElementById('addJumphostModal');
+        addJumphostModal.addEventListener('hidden.bs.modal', function() {
+            document.getElementById('addJumphostForm').reset();
+            document.getElementById('jumphostAwsAccount').value = '';
+        });
+
+        // Reset Add AWS Account modal when closed
+        const addAwsAccountModal = document.getElementById('addAwsAccountModal');
+        addAwsAccountModal.addEventListener('hidden.bs.modal', function() {
+            document.getElementById('addAwsAccountForm').reset();
+            document.getElementById('awsAccountRegion').value = 'us-east-1';
+        });
+
+        // Reset Add User modal when closed
+        const addUserModal = document.getElementById('addUserModal');
+        if (addUserModal) {
+            addUserModal.addEventListener('hidden.bs.modal', function() {
+                document.getElementById('addUserForm').reset();
+            });
+        }
+    });
+</script>
+{% endblock %}

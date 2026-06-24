@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: magikup
+  labels:
+    app: magikup
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: magikup
