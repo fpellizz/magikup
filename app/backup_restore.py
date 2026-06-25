@@ -386,6 +386,13 @@ async def run_backup(
         '--verbose',
     ]
 
+    # Fail fast instead of blocking forever if the shared table locks can't be
+    # acquired at the start of the dump (e.g. behind a long ACCESS EXCLUSIVE /
+    # migration). Configurable in Settings; 0 = wait forever.
+    lock_wait_s = getattr(settings, 'lock_wait_timeout_seconds', 0) or 0
+    if lock_wait_s > 0:
+        cmd.append(f'--lock-wait-timeout={lock_wait_s * 1000}')
+
     # --data-only and --schema-only are mutually exclusive with --section flags
     if options.data_only:
         cmd.append('--data-only')

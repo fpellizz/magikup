@@ -8,6 +8,7 @@ import re
 import json
 import asyncio
 import logging
+import dataclasses
 from pathlib import Path
 from typing import Optional, List, Tuple
 from urllib.parse import urlsplit
@@ -197,6 +198,8 @@ class DatabaseEndpointModel(BaseModel):
     use_ssm: bool = False
     jumphost_alias: Optional[str] = ""
     read_only: bool = False
+    backup_use_replica: bool = False
+    replica_host: Optional[str] = ""
 
 
 class JumphostModel(BaseModel):
@@ -224,6 +227,7 @@ class SettingsModel(BaseModel):
     pg_dump_path: str = "/usr/bin/pg_dump"
     pg_restore_path: str = "/usr/bin/pg_restore"
     max_upload_size_gb: int = 5
+    lock_wait_timeout_seconds: int = 60
     log_level: str = "INFO"
     context_path: str = ""
 
@@ -689,6 +693,8 @@ async def api_list_endpoints(user: dict = Depends(auth.require_auth)):
             "use_ssm": endpoint.use_ssm,
             "jumphost_alias": endpoint.jumphost_alias,
             "read_only": endpoint.read_only,
+            "backup_use_replica": endpoint.backup_use_replica,
+            "replica_host": endpoint.replica_host,
         }
         for name, endpoint in endpoints.items()
         if user_can_access_endpoint(user, name)
@@ -707,6 +713,8 @@ async def api_save_endpoint(endpoint: DatabaseEndpointModel, user: dict = Depend
         use_ssm=endpoint.use_ssm,
         jumphost_alias=endpoint.jumphost_alias or "",
         read_only=endpoint.read_only,
+        backup_use_replica=endpoint.backup_use_replica,
+        replica_host=(endpoint.replica_host or ""),
     ))
     return {"success": True, "message": f"Endpoint '{endpoint.name}' saved"}
 
@@ -726,6 +734,8 @@ async def api_get_endpoint(name: str, user: dict = Depends(auth.require_admin)):
         "use_ssm": endpoint.use_ssm,
         "jumphost_alias": endpoint.jumphost_alias,
         "read_only": endpoint.read_only,
+        "backup_use_replica": endpoint.backup_use_replica,
+        "replica_host": endpoint.replica_host,
     }
 
 
@@ -1298,6 +1308,7 @@ async def api_get_settings(user: dict = Depends(auth.require_auth)):
         "pg_dump_path": settings.pg_dump_path,
         "pg_restore_path": settings.pg_restore_path,
         "max_upload_size_gb": settings.max_upload_size_gb,
+        "lock_wait_timeout_seconds": settings.lock_wait_timeout_seconds,
         "log_level": settings.log_level,
         "context_path": settings.context_path,
         "effective_context_path": cfg.get_context_path(),
@@ -1314,6 +1325,7 @@ async def api_save_settings(settings: SettingsModel, user: dict = Depends(auth.r
             pg_dump_path=settings.pg_dump_path,
             pg_restore_path=settings.pg_restore_path,
             max_upload_size_gb=settings.max_upload_size_gb,
+            lock_wait_timeout_seconds=settings.lock_wait_timeout_seconds,
             log_level=settings.log_level,
             context_path=settings.context_path,
         ))
@@ -1577,9 +1589,16 @@ async def websocket_backup(websocket: WebSocket):
             await websocket.close()
             return
 
+        # If configured, back up from the read replica instead of the primary.
+        # Use a copy with host=replica_host so SSM tunnel resolution targets it too.
+        conn_endpoint = endpoint
+        from_replica = bool(endpoint.backup_use_replica and endpoint.replica_host)
+        if from_replica:
+            conn_endpoint = dataclasses.replace(endpoint, host=endpoint.replica_host)
+
         # Resolve connection (auto-start SSM tunnel if needed)
         try:
-            host, port = get_endpoint_host_port(endpoint)
+            host, port = get_endpoint_host_port(conn_endpoint)
         except ValueError as e:
             await websocket.send_json({"type": "error", "message": str(e)})
             await websocket.close()
@@ -1647,6 +1666,9 @@ async def websocket_backup(websocket: WebSocket):
             "create": options.create,
             "use_ssm": endpoint.use_ssm,
         }
+        if from_replica:
+            metadata["from_replica"] = True
+            metadata["replica_host"] = endpoint.replica_host
         if schemas:
             metadata["schemas"] = schemas
         if options.exclude_table:
@@ -1669,6 +1691,14 @@ async def websocket_backup(websocket: WebSocket):
                 "message": f"SSM tunnel active via {endpoint.jumphost_alias} -> localhost:{port}"
             }
 
+        # Replica info message
+        replica_msg = None
+        if from_replica:
+            replica_msg = {
+                "type": "progress",
+                "message": f"Backing up from read replica: {endpoint.replica_host}"
+            }
+
         # Launch operation as background task (survives WS disconnect)
         cancel_event = asyncio.Event()
         _running_operations[operation_id] = cancel_event
@@ -1677,6 +1707,8 @@ async def websocket_backup(websocket: WebSocket):
             try:
                 if ssm_msg:
                     broadcaster.broadcast(operation_id, ssm_msg)
+                if replica_msg:
+                    broadcaster.broadcast(operation_id, replica_msg)
                 async for progress in br.run_backup(
                     database=database,
                     host=host,
