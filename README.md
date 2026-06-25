@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:v3.3.0 .
-docker push ghcr.io/fpellizz/magikup:v3.3.0
+docker build -t ghcr.io/fpellizz/magikup:3.4.0 .
+docker push ghcr.io/fpellizz/magikup:3.4.0
 
 # 2. Configure secrets (generates encryption key and creates secret.yaml)
 ./scripts/create-secret.sh
@@ -624,6 +624,11 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 3.4.0
+
+- **Backup lock-wait timeout** — new `lock_wait_timeout_seconds` setting (Admin → Settings, default 60s). `pg_dump` is run with `--lock-wait-timeout`, so a backup fails fast instead of blocking forever when it can't acquire shared table locks (e.g. behind a migration / `VACUUM FULL`). `0` = wait forever.
+- **Backup from a read replica** — endpoints can be flagged to back up from a read replica instead of the primary. For Aurora hosts the endpoint form detects the cluster endpoint and suggests the reader (`.cluster-` → `.cluster-ro-`); enable it with a switch. Keeps dump locks off the writer. Stays engine-agnostic (still plain `pg_dump`).
 
 ### 3.3.0
 

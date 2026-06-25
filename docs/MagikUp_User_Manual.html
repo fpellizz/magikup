@@ -309,7 +309,7 @@
   <h1>Magiku(r)p</h1>
   <div class="subtitle">PostgreSQL Backup &amp; Restore Web Application</div>
   <div class="subtitle" style="font-size:14pt; color:#495057;">Manuale Utente</div>
-  <div class="version">Versione 3.3.0</div>
+  <div class="version">Versione 3.4.0</div>
   <div class="meta">
     MagikUp<br>
     Aprile 2026
@@ -484,10 +484,10 @@ FastAPI (main.py) ── Auth (auth.py) ── Users (users.json)
 <h3>Build e Push dell&rsquo;immagine</h3>
 <pre>
 # Build dell'immagine Docker
-docker build -t ghcr.io/fpellizz/magikup:v3.3.0 .
+docker build -t ghcr.io/fpellizz/magikup:3.4.0 .
 
 # Push al registry
-docker push ghcr.io/fpellizz/magikup:v3.3.0
+docker push ghcr.io/fpellizz/magikup:3.4.0
 </pre>
 
 <h3>Configurazione Secrets</h3>
@@ -1591,6 +1591,19 @@ La vecchia route <code>/about</code> effettua un redirect automatico a <code>/in
 <h3>Cronologia Versioni</h3>
 <p>La card <strong>Version History</strong> nella pagina Info riporta il changelog dell&rsquo;applicazione. Di seguito il dettaglio della versione corrente:</p>
 
+<h4>Versione 3.4.0</h4>
+<ul>
+  <li><strong>Lock-wait timeout del backup</strong> &mdash; Nuova impostazione <code>lock_wait_timeout_seconds</code> (Admin &rarr; Settings, default 60s). <code>pg_dump</code> viene eseguito con <code>--lock-wait-timeout</code>: il backup fallisce subito invece di restare bloccato all&rsquo;infinito quando non riesce ad acquisire i lock condivisi sulle tabelle (es. dietro una migration o un <code>VACUUM FULL</code>). <code>0</code> = attesa infinita</li>
+  <li><strong>Backup da replica di lettura</strong> &mdash; Un endpoint pu&ograve; essere configurato per eseguire il backup da una replica di lettura invece che dal primario. Per gli host Aurora il form rileva il cluster endpoint e suggerisce il reader (<code>.cluster-</code> &rarr; <code>.cluster-ro-</code>); si attiva con uno switch. I lock del dump non impattano il writer. Resta agnostico (sempre <code>pg_dump</code>)</li>
+</ul>
+
+<h4>Versione 3.3.0</h4>
+<ul>
+  <li><strong>Endpoint in sola lettura</strong> &mdash; Un endpoint pu&ograve; essere marcato read-only: il Query Editor si connette in modalit&agrave; sola lettura e restore/transfer verso di esso sono rifiutati</li>
+  <li><strong>Scoping degli endpoint per utente</strong> &mdash; Ogni utente non-admin ha una lista di endpoint consentiti; vede e opera solo sui propri</li>
+  <li><strong>Hardening di sicurezza</strong> &mdash; Allowlist dei path di pg_dump/pg_restore, validazione host dei tunnel SSM, controllo CSRF same-origin, <code>TrustedHostMiddleware</code>, rate-limit/audit consapevoli dei proxy, download backup riservato a operator, scritture atomiche dello user store, conferma dei restore distruttivi, e altro</li>
+</ul>
+
 <h4>Versione 3.2.0</h4>
 <ul>
   <li><strong>Restore TimescaleDB-aware</strong> &mdash; Nuovo toggle &laquo;TimescaleDB&raquo; nella sezione <em>Advanced Parameters</em> di Restore e Transfer. Quando attivo, l&rsquo;applicazione esegue <code>SELECT timescaledb_pre_restore()</code> prima del restore, aggiunge <code>--disable-triggers</code> a <code>pg_restore</code> e invoca <code>SELECT timescaledb_post_restore()</code> al termine</li>
@@ -1885,7 +1898,7 @@ MagikUp Pod ──&gt; SSM Session ──&gt; EC2 Jump Host ──&gt; VPC Netwo
 <!-- ==================== FOOTER ==================== -->
 <div style="margin-top:60px; padding-top:20px; border-top:2px solid #6f42c1; text-align:center; color:#6c757d; font-size:9pt;">
   <p><strong>Magiku(r)p</strong> &mdash; PostgreSQL Backup &amp; Restore Web Application</p>
-  <p>Versione 3.3.0 &mdash; 2026 &mdash; MagikUp</p>
+  <p>Versione 3.4.0 &mdash; 2026 &mdash; MagikUp</p>
   <p><em>Manuale utente</em></p>
 </div>
 
