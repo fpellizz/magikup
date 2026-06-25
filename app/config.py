@@ -39,6 +39,8 @@ class DatabaseConfig:
     use_ssm: bool = False
     jumphost_alias: str = ""
     read_only: bool = False  # If True: query editor runs read-only; restore/transfer to it is refused
+    backup_use_replica: bool = False  # If True: back up from replica_host instead of host
+    replica_host: str = ""  # Read replica/reader host used for backups when backup_use_replica is True
 
 
 @dataclass
@@ -67,6 +69,7 @@ class Settings:
     pg_dump_path: str = "/usr/bin/pg_dump"
     pg_restore_path: str = "/usr/bin/pg_restore"
     max_upload_size_gb: int = 5
+    lock_wait_timeout_seconds: int = 60  # pg_dump --lock-wait-timeout (0 = wait forever)
     log_level: str = "INFO"
     context_path: str = ""
 
@@ -182,6 +185,9 @@ backup_dir = {APP_ROOT / 'backups'}
 pg_dump_path = /usr/bin/pg_dump
 pg_restore_path = /usr/bin/pg_restore
 max_upload_size_gb = 5
+# pg_dump --lock-wait-timeout (seconds): fail fast if shared table locks can't be
+# acquired at the start of a backup, instead of blocking forever. 0 = wait forever.
+lock_wait_timeout_seconds = 60
 log_level = INFO
 context_path =
 
@@ -209,11 +215,14 @@ region = us-east-1
 
 [endpoints]
 # Database endpoints
-# Format: name = host|port|username|password|use_ssm|jumphost_alias|read_only
+# Format: name = host|port|username|password|use_ssm|jumphost_alias|read_only|backup_use_replica|replica_host
 # use_ssm: true or false
 # jumphost_alias: references a key in [jumphosts] (leave empty if use_ssm=false)
 # read_only: true or false (optional, default false). When true the query editor
 #            runs read-only and restore/transfer to this endpoint are refused.
+# backup_use_replica: true or false (optional). When true, backups connect to
+#            replica_host instead of host (e.g. an Aurora reader endpoint).
+# replica_host: read replica/reader host used for backups (optional).
 # Example (direct):     local-db = 10.0.1.100|5432|postgres|mypassword|false||false
 # Example (SSM):        prod-aurora = aurora-cluster.rds.amazonaws.com|5432|admin|ENC:...|true|production-jh|false
 # Example (read-only):  prod-ro = reporting.rds.amazonaws.com|5432|readonly|ENC:...|false||true
@@ -305,6 +314,7 @@ def get_settings() -> Settings:
         pg_dump_path=config.get('settings', 'pg_dump_path', fallback='/usr/bin/pg_dump'),
         pg_restore_path=config.get('settings', 'pg_restore_path', fallback='/usr/bin/pg_restore'),
         max_upload_size_gb=config.getint('settings', 'max_upload_size_gb', fallback=5),
+        lock_wait_timeout_seconds=config.getint('settings', 'lock_wait_timeout_seconds', fallback=60),
         log_level=config.get('settings', 'log_level', fallback='INFO'),
         context_path=config.get('settings', 'context_path', fallback=''),
     )
@@ -322,6 +332,7 @@ def save_settings(settings: Settings) -> None:
     config.set('settings', 'pg_dump_path', settings.pg_dump_path)
     config.set('settings', 'pg_restore_path', settings.pg_restore_path)
     config.set('settings', 'max_upload_size_gb', str(settings.max_upload_size_gb))
+    config.set('settings', 'lock_wait_timeout_seconds', str(settings.lock_wait_timeout_seconds))
     config.set('settings', 'log_level', settings.log_level)
     config.set('settings', 'context_path', settings.context_path)
     write_config(config)
@@ -510,12 +521,19 @@ def get_database_configs() -> Dict[str, DatabaseConfig]:
                     use_ssm = False
                     jumphost_alias = ""
                     read_only = False
+                    backup_use_replica = False
+                    replica_host = ""
                     if len(parts) >= 5:
                         use_ssm = parts[4].strip().lower() == 'true'
                     if len(parts) >= 6:
                         jumphost_alias = parts[5].strip()
                     if len(parts) >= 7:
                         read_only = parts[6].strip().lower() == 'true'
+                    # 8th/9th fields (optional): backup_use_replica + replica_host
+                    if len(parts) >= 8:
+                        backup_use_replica = parts[7].strip().lower() == 'true'
+                    if len(parts) >= 9:
+                        replica_host = parts[8].strip()
 
                     databases[name] = DatabaseConfig(
                         name=name,
@@ -526,6 +544,8 @@ def get_database_configs() -> Dict[str, DatabaseConfig]:
                         use_ssm=use_ssm,
                         jumphost_alias=jumphost_alias,
                         read_only=read_only,
+                        backup_use_replica=backup_use_replica,
+                        replica_host=replica_host,
                     )
             except (ValueError, IndexError) as e:
                 logger.warning(f"Invalid database config for '{name}': {e}")
@@ -574,12 +594,16 @@ def save_database_config(db_config: DatabaseConfig) -> None:
     encrypted_password = encrypt_password(db_config.password)
     use_ssm_str = 'true' if db_config.use_ssm else 'false'
     read_only_str = 'true' if db_config.read_only else 'false'
+    use_replica_str = 'true' if db_config.backup_use_replica else 'false'
 
-    value = f"{db_config.host}|{db_config.port}|{db_config.username}|{encrypted_password}|{use_ssm_str}|{db_config.jumphost_alias}|{read_only_str}"
+    value = (f"{db_config.host}|{db_config.port}|{db_config.username}|{encrypted_password}"
+             f"|{use_ssm_str}|{db_config.jumphost_alias}|{read_only_str}"
+             f"|{use_replica_str}|{db_config.replica_host}")
     config.set('endpoints', db_config.name, value)
     write_config(config)
 
-    logger.info(f"Saved database config '{db_config.name}' (SSM: {db_config.use_ssm}, read_only: {db_config.read_only})")
+    logger.info(f"Saved database config '{db_config.name}' (SSM: {db_config.use_ssm}, "
+                f"read_only: {db_config.read_only}, backup_use_replica: {db_config.backup_use_replica})")
 
 
 def delete_database_config(name: str) -> None:

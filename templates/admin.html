@@ -584,6 +584,13 @@
                                            min="1" max="50" step="1">
                                     <div class="form-text">Maximum file upload size for restore operations</div>
                                 </div>
+                                <div class="mb-3">
+                                    <label for="settingsLockWaitTimeout" class="form-label">Backup lock-wait timeout (s)</label>
+                                    <input type="number" class="form-control" id="settingsLockWaitTimeout"
+                                           value="{{ settings.lock_wait_timeout_seconds }}"
+                                           min="0" max="3600" step="1">
+                                    <div class="form-text">pg_dump fails fast if table locks can't be acquired at backup start (avoids hanging behind a migration). 0 = wait forever.</div>
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -915,7 +922,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="endpointHost" class="form-label">Host</label>
-                        <input type="text" class="form-control" id="endpointHost" placeholder="aurora-cluster.rds.amazonaws.com" required>
+                        <input type="text" class="form-control" id="endpointHost" placeholder="aurora-cluster.rds.amazonaws.com" required oninput="detectAuroraReader()">
                     </div>
                     <div class="row">
                         <div class="col-md-6">
@@ -957,6 +964,20 @@
                             <label class="form-check-label" for="endpointReadOnly">Read-only endpoint</label>
                         </div>
                         <div class="form-text">Query Editor runs in read-only mode; restore and transfer to this endpoint are refused.</div>
+                    </div>
+
+                    <!-- Backup from read replica (revealed for Aurora endpoints) -->
+                    <div id="endpointReplicaWrapper" class="ssm-toggle-wrapper hidden">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="endpointBackupUseReplica" onchange="toggleReplicaHost()">
+                            <label class="form-check-label" for="endpointBackupUseReplica">Use read replica for backup</label>
+                        </div>
+                        <div class="form-text">Aurora detected — back up from the reader endpoint to avoid lock contention on the writer.</div>
+                        <div id="replicaHostWrapper" class="mb-3 mt-2 hidden">
+                            <label for="endpointReplicaHost" class="form-label">Reader endpoint (host)</label>
+                            <input type="text" class="form-control" id="endpointReplicaHost" placeholder="name.cluster-ro-xxxx.region.rds.amazonaws.com">
+                            <div class="form-text">Suggested from the Aurora cluster endpoint — edit if your reader differs.</div>
+                        </div>
                     </div>
 
                     <!-- Jump Host Selection (hidden by default) -->
@@ -1316,6 +1337,31 @@
     // Track whether the modal is in edit mode
     let endpointEditMode = false;
 
+    // Reveal the "use read replica" section for Aurora hosts and suggest the reader endpoint.
+    function detectAuroraReader(preserveExisting) {
+        const host = document.getElementById('endpointHost').value.trim();
+        const wrapper = document.getElementById('endpointReplicaWrapper');
+        const isAurora = /\.rds\.amazonaws\.com$/i.test(host);
+        wrapper.classList.toggle('hidden', !isAurora);
+        if (!isAurora) {
+            document.getElementById('endpointBackupUseReplica').checked = false;
+            toggleReplicaHost();
+            return;
+        }
+        if (!preserveExisting) {
+            const replicaInput = document.getElementById('endpointReplicaHost');
+            // Aurora writer/cluster endpoint -> reader: ".cluster-" becomes ".cluster-ro-"
+            if (!replicaInput.value && /\.cluster-/i.test(host) && !/\.cluster-ro-/i.test(host)) {
+                replicaInput.value = host.replace(/\.cluster-/i, '.cluster-ro-');
+            }
+        }
+    }
+
+    function toggleReplicaHost() {
+        const on = document.getElementById('endpointBackupUseReplica').checked;
+        document.getElementById('replicaHostWrapper').classList.toggle('hidden', !on);
+    }
+
     function openEndpointModalForAdd() {
         endpointEditMode = false;
         document.getElementById('addEndpointForm').reset();
@@ -1326,6 +1372,10 @@
         document.getElementById('endpointModalSaveText').textContent = 'Add Endpoint';
         document.getElementById('endpointUseSSM').checked = false;
         document.getElementById('endpointReadOnly').checked = false;
+        document.getElementById('endpointBackupUseReplica').checked = false;
+        document.getElementById('endpointReplicaHost').value = '';
+        detectAuroraReader();
+        toggleReplicaHost();
         toggleSSMOptions();
         // Reset password visibility
         const pwInput = document.getElementById('endpointPassword');
@@ -1369,6 +1419,12 @@
             // Read-only toggle
             document.getElementById('endpointReadOnly').checked = !!data.read_only;
 
+            // Read replica (Aurora): reveal section by detection, keep stored values
+            document.getElementById('endpointBackupUseReplica').checked = !!data.backup_use_replica;
+            document.getElementById('endpointReplicaHost').value = data.replica_host || '';
+            detectAuroraReader(true);
+            toggleReplicaHost();
+
             // Show modal
             new bootstrap.Modal(document.getElementById('addEndpointModal')).show();
         } catch (error) {
@@ -1384,6 +1440,8 @@
         const password = document.getElementById('endpointPassword').value;
         const useSSM = document.getElementById('endpointUseSSM').checked;
         const readOnly = document.getElementById('endpointReadOnly').checked;
+        const backupUseReplica = document.getElementById('endpointBackupUseReplica').checked;
+        const replicaHost = document.getElementById('endpointReplicaHost').value.trim();
         const jumphostAlias = document.getElementById('endpointJumphostAlias').value;
 
         if (!name || !host || !port || !username || !password) {
@@ -1393,6 +1451,11 @@
 
         if (useSSM && !jumphostAlias) {
             showToast('Please select a jump host when SSM tunnel is enabled', 'error');
+            return;
+        }
+
+        if (backupUseReplica && !replicaHost) {
+            showToast('Specify the reader endpoint host for replica backups', 'error');
             return;
         }
 
@@ -1407,7 +1470,9 @@
                 password,
                 use_ssm: useSSM,
                 jumphost_alias: useSSM ? jumphostAlias : null,
-                read_only: readOnly
+                read_only: readOnly,
+                backup_use_replica: backupUseReplica,
+                replica_host: replicaHost
             });
             showToast(`Endpoint ${action} successfully`, 'success');
             bootstrap.Modal.getInstance(document.getElementById('addEndpointModal')).hide();
@@ -1535,6 +1600,7 @@
             pg_dump_path: document.getElementById('settingsPgDumpPath').value.trim(),
             pg_restore_path: document.getElementById('settingsPgRestorePath').value.trim(),
             max_upload_size_gb: parseInt(document.getElementById('settingsMaxUploadSize').value),
+            lock_wait_timeout_seconds: parseInt(document.getElementById('settingsLockWaitTimeout').value),
             log_level: document.getElementById('settingsLogLevel').value,
             context_path: document.getElementById('settingsContextPath').value.trim()
         };
