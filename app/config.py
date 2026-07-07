@@ -60,6 +60,31 @@ class JumphostConfig:
     aws_account_alias: str = ""
 
 
+@dataclass
+class S3StorageConfig:
+    """S3 (or S3-compatible) bucket used to archive/retrieve backup files."""
+    name: str
+    bucket: str
+    region: str = "us-east-1"
+    endpoint_url: str = ""          # S3-compatible endpoint (MinIO, Ceph, Wasabi...); empty = AWS S3
+    prefix: str = ""                # optional key prefix/folder within the bucket
+    path_style: bool = False        # path-style addressing (required by many S3-compatible servers)
+    cred_mode: str = "dedicated"    # "dedicated" (keys below) | "aws_account" (reuse an [aws:*] account)
+    aws_account_alias: str = ""     # used when cred_mode == "aws_account"
+    access_key_id: str = ""         # used when cred_mode == "dedicated"
+    secret_access_key: str = ""     # used when cred_mode == "dedicated" (encrypted at rest)
+
+
+@dataclass
+class FileShareConfig:
+    """WebDAV/HTTP(S) file share used to archive/retrieve backup files."""
+    name: str
+    base_url: str = ""              # e.g. https://host/remote.php/dav/files/user/backups
+    username: str = ""
+    password: str = ""              # encrypted at rest
+    verify_ssl: bool = True
+
+
 APP_ROOT = Path(__file__).parent.parent
 
 @dataclass
@@ -226,6 +251,27 @@ region = us-east-1
 # Example (direct):     local-db = 10.0.1.100|5432|postgres|mypassword|false||false
 # Example (SSM):        prod-aurora = aurora-cluster.rds.amazonaws.com|5432|admin|ENC:...|true|production-jh|false
 # Example (read-only):  prod-ro = reporting.rds.amazonaws.com|5432|readonly|ENC:...|false||true
+
+# Remote storage for backup files (optional). Add one section per target.
+#
+# S3 or S3-compatible (MinIO, Ceph, Wasabi...). One [s3:<name>] per bucket:
+#   [s3:my-bucket]
+#   bucket = my-backups
+#   region = us-east-1
+#   endpoint_url =            ; empty for AWS S3; set a URL for S3-compatible servers
+#   prefix = magikup/         ; optional key prefix/folder within the bucket
+#   path_style = false        ; set true for most S3-compatible servers
+#   cred_mode = dedicated     ; "dedicated" (keys below) or "aws_account" (reuse an [aws:*] account)
+#   aws_account_alias =       ; used when cred_mode = aws_account
+#   access_key_id =           ; used when cred_mode = dedicated
+#   secret_access_key =       ; used when cred_mode = dedicated (stored encrypted as ENC:...)
+#
+# WebDAV/HTTP(S) file share. One [fileshare:<name>] per instance:
+#   [fileshare:my-share]
+#   base_url = https://host/remote.php/dav/files/user/backups
+#   username =
+#   password =                ; stored encrypted as ENC:...
+#   verify_ssl = true
 """
 
 
@@ -243,9 +289,14 @@ def ensure_config_exists() -> None:
 
 
 def read_config() -> configparser.ConfigParser:
-    """Read configuration file."""
+    """Read configuration file.
+
+    interpolation=None: values are stored verbatim. Without it, a literal '%'
+    in a value (e.g. a percent-encoded WebDAV URL, or a '%' in a secret) would
+    raise on ConfigParser.set()/get() as a broken interpolation token.
+    """
     ensure_config_exists()
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(interpolation=None)
     config.read(CONFIG_FILE)
     return config
 
@@ -444,6 +495,112 @@ def delete_aws_config(alias: str) -> None:
         config.remove_section(section)
         write_config(config)
         logger.info(f"Deleted AWS account '{alias}'")
+
+
+# =============================================================================
+# Remote Storage: S3 buckets and WebDAV file shares (for backup files)
+# =============================================================================
+
+def get_s3_storage_configs() -> Dict[str, S3StorageConfig]:
+    """Get all S3 storage configs from [s3:<name>] sections (secret decrypted)."""
+    config = read_config()
+    stores: Dict[str, S3StorageConfig] = {}
+    for section in config.sections():
+        if section.startswith('s3:'):
+            name = section[len('s3:'):]
+            stores[name] = S3StorageConfig(
+                name=name,
+                bucket=config.get(section, 'bucket', fallback=''),
+                region=config.get(section, 'region', fallback='us-east-1'),
+                endpoint_url=config.get(section, 'endpoint_url', fallback=''),
+                prefix=config.get(section, 'prefix', fallback=''),
+                path_style=config.getboolean(section, 'path_style', fallback=False),
+                cred_mode=config.get(section, 'cred_mode', fallback='dedicated'),
+                aws_account_alias=config.get(section, 'aws_account_alias', fallback=''),
+                access_key_id=config.get(section, 'access_key_id', fallback=''),
+                secret_access_key=decrypt_password(config.get(section, 'secret_access_key', fallback='')),
+            )
+    return stores
+
+
+def get_s3_storage_config(name: str) -> Optional[S3StorageConfig]:
+    """Get a specific S3 storage config by name."""
+    return get_s3_storage_configs().get(name)
+
+
+def save_s3_storage_config(store: S3StorageConfig) -> None:
+    """Save an S3 storage config under [s3:<name>] (secret encrypted at rest)."""
+    config = read_config()
+    section = f's3:{store.name}'
+    if section not in config:
+        config.add_section(section)
+    config.set(section, 'bucket', store.bucket)
+    config.set(section, 'region', store.region)
+    config.set(section, 'endpoint_url', store.endpoint_url)
+    config.set(section, 'prefix', store.prefix)
+    config.set(section, 'path_style', str(store.path_style).lower())
+    config.set(section, 'cred_mode', store.cred_mode)
+    config.set(section, 'aws_account_alias', store.aws_account_alias)
+    config.set(section, 'access_key_id', store.access_key_id)
+    config.set(section, 'secret_access_key', encrypt_password(store.secret_access_key))
+    write_config(config)
+    logger.info(f"Saved S3 storage '{store.name}' (bucket: {store.bucket}, cred_mode: {store.cred_mode})")
+
+
+def delete_s3_storage_config(name: str) -> None:
+    """Delete an S3 storage config."""
+    config = read_config()
+    section = f's3:{name}'
+    if config.has_section(section):
+        config.remove_section(section)
+        write_config(config)
+        logger.info(f"Deleted S3 storage '{name}'")
+
+
+def get_fileshare_configs() -> Dict[str, FileShareConfig]:
+    """Get all WebDAV file share configs from [fileshare:<name>] sections (password decrypted)."""
+    config = read_config()
+    shares: Dict[str, FileShareConfig] = {}
+    for section in config.sections():
+        if section.startswith('fileshare:'):
+            name = section[len('fileshare:'):]
+            shares[name] = FileShareConfig(
+                name=name,
+                base_url=config.get(section, 'base_url', fallback=''),
+                username=config.get(section, 'username', fallback=''),
+                password=decrypt_password(config.get(section, 'password', fallback='')),
+                verify_ssl=config.getboolean(section, 'verify_ssl', fallback=True),
+            )
+    return shares
+
+
+def get_fileshare_config(name: str) -> Optional[FileShareConfig]:
+    """Get a specific file share config by name."""
+    return get_fileshare_configs().get(name)
+
+
+def save_fileshare_config(share: FileShareConfig) -> None:
+    """Save a WebDAV file share config under [fileshare:<name>] (password encrypted at rest)."""
+    config = read_config()
+    section = f'fileshare:{share.name}'
+    if section not in config:
+        config.add_section(section)
+    config.set(section, 'base_url', share.base_url)
+    config.set(section, 'username', share.username)
+    config.set(section, 'password', encrypt_password(share.password))
+    config.set(section, 'verify_ssl', str(share.verify_ssl).lower())
+    write_config(config)
+    logger.info(f"Saved file share '{share.name}' (url: {share.base_url})")
+
+
+def delete_fileshare_config(name: str) -> None:
+    """Delete a file share config."""
+    config = read_config()
+    section = f'fileshare:{name}'
+    if config.has_section(section):
+        config.remove_section(section)
+        write_config(config)
+        logger.info(f"Deleted file share '{name}'")
 
 
 # =============================================================================
@@ -686,7 +843,7 @@ def import_config_content(content: str) -> Dict:
     Returns dict with success status and details.
     """
     # Validate the content is parseable
-    test_config = configparser.ConfigParser()
+    test_config = configparser.ConfigParser(interpolation=None)
     try:
         test_config.read_string(content)
     except configparser.Error as e:
