@@ -196,15 +196,28 @@
             <div class="card-body py-2">
                 <div class="mb-2">
                     <div class="d-flex align-items-center mb-1">
-                        <span class="badge bg-primary me-2">3.4.0</span>
+                        <span class="badge bg-primary me-2">3.5.0</span>
                         <span class="fw-semibold small">Current</span>
                     </div>
                     <ul class="list-unstyled ms-3 mb-0 small text-body-secondary">
-                        <li><i class="bi bi-check2 text-success me-1"></i>TimescaleDB-aware restore (pre/post procedures + --disable-triggers)</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>New "TimescaleDB" toggle in Restore and Transfer advanced parameters</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Remote backup storage: push/pull to S3 (and S3-compatible) buckets, WebDAV/HTTP file shares, and filebrowser instances</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>New "Remote Storage" settings tab (multiple buckets, file shares and filebrowser instances; secrets encrypted at rest)</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Live progress bars for remote push/pull (one per in-flight operation)</li>
                     </ul>
                 </div>
                 <hr class="my-2">
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">3.4.0</span>
+                    <span class="small text-body-secondary">Backup lock-wait timeout + backup from a read replica (Aurora reader endpoint)</span>
+                </div>
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">3.3.0</span>
+                    <span class="small text-body-secondary">Read-only endpoints, per-user endpoint scoping, security hardening</span>
+                </div>
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">3.2.0</span>
+                    <span class="small text-body-secondary">TimescaleDB-aware restore (pre/post procedures + --disable-triggers)</span>
+                </div>
                 <div class="mb-2">
                     <span class="badge bg-secondary me-2">3.1.0</span>
                     <span class="small text-body-secondary">Context Path / Reverse Proxy support (ROOT_PATH env var, Admin UI Network section)</span>

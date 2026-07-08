@@ -39,6 +39,110 @@
     </div>
 </div>
 
+<!-- Remote transfer progress (one bar per in-flight push/pull) -->
+<div class="row mb-4" id="transferProgressRow" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-arrow-left-right"></i> Remote transfers
+            </div>
+            <div class="card-body" id="transferProgressBody"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Retrieve from Remote Storage -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-cloud-download"></i> Retrieve from Remote Storage
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-pills mb-3" id="retrieveTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#retrieveS3Pane" type="button" role="tab">
+                            <i class="bi bi-bucket"></i> From S3 bucket
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#retrieveFbPane" type="button" role="tab">
+                            <i class="bi bi-hdd-stack"></i> From filebrowser
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#retrieveLinkPane" type="button" role="tab">
+                            <i class="bi bi-link-45deg"></i> From link (WebDAV / HTTP)
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <!-- From S3 -->
+                    <div class="tab-pane fade show active" id="retrieveS3Pane" role="tabpanel">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-7">
+                                <label class="form-label" for="retrieveS3Select">S3 bucket</label>
+                                <select class="form-select" id="retrieveS3Select">
+                                    <option value="">No S3 buckets configured</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-primary w-100" onclick="browseS3()" id="browseS3Btn">
+                                    <i class="bi bi-search me-1"></i> Browse
+                                </button>
+                            </div>
+                        </div>
+                        <div id="s3ObjectsContainer" class="mt-3"></div>
+                    </div>
+                    <!-- From filebrowser -->
+                    <div class="tab-pane fade" id="retrieveFbPane" role="tabpanel">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-7">
+                                <label class="form-label" for="retrieveFbSelect">filebrowser instance</label>
+                                <select class="form-select" id="retrieveFbSelect">
+                                    <option value="">No filebrowser configured</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-primary w-100" onclick="browseFileBrowser()" id="browseFbBtn">
+                                    <i class="bi bi-search me-1"></i> Browse
+                                </button>
+                            </div>
+                        </div>
+                        <div id="fbObjectsContainer" class="mt-3"></div>
+                    </div>
+
+                    <!-- From link -->
+                    <div class="tab-pane fade" id="retrieveLinkPane" role="tabpanel">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-6">
+                                <label class="form-label" for="retrieveLinkUrl">Backup URL</label>
+                                <input type="url" class="form-control" id="retrieveLinkUrl"
+                                       placeholder="https://host/path/db_20260101_120000.backup">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="retrieveLinkShare">Credentials <span class="text-muted">(optional)</span></label>
+                                <select class="form-select" id="retrieveLinkShare">
+                                    <option value="">Auto / none</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-primary w-100" onclick="pullFromLink()" id="pullLinkBtn">
+                                    <i class="bi bi-download me-1"></i> Download
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-text mt-2">
+                            Downloads the file into the local backup directory. If the link matches a configured
+                            file share, its credentials are used automatically; otherwise pick one above.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Backup Files Card -->
 <div class="row">
     <div class="col-12">
@@ -138,6 +242,35 @@
                         <span id="backupStats"><i class="bi bi-info-circle"></i> Loading...</span>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Send to Remote Storage Modal -->
+<div class="modal fade" id="pushModal" tabindex="-1" aria-labelledby="pushModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pushModalLabel">
+                    <i class="bi bi-cloud-upload me-2"></i>Send to Remote Storage
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Sending <strong id="pushFilename"></strong></p>
+                <div class="mb-3">
+                    <label for="pushTarget" class="form-label">Destination</label>
+                    <select class="form-select" id="pushTarget">
+                        <option value="">No remote storage configured</option>
+                    </select>
+                    <div class="form-text">Configure targets in <strong>Admin → Remote Storage</strong>.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="doPush()" id="pushBtn">
+                    <i class="bi bi-cloud-upload me-1"></i> Send
+                </button>
             </div>
         </div>
     </div>
@@ -531,6 +664,11 @@
                                 title="Download">
                             <i class="bi bi-download"></i>
                         </button>
+                        <button class="btn btn-sm btn-outline-success"
+                                onclick="openPushModal('${backup.name}')"
+                                title="Send to remote storage">
+                            <i class="bi bi-cloud-upload"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-danger"
                                 onclick="deleteBackup('${backup.name}')"
                                 title="Delete">
@@ -732,9 +870,293 @@
         }
     }
 
+    // ============================================================
+    // Remote storage: push to / pull from S3 buckets and file shares
+    // ============================================================
+    let remoteTargets = { s3: [], fileshare: [], filebrowser: [] };
+    let s3Objects = [];
+    let fbObjects = [];
+    let currentPushFile = null;
+
+    function isErr(res) {
+        return !res || res.detail !== undefined || res.success === false;
+    }
+
+    async function loadRemoteTargets() {
+        try {
+            remoteTargets = await apiCall('/api/storage/targets');
+        } catch (e) {
+            remoteTargets = { s3: [], fileshare: [], filebrowser: [] };
+        }
+        const s3List = remoteTargets.s3 || [];
+        const fsList = remoteTargets.fileshare || [];
+        const fbList = remoteTargets.filebrowser || [];
+
+        // S3 browse select
+        const s3Sel = document.getElementById('retrieveS3Select');
+        s3Sel.innerHTML = s3List.length
+            ? s3List.map(s => `<option value="${s.name}">${s.name} (${s.bucket})</option>`).join('')
+            : '<option value="">No S3 buckets configured</option>';
+        document.getElementById('browseS3Btn').disabled = !s3List.length;
+
+        // filebrowser browse select
+        const fbSel = document.getElementById('retrieveFbSelect');
+        fbSel.innerHTML = fbList.length
+            ? fbList.map(s => `<option value="${s.name}">${s.name}</option>`).join('')
+            : '<option value="">No filebrowser configured</option>';
+        document.getElementById('browseFbBtn').disabled = !fbList.length;
+
+        // Link credentials select
+        document.getElementById('retrieveLinkShare').innerHTML =
+            '<option value="">Auto / none</option>' +
+            fsList.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+
+        // Push destination select (optgroups)
+        let opts = '';
+        if (s3List.length) {
+            opts += '<optgroup label="S3 buckets">' +
+                s3List.map(s => `<option value="s3:${s.name}">${s.name} (${s.bucket})</option>`).join('') +
+                '</optgroup>';
+        }
+        if (fsList.length) {
+            opts += '<optgroup label="File shares">' +
+                fsList.map(s => `<option value="fileshare:${s.name}">${s.name}</option>`).join('') +
+                '</optgroup>';
+        }
+        if (fbList.length) {
+            opts += '<optgroup label="filebrowser">' +
+                fbList.map(s => `<option value="filebrowser:${s.name}">${s.name}</option>`).join('') +
+                '</optgroup>';
+        }
+        document.getElementById('pushTarget').innerHTML = opts || '<option value="">No remote storage configured</option>';
+    }
+
+    async function browseS3() {
+        const name = document.getElementById('retrieveS3Select').value;
+        const container = document.getElementById('s3ObjectsContainer');
+        if (!name) { showToast('No S3 bucket selected', 'error'); return; }
+        const btn = document.getElementById('browseS3Btn');
+        btn.disabled = true;
+        container.innerHTML = '<div class="files-loading"><span class="spinner-border spinner-border-sm me-2"></span>Listing objects...</div>';
+        try {
+            const res = await apiCall(`/api/storage/s3/${encodeURIComponent(name)}/objects`);
+            if (isErr(res)) { container.innerHTML = ''; showToast(res.detail || res.error || 'Failed to list objects', 'error'); return; }
+            s3Objects = res.objects || [];
+            if (!s3Objects.length) {
+                container.innerHTML = '<div class="text-muted">No .backup objects found in this bucket.</div>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+                    <thead><tr><th>Object</th><th class="text-end">Size</th><th>Modified</th><th class="text-end">Action</th></tr></thead>
+                    <tbody>` + s3Objects.map((o, i) => `
+                        <tr>
+                            <td><span class="file-name" title="${o.name}">${o.name}</span></td>
+                            <td class="text-end"><span class="file-size">${o.size_human}</span></td>
+                            <td><span class="file-date">${o.modified ? formatDateTime(o.modified) : ''}</span></td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" onclick="pullS3ByIndex('${name.replace(/'/g, "\\'")}', ${i})" title="Download to local">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                            </td>
+                        </tr>`).join('') + `</tbody></table></div>`;
+        } catch (e) {
+            container.innerHTML = '';
+            showToast('Failed to browse S3 bucket', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function pullS3ByIndex(name, i) {
+        const obj = s3Objects[i];
+        if (!obj) return;
+        showToast(`Downloading ${obj.name}...`, 'info');
+        startOperationsPolling();
+        try {
+            const res = await apiCall(`/api/storage/s3/${encodeURIComponent(name)}/pull`, 'POST', { key: obj.key });
+            if (isErr(res)) { showToast(res.detail || res.error || 'Download failed', 'error'); return; }
+            showToast(`Downloaded ${res.filename} (${res.size_human})`, 'success');
+            loadBackups();
+        } catch (e) {
+            showToast('Download failed', 'error');
+        }
+    }
+
+    async function browseFileBrowser() {
+        const name = document.getElementById('retrieveFbSelect').value;
+        const container = document.getElementById('fbObjectsContainer');
+        if (!name) { showToast('No filebrowser instance selected', 'error'); return; }
+        const btn = document.getElementById('browseFbBtn');
+        btn.disabled = true;
+        container.innerHTML = '<div class="files-loading"><span class="spinner-border spinner-border-sm me-2"></span>Listing files...</div>';
+        try {
+            const res = await apiCall(`/api/storage/filebrowser/${encodeURIComponent(name)}/objects`);
+            if (isErr(res)) { container.innerHTML = ''; showToast(res.detail || res.error || 'Failed to list files', 'error'); return; }
+            fbObjects = res.objects || [];
+            if (!fbObjects.length) {
+                container.innerHTML = '<div class="text-muted">No .backup files found in this instance.</div>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+                    <thead><tr><th>File</th><th class="text-end">Size</th><th>Modified</th><th class="text-end">Action</th></tr></thead>
+                    <tbody>` + fbObjects.map((o, i) => `
+                        <tr>
+                            <td><span class="file-name" title="${o.name}">${o.name}</span></td>
+                            <td class="text-end"><span class="file-size">${o.size_human}</span></td>
+                            <td><span class="file-date">${o.modified ? formatDateTime(o.modified) : ''}</span></td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" onclick="pullFbByIndex('${name.replace(/'/g, "\\'")}', ${i})" title="Download to local">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                            </td>
+                        </tr>`).join('') + `</tbody></table></div>`;
+        } catch (e) {
+            container.innerHTML = '';
+            showToast('Failed to browse filebrowser', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function pullFbByIndex(name, i) {
+        const obj = fbObjects[i];
+        if (!obj) return;
+        showToast(`Downloading ${obj.name}...`, 'info');
+        startOperationsPolling();
+        try {
+            const res = await apiCall(`/api/storage/filebrowser/${encodeURIComponent(name)}/pull`, 'POST', { key: obj.key });
+            if (isErr(res)) { showToast(res.detail || res.error || 'Download failed', 'error'); return; }
+            showToast(`Downloaded ${res.filename} (${res.size_human})`, 'success');
+            loadBackups();
+        } catch (e) {
+            showToast('Download failed', 'error');
+        }
+    }
+
+    async function pullFromLink() {
+        const url = document.getElementById('retrieveLinkUrl').value.trim();
+        const share = document.getElementById('retrieveLinkShare').value;
+        if (!url) { showToast('Enter a backup URL', 'error'); return; }
+        const btn = document.getElementById('pullLinkBtn');
+        btn.disabled = true;
+        showToast('Downloading...', 'info');
+        startOperationsPolling();
+        try {
+            const res = await apiCall('/api/storage/fileshare/pull', 'POST', { url, fileshare: share || null });
+            if (isErr(res)) { showToast(res.detail || res.error || 'Download failed', 'error'); return; }
+            showToast(`Downloaded ${res.filename} (${res.size_human})`, 'success');
+            document.getElementById('retrieveLinkUrl').value = '';
+            loadBackups();
+        } catch (e) {
+            showToast('Download failed', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function openPushModal(filename) {
+        currentPushFile = filename;
+        document.getElementById('pushFilename').textContent = filename;
+        new bootstrap.Modal(document.getElementById('pushModal')).show();
+    }
+
+    async function doPush() {
+        const target = document.getElementById('pushTarget').value;
+        if (!target || !currentPushFile) { showToast('No destination selected', 'error'); return; }
+        const sep = target.indexOf(':');
+        const kind = target.substring(0, sep);
+        const name = target.substring(sep + 1);
+        const btn = document.getElementById('pushBtn');
+        btn.disabled = true;
+        showToast(`Sending ${currentPushFile}...`, 'info');
+        startOperationsPolling();
+        try {
+            const endpoint = `/api/backups/${encodeURIComponent(currentPushFile)}/push/${kind}`;
+            const res = await apiCall(endpoint, 'POST', { target: name });
+            if (isErr(res)) { showToast(res.detail || res.error || 'Send failed', 'error'); return; }
+            showToast(res.message || 'Sent to remote storage', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('pushModal')).hide();
+        } catch (e) {
+            showToast('Send failed', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // ---- Live progress bars for remote transfers ----
+    let operationsPollTimer = null;
+    let sawOperations = false;
+
+    function startOperationsPolling() {
+        if (operationsPollTimer) return;
+        sawOperations = false;
+        pollOperations();
+        operationsPollTimer = setInterval(pollOperations, 700);
+    }
+
+    async function pollOperations() {
+        let ops = [];
+        try {
+            const res = await apiCall('/api/storage/operations');
+            ops = (res && res.operations) || [];
+        } catch (e) { /* transient; keep polling */ }
+        renderOperations(ops);
+        if (ops.length) {
+            sawOperations = true;
+        } else if (sawOperations && operationsPollTimer) {
+            // all done — refresh the local list (pulls may have landed) and stop
+            clearInterval(operationsPollTimer);
+            operationsPollTimer = null;
+            loadBackups();
+        } else if (operationsPollTimer) {
+            clearInterval(operationsPollTimer);
+            operationsPollTimer = null;
+        }
+    }
+
+    function renderOperations(ops) {
+        const row = document.getElementById('transferProgressRow');
+        const body = document.getElementById('transferProgressBody');
+        if (!ops.length) { row.style.display = 'none'; body.innerHTML = ''; return; }
+        row.style.display = '';
+        body.innerHTML = ops.map(op => {
+            const dir = op.direction === 'upload' ? 'Uploading' : 'Downloading';
+            const prep = op.direction === 'upload' ? 'to' : 'from';
+            const icon = op.direction === 'upload' ? 'bi-cloud-upload' : 'bi-cloud-download';
+            const known = op.percent !== null && op.percent !== undefined;
+            let barClass = 'progress-bar';
+            let width = known ? op.percent : 100;
+            let label = known ? (op.percent + '%') : '';
+            if (op.status === 'running') barClass += ' progress-bar-striped progress-bar-animated';
+            if (op.status === 'error') { barClass += ' bg-danger'; width = 100; }
+            if (op.status === 'done') { barClass += ' bg-success'; width = 100; label = '100%'; }
+            const sizeInfo = op.total ? `${formatSize(op.done)} / ${formatSize(op.total)}`
+                                      : (op.done ? formatSize(op.done) : '');
+            const right = op.status === 'error'
+                ? `<span class="text-danger small">${op.error || 'failed'}</span>`
+                : `<span class="text-muted small">${label ? label + ' · ' : ''}${sizeInfo}</span>`;
+            return `
+            <div class="transfer-op mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-truncate me-2">
+                        <i class="bi ${icon} me-1"></i> ${dir} <strong>${op.label}</strong> ${prep} <code>${op.kind}:${op.target}</code>
+                    </span>
+                    ${right}
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="${barClass}" role="progressbar" style="width: ${width}%"></div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
     // Auto-load backups when page loads
     document.addEventListener('DOMContentLoaded', function() {
         loadBackups();
+        loadRemoteTargets();
+        startOperationsPolling();   // catch any transfer already in flight
     });
 </script>
 {% endblock %}

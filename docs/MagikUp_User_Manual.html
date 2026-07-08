@@ -309,7 +309,7 @@
   <h1>Magiku(r)p</h1>
   <div class="subtitle">PostgreSQL Backup &amp; Restore Web Application</div>
   <div class="subtitle" style="font-size:14pt; color:#495057;">Manuale Utente</div>
-  <div class="version">Versione 3.4.0</div>
+  <div class="version">Versione 3.5.0</div>
   <div class="meta">
     MagikUp<br>
     Aprile 2026
@@ -484,10 +484,10 @@ FastAPI (main.py) ── Auth (auth.py) ── Users (users.json)
 <h3>Build e Push dell&rsquo;immagine</h3>
 <pre>
 # Build dell'immagine Docker
-docker build -t ghcr.io/fpellizz/magikup:3.4.0 .
+docker build -t ghcr.io/fpellizz/magikup:3.5.0 .
 
 # Push al registry
-docker push ghcr.io/fpellizz/magikup:3.4.0
+docker push ghcr.io/fpellizz/magikup:3.5.0
 </pre>
 
 <h3>Configurazione Secrets</h3>
@@ -1591,6 +1591,16 @@ La vecchia route <code>/about</code> effettua un redirect automatico a <code>/in
 <h3>Cronologia Versioni</h3>
 <p>La card <strong>Version History</strong> nella pagina Info riporta il changelog dell&rsquo;applicazione. Di seguito il dettaglio della versione corrente:</p>
 
+<h4>Versione 3.5.0</h4>
+<ul>
+  <li><strong>Storage remoto dei backup</strong> &mdash; I file di backup possono essere archiviati e recuperati da destinazioni remote, mantenendo la cartella di backup locale come area di lavoro. Le destinazioni si configurano in <strong>Admin &rarr; Remote Storage</strong>; i segreti sono cifrati a riposo.</li>
+  <li><strong>Bucket S3 (e S3-compatibili)</strong> &mdash; Uno o pi&ugrave; bucket (MinIO, Ceph, Wasabi&hellip; tramite endpoint URL opzionale e path-style addressing). Le credenziali possono essere dedicate al singolo bucket oppure riutilizzare un AWS Account esistente. Si pu&ograve; inviare un backup al bucket, sfogliare gli oggetti <code>.backup</code> sotto un prefisso e riportarne uno nella cartella locale.</li>
+  <li><strong>File share WebDAV / HTTP(S)</strong> &mdash; Una o pi&ugrave; istanze (URL base + basic-auth opzionale). Si invia un backup via HTTP <code>PUT</code>; il recupero avviene incollando un link (le credenziali vengono applicate automaticamente quando il link corrisponde a un&rsquo;istanza configurata).</li>
+  <li><strong>filebrowser</strong> &mdash; Una o pi&ugrave; istanze di <a href="https://github.com/filebrowser/filebrowser">filebrowser</a> tramite la sua API HTTP + JWT (login &rarr; header <code>X-Auth</code>). Si pu&ograve; inviare un backup (<code>POST /api/resources</code>), sfogliare i file <code>.backup</code> in una cartella e riportarne uno in locale (<code>GET /api/raw</code>).</li>
+  <li><strong>Progress bar in tempo reale</strong> &mdash; Ogni push/pull remoto mostra una barra di avanzamento con percentuale reale nella pagina Backup Files (una per ogni operazione in corso). I trasferimenti girano in un threadpool e riportano i byte durante lo streaming; il frontend fa polling su <code>GET /api/storage/operations</code>.</li>
+  <li><strong>Agnostico e leggero</strong> &mdash; S3 tramite <code>boto3</code> gi&agrave; presente; WebDAV e filebrowser tramite <code>urllib3</code> gi&agrave; incluso: nessuna nuova dipendenza. Tutti i trasferimenti riusano le stesse protezioni su nome file, dimensione e path-traversal degli upload locali.</li>
+</ul>
+
 <h4>Versione 3.4.0</h4>
 <ul>
   <li><strong>Lock-wait timeout del backup</strong> &mdash; Nuova impostazione <code>lock_wait_timeout_seconds</code> (Admin &rarr; Settings, default 60s). <code>pg_dump</code> viene eseguito con <code>--lock-wait-timeout</code>: il backup fallisce subito invece di restare bloccato all&rsquo;infinito quando non riesce ad acquisire i lock condivisi sulle tabelle (es. dietro una migration o un <code>VACUUM FULL</code>). <code>0</code> = attesa infinita</li>
@@ -1898,7 +1908,7 @@ MagikUp Pod ──&gt; SSM Session ──&gt; EC2 Jump Host ──&gt; VPC Netwo
 <!-- ==================== FOOTER ==================== -->
 <div style="margin-top:60px; padding-top:20px; border-top:2px solid #6f42c1; text-align:center; color:#6c757d; font-size:9pt;">
   <p><strong>Magiku(r)p</strong> &mdash; PostgreSQL Backup &amp; Restore Web Application</p>
-  <p>Versione 3.4.0 &mdash; 2026 &mdash; MagikUp</p>
+  <p>Versione 3.5.0 &mdash; 2026 &mdash; MagikUp</p>
   <p><em>Manuale utente</em></p>
 </div>
 

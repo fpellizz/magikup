@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:3.4.0 .
-docker push ghcr.io/fpellizz/magikup:3.4.0
+docker build -t ghcr.io/fpellizz/magikup:3.5.0 .
+docker push ghcr.io/fpellizz/magikup:3.5.0
 
 # 2. Configure secrets (generates encryption key and creates secret.yaml)
 ./scripts/create-secret.sh
@@ -624,6 +624,15 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 3.5.0
+
+- **Remote backup storage** — archive and retrieve backup files from remote targets, keeping the local backup directory as the working area. Configure targets under **Admin → Remote Storage**; both secrets are encrypted at rest.
+  - **S3 (and S3-compatible)** — one or more buckets (MinIO, Ceph, Wasabi… via optional endpoint URL + path-style addressing). Credentials can be dedicated per bucket or reuse an existing AWS Account. Push a backup to a bucket, browse the `.backup` objects under a prefix, and pull one back into the local directory.
+  - **WebDAV / HTTP(S) file shares** — one or more instances (base URL + optional basic-auth). Push a backup via HTTP `PUT`; retrieve one from a pasted link (credentials auto-applied when the link matches a configured share).
+  - **filebrowser** ([github.com/filebrowser/filebrowser](https://github.com/filebrowser/filebrowser)) — one or more instances via its native HTTP + JWT API (login → `X-Auth`). Push (`POST /api/resources`), browse the `.backup` files in a configured folder, and pull one back (`GET /api/raw`).
+  - **Live progress bars** — every remote push/pull shows a real-percentage progress bar on the Backup Files page (one per in-flight operation). Transfers run in a threadpool and report bytes as they stream (boto3's transfer callback for S3; chunked body/stream for WebDAV & filebrowser), polled via `GET /api/storage/operations`.
+  - Engine-agnostic and dependency-light: S3 via the existing `boto3`; WebDAV and filebrowser via `urllib3` (already bundled) — no new dependencies. All transfers reuse the same filename/size/path-traversal guards as local uploads.
 
 ### 3.4.0
 

@@ -27,6 +27,8 @@ from . import backup_restore as br
 from . import auth
 from . import operation_logger as op_logger
 from . import aws_service as aws
+from . import remote_storage as rs
+from . import progress as progress_registry
 from .ssm_tunnel import tunnel_manager
 from .broadcaster import broadcaster
 
@@ -62,7 +64,7 @@ logger.info(f"Context path: '{_context_path}' (empty = root)")
 app = FastAPI(
     title="PostgreSQL Backup/Restore",
     description="Backup and restore PostgreSQL databases via direct or SSM tunnel connections",
-    version="3.4.0",
+    version="3.5.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -220,6 +222,49 @@ class AWSAccountModel(BaseModel):
     access_key_id: str = ""
     secret_access_key: str = ""
     region: str = "us-east-1"
+
+
+class S3StorageModel(BaseModel):
+    name: str
+    bucket: str
+    region: str = "us-east-1"
+    endpoint_url: Optional[str] = ""
+    prefix: Optional[str] = ""
+    path_style: bool = False
+    cred_mode: str = "dedicated"  # "dedicated" | "aws_account"
+    aws_account_alias: Optional[str] = ""
+    access_key_id: Optional[str] = ""
+    secret_access_key: Optional[str] = ""
+
+
+class FileShareModel(BaseModel):
+    name: str
+    base_url: str
+    username: Optional[str] = ""
+    password: Optional[str] = ""
+    verify_ssl: bool = True
+
+
+class FileBrowserModel(BaseModel):
+    name: str
+    base_url: str
+    root_path: Optional[str] = ""
+    username: Optional[str] = ""
+    password: Optional[str] = ""
+    verify_ssl: bool = True
+
+
+class RemotePushModel(BaseModel):
+    target: str  # S3 storage name or file share name
+
+
+class S3PullModel(BaseModel):
+    key: str
+
+
+class LinkPullModel(BaseModel):
+    url: str
+    fileshare: Optional[str] = None
 
 
 class SettingsModel(BaseModel):
@@ -555,6 +600,9 @@ async def admin_page(request: Request, user: dict = Depends(auth.require_admin))
     settings = cfg.get_settings()
     query_settings = cfg.get_query_settings()
     aws_accounts = cfg.get_aws_configs()
+    s3_stores = cfg.get_s3_storage_configs()
+    fileshares = cfg.get_fileshare_configs()
+    filebrowsers = cfg.get_filebrowser_configs()
     all_users = auth.get_all_users()
 
     return templates.TemplateResponse("admin.html", {
@@ -564,6 +612,9 @@ async def admin_page(request: Request, user: dict = Depends(auth.require_admin))
         "settings": settings,
         "query_settings": query_settings,
         "aws_accounts": aws_accounts,
+        "s3_stores": s3_stores,
+        "fileshares": fileshares,
+        "filebrowsers": filebrowsers,
         "all_users": all_users,
         "user": user["username"],
         "user_role": user["role"],
@@ -1211,6 +1262,139 @@ async def api_upload_backup(file: UploadFile = File(...), user: dict = Depends(a
 
 
 # =============================================================================
+# Backup remote storage actions (push to / pull from S3 + file shares)
+# =============================================================================
+# NOTE: the push/pull endpoints below are sync `def` on purpose. FastAPI runs
+# sync endpoints in a threadpool, so the (blocking) network transfer doesn't
+# stall the event loop — letting the /api/storage/operations poll be served
+# concurrently for live progress bars.
+
+def _run_with_progress(direction: str, kind: str, target: str, label: str, fn):
+    """Register a progress entry, run the transfer (fn receives a (done, total)
+    callback), finalize the entry, and return the transfer result dict."""
+    op_id = progress_registry.start(direction, kind, target, label)
+
+    def cb(done, total):
+        progress_registry.update(op_id, done=done, total=total)
+
+    try:
+        result = fn(cb)
+    except Exception as e:
+        progress_registry.finish(op_id, "error", str(e))
+        raise
+    if result.get("success"):
+        progress_registry.finish(op_id, "done")
+    else:
+        progress_registry.finish(op_id, "error", result.get("error", ""))
+    return result
+
+
+@app.get("/api/storage/operations")
+async def api_storage_operations(user: dict = Depends(auth.require_operator)):
+    """Snapshot of in-flight (and just-finished) remote transfers, for progress bars."""
+    return {"operations": progress_registry.snapshot()}
+
+
+@app.get("/api/storage/targets")
+async def api_storage_targets(user: dict = Depends(auth.require_operator)):
+    """List configured remote storage target names (no secrets) for the UI."""
+    return {
+        "s3": [
+            {"name": s.name, "bucket": s.bucket}
+            for s in cfg.get_s3_storage_configs().values()
+        ],
+        "fileshare": [
+            {"name": s.name, "base_url": s.base_url}
+            for s in cfg.get_fileshare_configs().values()
+        ],
+        "filebrowser": [
+            {"name": s.name, "base_url": s.base_url}
+            for s in cfg.get_filebrowser_configs().values()
+        ],
+    }
+
+
+@app.post("/api/backups/{filename}/push/s3")
+def api_push_backup_s3(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
+    """Upload a local backup file to an S3 storage target."""
+    result = _run_with_progress("upload", "s3", req.target, filename,
+                                lambda cb: rs.s3_upload_backup(req.target, filename, progress_cb=cb))
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
+    return result
+
+
+@app.post("/api/backups/{filename}/push/fileshare")
+def api_push_backup_fileshare(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
+    """Upload a local backup file to a WebDAV file share target."""
+    result = _run_with_progress("upload", "fileshare", req.target, filename,
+                                lambda cb: rs.webdav_upload_backup(req.target, filename, progress_cb=cb))
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
+    return result
+
+
+@app.post("/api/backups/{filename}/push/filebrowser")
+def api_push_backup_filebrowser(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
+    """Upload a local backup file to a filebrowser target."""
+    result = _run_with_progress("upload", "filebrowser", req.target, filename,
+                                lambda cb: rs.filebrowser_upload_backup(req.target, filename, progress_cb=cb))
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
+    return result
+
+
+@app.get("/api/storage/s3/{name}/objects")
+def api_s3_objects(name: str, user: dict = Depends(auth.require_operator)):
+    """List .backup objects available in an S3 storage target."""
+    result = rs.s3_list_backups(name)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "List failed"))
+    return result
+
+
+@app.post("/api/storage/s3/{name}/pull")
+def api_s3_pull(name: str, req: S3PullModel, user: dict = Depends(auth.require_operator)):
+    """Download an object from an S3 storage target into the local backup dir."""
+    label = req.key.rsplit('/', 1)[-1] or req.key
+    result = _run_with_progress("download", "s3", name, label,
+                                lambda cb: rs.s3_download_backup(name, req.key, progress_cb=cb))
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Download failed"))
+    return result
+
+
+@app.post("/api/storage/fileshare/pull")
+def api_fileshare_pull(req: LinkPullModel, user: dict = Depends(auth.require_operator)):
+    """Download a backup from an http(s) link, optionally using a file share's credentials."""
+    label = req.url.rsplit('/', 1)[-1].split('?')[0] or req.url
+    result = _run_with_progress("download", "link", req.fileshare or "link", label,
+                                lambda cb: rs.download_from_link(req.url, req.fileshare, progress_cb=cb))
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Download failed"))
+    return result
+
+
+@app.get("/api/storage/filebrowser/{name}/objects")
+def api_filebrowser_objects(name: str, user: dict = Depends(auth.require_operator)):
+    """List .backup objects available in a filebrowser target."""
+    result = rs.filebrowser_list_backups(name)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "List failed"))
+    return result
+
+
+@app.post("/api/storage/filebrowser/{name}/pull")
+def api_filebrowser_pull(name: str, req: S3PullModel, user: dict = Depends(auth.require_operator)):
+    """Download an object from a filebrowser target into the local backup dir."""
+    result = _run_with_progress("download", "filebrowser", name, req.key,
+                                lambda cb: rs.filebrowser_download_backup(name, req.key, progress_cb=cb))
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Download failed"))
+    return result
+
+
+# =============================================================================
 # Configuration API (download/import, no raw editing)
 # =============================================================================
 
@@ -1297,6 +1481,216 @@ async def api_delete_aws_account(alias: str, user: dict = Depends(auth.require_a
     """Delete an AWS account configuration."""
     cfg.delete_aws_config(alias)
     return {"success": True, "message": f"AWS account '{alias}' deleted"}
+
+
+# =============================================================================
+# Remote Storage config API (S3 buckets + WebDAV file shares)
+# =============================================================================
+
+@app.get("/api/config/s3")
+async def api_get_s3_stores(user: dict = Depends(auth.require_admin)):
+    """List S3 storage configs (secret masked)."""
+    stores = cfg.get_s3_storage_configs()
+    return [
+        {
+            "name": s.name,
+            "bucket": s.bucket,
+            "region": s.region,
+            "endpoint_url": s.endpoint_url,
+            "prefix": s.prefix,
+            "path_style": s.path_style,
+            "cred_mode": s.cred_mode,
+            "aws_account_alias": s.aws_account_alias,
+            "access_key_id": s.access_key_id,
+            "secret_access_key": "***" if s.secret_access_key else "",
+        }
+        for s in stores.values()
+    ]
+
+
+@app.get("/api/config/s3/{name}")
+async def api_get_s3_store(name: str, user: dict = Depends(auth.require_admin)):
+    """Get a single S3 storage config for editing. The secret is masked; a blank
+    secret on save preserves the stored value (see api_save_s3_store)."""
+    s = cfg.get_s3_storage_config(name)
+    if not s:
+        raise HTTPException(status_code=404, detail="S3 storage not found")
+    return {
+        "name": s.name,
+        "bucket": s.bucket,
+        "region": s.region,
+        "endpoint_url": s.endpoint_url,
+        "prefix": s.prefix,
+        "path_style": s.path_style,
+        "cred_mode": s.cred_mode,
+        "aws_account_alias": s.aws_account_alias,
+        "access_key_id": s.access_key_id,
+        "has_secret": bool(s.secret_access_key),
+    }
+
+
+@app.post("/api/config/s3")
+async def api_save_s3_store(store: S3StorageModel, user: dict = Depends(auth.require_admin)):
+    """Save an S3 storage config. Keeps the existing secret when left blank on edit."""
+    secret = store.secret_access_key or ""
+    if store.cred_mode == 'dedicated' and not secret:
+        existing = cfg.get_s3_storage_config(store.name)
+        if existing:
+            secret = existing.secret_access_key
+    cfg.save_s3_storage_config(cfg.S3StorageConfig(
+        name=store.name,
+        bucket=store.bucket,
+        region=store.region,
+        endpoint_url=store.endpoint_url or "",
+        prefix=store.prefix or "",
+        path_style=store.path_style,
+        cred_mode=store.cred_mode,
+        aws_account_alias=store.aws_account_alias or "",
+        access_key_id=store.access_key_id or "",
+        secret_access_key=secret,
+    ))
+    return {"success": True, "message": f"S3 storage '{store.name}' saved"}
+
+
+@app.delete("/api/config/s3/{name}")
+async def api_delete_s3_store(name: str, user: dict = Depends(auth.require_admin)):
+    """Delete an S3 storage config."""
+    cfg.delete_s3_storage_config(name)
+    return {"success": True, "message": f"S3 storage '{name}' deleted"}
+
+
+@app.post("/api/config/s3/{name}/test")
+async def api_test_s3_store(name: str, user: dict = Depends(auth.require_admin)):
+    """Test connectivity to a saved S3 storage config."""
+    return rs.s3_test_connection(store_name=name)
+
+
+@app.get("/api/config/fileshare")
+async def api_get_fileshares(user: dict = Depends(auth.require_admin)):
+    """List file share configs (password masked)."""
+    shares = cfg.get_fileshare_configs()
+    return [
+        {
+            "name": s.name,
+            "base_url": s.base_url,
+            "username": s.username,
+            "password": "***" if s.password else "",
+            "verify_ssl": s.verify_ssl,
+        }
+        for s in shares.values()
+    ]
+
+
+@app.get("/api/config/fileshare/{name}")
+async def api_get_fileshare(name: str, user: dict = Depends(auth.require_admin)):
+    """Get a single file share config for editing. The password is masked; a blank
+    password on save preserves the stored value (see api_save_fileshare)."""
+    s = cfg.get_fileshare_config(name)
+    if not s:
+        raise HTTPException(status_code=404, detail="File share not found")
+    return {
+        "name": s.name,
+        "base_url": s.base_url,
+        "username": s.username,
+        "has_password": bool(s.password),
+        "verify_ssl": s.verify_ssl,
+    }
+
+
+@app.post("/api/config/fileshare")
+async def api_save_fileshare(share: FileShareModel, user: dict = Depends(auth.require_admin)):
+    """Save a file share config. Keeps the existing password when left blank on edit."""
+    password = share.password or ""
+    if not password:
+        existing = cfg.get_fileshare_config(share.name)
+        if existing:
+            password = existing.password
+    cfg.save_fileshare_config(cfg.FileShareConfig(
+        name=share.name,
+        base_url=share.base_url,
+        username=share.username or "",
+        password=password,
+        verify_ssl=share.verify_ssl,
+    ))
+    return {"success": True, "message": f"File share '{share.name}' saved"}
+
+
+@app.delete("/api/config/fileshare/{name}")
+async def api_delete_fileshare(name: str, user: dict = Depends(auth.require_admin)):
+    """Delete a file share config."""
+    cfg.delete_fileshare_config(name)
+    return {"success": True, "message": f"File share '{name}' deleted"}
+
+
+@app.post("/api/config/fileshare/{name}/test")
+async def api_test_fileshare(name: str, user: dict = Depends(auth.require_admin)):
+    """Test connectivity to a saved file share config."""
+    return rs.webdav_test_connection(share_name=name)
+
+
+@app.get("/api/config/filebrowser")
+async def api_get_filebrowsers(user: dict = Depends(auth.require_admin)):
+    """List filebrowser configs (password masked)."""
+    return [
+        {
+            "name": s.name,
+            "base_url": s.base_url,
+            "root_path": s.root_path,
+            "username": s.username,
+            "password": "***" if s.password else "",
+            "verify_ssl": s.verify_ssl,
+        }
+        for s in cfg.get_filebrowser_configs().values()
+    ]
+
+
+@app.get("/api/config/filebrowser/{name}")
+async def api_get_filebrowser(name: str, user: dict = Depends(auth.require_admin)):
+    """Get a single filebrowser config for editing. The password is masked; a
+    blank password on save preserves the stored value (see api_save_filebrowser)."""
+    s = cfg.get_filebrowser_config(name)
+    if not s:
+        raise HTTPException(status_code=404, detail="filebrowser instance not found")
+    return {
+        "name": s.name,
+        "base_url": s.base_url,
+        "root_path": s.root_path,
+        "username": s.username,
+        "has_password": bool(s.password),
+        "verify_ssl": s.verify_ssl,
+    }
+
+
+@app.post("/api/config/filebrowser")
+async def api_save_filebrowser(fb: FileBrowserModel, user: dict = Depends(auth.require_admin)):
+    """Save a filebrowser config. Keeps the existing password when left blank on edit."""
+    password = fb.password or ""
+    if not password:
+        existing = cfg.get_filebrowser_config(fb.name)
+        if existing:
+            password = existing.password
+    cfg.save_filebrowser_config(cfg.FileBrowserConfig(
+        name=fb.name,
+        base_url=fb.base_url,
+        root_path=fb.root_path or "",
+        username=fb.username or "",
+        password=password,
+        verify_ssl=fb.verify_ssl,
+    ))
+    return {"success": True, "message": f"filebrowser '{fb.name}' saved"}
+
+
+@app.delete("/api/config/filebrowser/{name}")
+async def api_delete_filebrowser(name: str, user: dict = Depends(auth.require_admin)):
+    """Delete a filebrowser config."""
+    cfg.delete_filebrowser_config(name)
+    return {"success": True, "message": f"filebrowser '{name}' deleted"}
+
+
+@app.post("/api/config/filebrowser/{name}/test")
+async def api_test_filebrowser(name: str, user: dict = Depends(auth.require_admin)):
+    """Test connectivity to a saved filebrowser config."""
+    return rs.filebrowser_test_connection(name=name)
 
 
 @app.get("/api/config/settings")

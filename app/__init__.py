@@ -1,3 +1,3 @@
 """PostgreSQL Backup/Restore Application - Direct Connection Version."""
 
-__version__ = "3.4.0"
+__version__ = "3.5.0"
