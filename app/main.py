@@ -28,6 +28,7 @@ from . import auth
 from . import operation_logger as op_logger
 from . import aws_service as aws
 from . import remote_storage as rs
+from . import progress as progress_registry
 from .ssm_tunnel import tunnel_manager
 from .broadcaster import broadcaster
 
@@ -1263,6 +1264,36 @@ async def api_upload_backup(file: UploadFile = File(...), user: dict = Depends(a
 # =============================================================================
 # Backup remote storage actions (push to / pull from S3 + file shares)
 # =============================================================================
+# NOTE: the push/pull endpoints below are sync `def` on purpose. FastAPI runs
+# sync endpoints in a threadpool, so the (blocking) network transfer doesn't
+# stall the event loop — letting the /api/storage/operations poll be served
+# concurrently for live progress bars.
+
+def _run_with_progress(direction: str, kind: str, target: str, label: str, fn):
+    """Register a progress entry, run the transfer (fn receives a (done, total)
+    callback), finalize the entry, and return the transfer result dict."""
+    op_id = progress_registry.start(direction, kind, target, label)
+
+    def cb(done, total):
+        progress_registry.update(op_id, done=done, total=total)
+
+    try:
+        result = fn(cb)
+    except Exception as e:
+        progress_registry.finish(op_id, "error", str(e))
+        raise
+    if result.get("success"):
+        progress_registry.finish(op_id, "done")
+    else:
+        progress_registry.finish(op_id, "error", result.get("error", ""))
+    return result
+
+
+@app.get("/api/storage/operations")
+async def api_storage_operations(user: dict = Depends(auth.require_operator)):
+    """Snapshot of in-flight (and just-finished) remote transfers, for progress bars."""
+    return {"operations": progress_registry.snapshot()}
+
 
 @app.get("/api/storage/targets")
 async def api_storage_targets(user: dict = Depends(auth.require_operator)):
@@ -1284,34 +1315,37 @@ async def api_storage_targets(user: dict = Depends(auth.require_operator)):
 
 
 @app.post("/api/backups/{filename}/push/s3")
-async def api_push_backup_s3(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
+def api_push_backup_s3(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
     """Upload a local backup file to an S3 storage target."""
-    result = rs.s3_upload_backup(req.target, filename)
+    result = _run_with_progress("upload", "s3", req.target, filename,
+                                lambda cb: rs.s3_upload_backup(req.target, filename, progress_cb=cb))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
     return result
 
 
 @app.post("/api/backups/{filename}/push/fileshare")
-async def api_push_backup_fileshare(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
+def api_push_backup_fileshare(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
     """Upload a local backup file to a WebDAV file share target."""
-    result = rs.webdav_upload_backup(req.target, filename)
+    result = _run_with_progress("upload", "fileshare", req.target, filename,
+                                lambda cb: rs.webdav_upload_backup(req.target, filename, progress_cb=cb))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
     return result
 
 
 @app.post("/api/backups/{filename}/push/filebrowser")
-async def api_push_backup_filebrowser(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
+def api_push_backup_filebrowser(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
     """Upload a local backup file to a filebrowser target."""
-    result = rs.filebrowser_upload_backup(req.target, filename)
+    result = _run_with_progress("upload", "filebrowser", req.target, filename,
+                                lambda cb: rs.filebrowser_upload_backup(req.target, filename, progress_cb=cb))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
     return result
 
 
 @app.get("/api/storage/s3/{name}/objects")
-async def api_s3_objects(name: str, user: dict = Depends(auth.require_operator)):
+def api_s3_objects(name: str, user: dict = Depends(auth.require_operator)):
     """List .backup objects available in an S3 storage target."""
     result = rs.s3_list_backups(name)
     if not result.get("success"):
@@ -1320,25 +1354,29 @@ async def api_s3_objects(name: str, user: dict = Depends(auth.require_operator))
 
 
 @app.post("/api/storage/s3/{name}/pull")
-async def api_s3_pull(name: str, req: S3PullModel, user: dict = Depends(auth.require_operator)):
+def api_s3_pull(name: str, req: S3PullModel, user: dict = Depends(auth.require_operator)):
     """Download an object from an S3 storage target into the local backup dir."""
-    result = rs.s3_download_backup(name, req.key)
+    label = req.key.rsplit('/', 1)[-1] or req.key
+    result = _run_with_progress("download", "s3", name, label,
+                                lambda cb: rs.s3_download_backup(name, req.key, progress_cb=cb))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Download failed"))
     return result
 
 
 @app.post("/api/storage/fileshare/pull")
-async def api_fileshare_pull(req: LinkPullModel, user: dict = Depends(auth.require_operator)):
+def api_fileshare_pull(req: LinkPullModel, user: dict = Depends(auth.require_operator)):
     """Download a backup from an http(s) link, optionally using a file share's credentials."""
-    result = rs.download_from_link(req.url, req.fileshare)
+    label = req.url.rsplit('/', 1)[-1].split('?')[0] or req.url
+    result = _run_with_progress("download", "link", req.fileshare or "link", label,
+                                lambda cb: rs.download_from_link(req.url, req.fileshare, progress_cb=cb))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Download failed"))
     return result
 
 
 @app.get("/api/storage/filebrowser/{name}/objects")
-async def api_filebrowser_objects(name: str, user: dict = Depends(auth.require_operator)):
+def api_filebrowser_objects(name: str, user: dict = Depends(auth.require_operator)):
     """List .backup objects available in a filebrowser target."""
     result = rs.filebrowser_list_backups(name)
     if not result.get("success"):
@@ -1347,9 +1385,10 @@ async def api_filebrowser_objects(name: str, user: dict = Depends(auth.require_o
 
 
 @app.post("/api/storage/filebrowser/{name}/pull")
-async def api_filebrowser_pull(name: str, req: S3PullModel, user: dict = Depends(auth.require_operator)):
+def api_filebrowser_pull(name: str, req: S3PullModel, user: dict = Depends(auth.require_operator)):
     """Download an object from a filebrowser target into the local backup dir."""
-    result = rs.filebrowser_download_backup(name, req.key)
+    result = _run_with_progress("download", "filebrowser", name, req.key,
+                                lambda cb: rs.filebrowser_download_backup(name, req.key, progress_cb=cb))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Download failed"))
     return result

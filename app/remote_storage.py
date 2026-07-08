@@ -31,6 +31,33 @@ logger = logging.getLogger(__name__)
 _CHUNK = 8 * 1024 * 1024
 
 
+def _s3_progress(progress_cb, total):
+    """Adapt a (done, total) progress callback to boto3's delta-bytes Callback."""
+    if not progress_cb:
+        return None
+    state = {"done": 0}
+
+    def _cb(n):
+        state["done"] += n
+        progress_cb(state["done"], total)
+    return _cb
+
+
+def _file_chunk_iter(path, total, progress_cb):
+    """Yield a file in _CHUNK pieces as a urllib3 request body, reporting bytes
+    sent. The caller sets Content-Length, so the request is not chunk-encoded."""
+    done = 0
+    with open(path, 'rb') as f:
+        while True:
+            chunk = f.read(_CHUNK)
+            if not chunk:
+                break
+            done += len(chunk)
+            if progress_cb:
+                progress_cb(done, total)
+            yield chunk
+
+
 # =============================================================================
 # Shared helpers
 # =============================================================================
@@ -173,7 +200,7 @@ def s3_test_connection(store_name: Optional[str] = None,
         return {"success": False, "error": str(e)}
 
 
-def s3_upload_backup(store_name: str, filename: str) -> Dict[str, Any]:
+def s3_upload_backup(store_name: str, filename: str, progress_cb=None) -> Dict[str, Any]:
     """Upload a local backup file to the configured S3 bucket."""
     store = cfg.get_s3_storage_config(store_name)
     if not store:
@@ -188,8 +215,9 @@ def s3_upload_backup(store_name: str, filename: str) -> Dict[str, Any]:
     key = f"{_s3_prefix(store)}{filename}"
     try:
         client = _s3_client(store)
-        client.upload_file(str(local_path), store.bucket, key)
         size = local_path.stat().st_size
+        client.upload_file(str(local_path), store.bucket, key,
+                           Callback=_s3_progress(progress_cb, size))
         return {
             "success": True,
             "message": f"Uploaded to s3://{store.bucket}/{key}",
@@ -237,7 +265,7 @@ def s3_list_backups(store_name: str) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-def s3_download_backup(store_name: str, key: str) -> Dict[str, Any]:
+def s3_download_backup(store_name: str, key: str, progress_cb=None) -> Dict[str, Any]:
     """Download an object from the bucket into the local backup directory."""
     store = cfg.get_s3_storage_config(store_name)
     if not store:
@@ -260,7 +288,8 @@ def s3_download_backup(store_name: str, key: str) -> Dict[str, Any]:
         if not ok:
             return {"success": False, "error": size_err}
 
-        client.download_file(store.bucket, key, str(tmp))
+        client.download_file(store.bucket, key, str(tmp),
+                             Callback=_s3_progress(progress_cb, size))
         # Re-check the actual downloaded size: an S3-compatible server may
         # under-report ContentLength, or the object may have grown.
         actual = tmp.stat().st_size
@@ -354,7 +383,7 @@ def webdav_test_connection(share_name: Optional[str] = None,
         return {"success": False, "error": str(e)}
 
 
-def webdav_upload_backup(share_name: str, filename: str) -> Dict[str, Any]:
+def webdav_upload_backup(share_name: str, filename: str, progress_cb=None) -> Dict[str, Any]:
     """Upload a local backup file to a WebDAV/HTTP file share via HTTP PUT."""
     share = cfg.get_fileshare_config(share_name)
     if not share:
@@ -377,10 +406,9 @@ def webdav_upload_backup(share_name: str, filename: str) -> Dict[str, Any]:
         headers = _basic_auth_header(share.username, share.password)
         headers['Content-Length'] = str(size)
         headers['Content-Type'] = 'application/octet-stream'
-        with open(local_path, 'rb') as f:
-            resp = pool.request('PUT', url, body=f, headers=headers,
-                                preload_content=False,
-                                timeout=urllib3.Timeout(connect=15.0, read=None))
+        resp = pool.request('PUT', url, body=_file_chunk_iter(local_path, size, progress_cb),
+                            headers=headers, preload_content=False,
+                            timeout=urllib3.Timeout(connect=15.0, read=None))
         if resp.status not in (200, 201, 204):
             return {"success": False, "error": f"Server returned HTTP {resp.status}"}
         return {
@@ -398,7 +426,7 @@ def webdav_upload_backup(share_name: str, filename: str) -> Dict[str, Any]:
             resp.release_conn()
 
 
-def download_from_link(url: str, share_name: Optional[str] = None) -> Dict[str, Any]:
+def download_from_link(url: str, share_name: Optional[str] = None, progress_cb=None) -> Dict[str, Any]:
     """Download a backup from an arbitrary http(s) link into the local backup dir.
 
     Credentials are applied if an explicit file share is chosen, or auto-matched
@@ -448,7 +476,8 @@ def download_from_link(url: str, share_name: Optional[str] = None) -> Dict[str, 
             return {"success": False, "error": f"Server returned HTTP {resp.status}"}
 
         clen = resp.headers.get('Content-Length')
-        if clen and clen.isdigit() and int(clen) > max_bytes:
+        total_int = int(clen) if clen and clen.isdigit() else 0
+        if total_int > max_bytes:
             return {"success": False, "error": f"Remote file exceeds limit of {max_gb}GB"}
 
         written = 0
@@ -460,6 +489,8 @@ def download_from_link(url: str, share_name: Optional[str] = None) -> Dict[str, 
                     too_big = True
                     break
                 f.write(chunk)
+                if progress_cb:
+                    progress_cb(written, total_int)
 
         if too_big:
             if tmp.exists():
@@ -551,7 +582,7 @@ def filebrowser_test_connection(name: Optional[str] = None,
         return {"success": False, "error": str(e)}
 
 
-def filebrowser_upload_backup(name: str, filename: str) -> Dict[str, Any]:
+def filebrowser_upload_backup(name: str, filename: str, progress_cb=None) -> Dict[str, Any]:
     """Upload a local backup to a filebrowser instance via POST /api/resources."""
     fb = cfg.get_filebrowser_config(name)
     if not fb:
@@ -573,10 +604,9 @@ def filebrowser_upload_backup(name: str, filename: str) -> Dict[str, Any]:
         headers = _fb_headers(token)
         headers['Content-Length'] = str(size)
         headers['Content-Type'] = 'application/octet-stream'
-        with open(local_path, 'rb') as f:
-            resp = pool.request('POST', url, body=f, headers=headers,
-                                preload_content=False,
-                                timeout=urllib3.Timeout(connect=15.0, read=None))
+        resp = pool.request('POST', url, body=_file_chunk_iter(local_path, size, progress_cb),
+                            headers=headers, preload_content=False,
+                            timeout=urllib3.Timeout(connect=15.0, read=None))
         if resp.status not in (200, 201):
             return {"success": False, "error": f"Server returned HTTP {resp.status}"}
         return {
@@ -633,7 +663,7 @@ def filebrowser_list_backups(name: str) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-def filebrowser_download_backup(name: str, key: str) -> Dict[str, Any]:
+def filebrowser_download_backup(name: str, key: str, progress_cb=None) -> Dict[str, Any]:
     """Download a .backup file from a filebrowser instance into the local dir."""
     fb = cfg.get_filebrowser_config(name)
     if not fb:
@@ -665,7 +695,8 @@ def filebrowser_download_backup(name: str, key: str) -> Dict[str, Any]:
         if resp.status != 200:
             return {"success": False, "error": f"Server returned HTTP {resp.status}"}
         clen = resp.headers.get('Content-Length')
-        if clen and clen.isdigit() and int(clen) > max_bytes:
+        total_int = int(clen) if clen and clen.isdigit() else 0
+        if total_int > max_bytes:
             return {"success": False, "error": f"Remote file exceeds limit of {max_gb}GB"}
         written = 0
         too_big = False
@@ -676,6 +707,8 @@ def filebrowser_download_backup(name: str, key: str) -> Dict[str, Any]:
                     too_big = True
                     break
                 f.write(chunk)
+                if progress_cb:
+                    progress_cb(written, total_int)
         if too_big:
             if tmp.exists():
                 tmp.unlink()

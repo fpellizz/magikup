@@ -139,14 +139,20 @@ def fake_s3(monkeypatch):
         def head_bucket(self, Bucket):
             return {}
 
-        def upload_file(self, filename, Bucket, Key):
-            bucket[Key] = Path(filename).read_bytes()
+        def upload_file(self, filename, Bucket, Key, Callback=None):
+            data = Path(filename).read_bytes()
+            bucket[Key] = data
+            if Callback:
+                Callback(len(data))  # boto3 invokes with bytes-transferred deltas
 
         def head_object(self, Bucket, Key):
             return {"ContentLength": len(bucket[Key])}
 
-        def download_file(self, Bucket, Key, filename):
-            Path(filename).write_bytes(bucket[Key])
+        def download_file(self, Bucket, Key, filename, Callback=None):
+            data = bucket[Key]
+            Path(filename).write_bytes(data)
+            if Callback:
+                Callback(len(data))
 
         def get_paginator(self, op):
             class P:

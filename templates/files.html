@@ -39,6 +39,18 @@
     </div>
 </div>
 
+<!-- Remote transfer progress (one bar per in-flight push/pull) -->
+<div class="row mb-4" id="transferProgressRow" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-arrow-left-right"></i> Remote transfers
+            </div>
+            <div class="card-body" id="transferProgressBody"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Retrieve from Remote Storage -->
 <div class="row mb-4">
     <div class="col-12">
@@ -960,6 +972,7 @@
         const obj = s3Objects[i];
         if (!obj) return;
         showToast(`Downloading ${obj.name}...`, 'info');
+        startOperationsPolling();
         try {
             const res = await apiCall(`/api/storage/s3/${encodeURIComponent(name)}/pull`, 'POST', { key: obj.key });
             if (isErr(res)) { showToast(res.detail || res.error || 'Download failed', 'error'); return; }
@@ -1011,6 +1024,7 @@
         const obj = fbObjects[i];
         if (!obj) return;
         showToast(`Downloading ${obj.name}...`, 'info');
+        startOperationsPolling();
         try {
             const res = await apiCall(`/api/storage/filebrowser/${encodeURIComponent(name)}/pull`, 'POST', { key: obj.key });
             if (isErr(res)) { showToast(res.detail || res.error || 'Download failed', 'error'); return; }
@@ -1028,6 +1042,7 @@
         const btn = document.getElementById('pullLinkBtn');
         btn.disabled = true;
         showToast('Downloading...', 'info');
+        startOperationsPolling();
         try {
             const res = await apiCall('/api/storage/fileshare/pull', 'POST', { url, fileshare: share || null });
             if (isErr(res)) { showToast(res.detail || res.error || 'Download failed', 'error'); return; }
@@ -1056,6 +1071,7 @@
         const btn = document.getElementById('pushBtn');
         btn.disabled = true;
         showToast(`Sending ${currentPushFile}...`, 'info');
+        startOperationsPolling();
         try {
             const endpoint = `/api/backups/${encodeURIComponent(currentPushFile)}/push/${kind}`;
             const res = await apiCall(endpoint, 'POST', { target: name });
@@ -1069,10 +1085,78 @@
         }
     }
 
+    // ---- Live progress bars for remote transfers ----
+    let operationsPollTimer = null;
+    let sawOperations = false;
+
+    function startOperationsPolling() {
+        if (operationsPollTimer) return;
+        sawOperations = false;
+        pollOperations();
+        operationsPollTimer = setInterval(pollOperations, 700);
+    }
+
+    async function pollOperations() {
+        let ops = [];
+        try {
+            const res = await apiCall('/api/storage/operations');
+            ops = (res && res.operations) || [];
+        } catch (e) { /* transient; keep polling */ }
+        renderOperations(ops);
+        if (ops.length) {
+            sawOperations = true;
+        } else if (sawOperations && operationsPollTimer) {
+            // all done — refresh the local list (pulls may have landed) and stop
+            clearInterval(operationsPollTimer);
+            operationsPollTimer = null;
+            loadBackups();
+        } else if (operationsPollTimer) {
+            clearInterval(operationsPollTimer);
+            operationsPollTimer = null;
+        }
+    }
+
+    function renderOperations(ops) {
+        const row = document.getElementById('transferProgressRow');
+        const body = document.getElementById('transferProgressBody');
+        if (!ops.length) { row.style.display = 'none'; body.innerHTML = ''; return; }
+        row.style.display = '';
+        body.innerHTML = ops.map(op => {
+            const dir = op.direction === 'upload' ? 'Uploading' : 'Downloading';
+            const prep = op.direction === 'upload' ? 'to' : 'from';
+            const icon = op.direction === 'upload' ? 'bi-cloud-upload' : 'bi-cloud-download';
+            const known = op.percent !== null && op.percent !== undefined;
+            let barClass = 'progress-bar';
+            let width = known ? op.percent : 100;
+            let label = known ? (op.percent + '%') : '';
+            if (op.status === 'running') barClass += ' progress-bar-striped progress-bar-animated';
+            if (op.status === 'error') { barClass += ' bg-danger'; width = 100; }
+            if (op.status === 'done') { barClass += ' bg-success'; width = 100; label = '100%'; }
+            const sizeInfo = op.total ? `${formatSize(op.done)} / ${formatSize(op.total)}`
+                                      : (op.done ? formatSize(op.done) : '');
+            const right = op.status === 'error'
+                ? `<span class="text-danger small">${op.error || 'failed'}</span>`
+                : `<span class="text-muted small">${label ? label + ' · ' : ''}${sizeInfo}</span>`;
+            return `
+            <div class="transfer-op mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-truncate me-2">
+                        <i class="bi ${icon} me-1"></i> ${dir} <strong>${op.label}</strong> ${prep} <code>${op.kind}:${op.target}</code>
+                    </span>
+                    ${right}
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="${barClass}" role="progressbar" style="width: ${width}%"></div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
     // Auto-load backups when page loads
     document.addEventListener('DOMContentLoaded', function() {
         loadBackups();
         loadRemoteTargets();
+        startOperationsPolling();   // catch any transfer already in flight
     });
 </script>
 {% endblock %}
