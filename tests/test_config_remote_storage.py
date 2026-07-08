@@ -81,3 +81,19 @@ def test_multiple_instances():
         cfg.save_fileshare_config(cfg.FileShareConfig(name=f"f{i}", base_url=f"https://h/{i}"))
     assert len(cfg.get_s3_storage_configs()) == 3
     assert len(cfg.get_fileshare_configs()) == 3
+
+
+def test_filebrowser_round_trip_and_encryption():
+    cfg.save_filebrowser_config(cfg.FileBrowserConfig(
+        name="fb", base_url="https://files.example.com", root_path="backups",
+        username="admin", password="fbsecret", verify_ssl=False))
+    s = cfg.get_filebrowser_config("fb")
+    assert s.base_url == "https://files.example.com"
+    assert s.root_path == "backups"
+    assert s.username == "admin"
+    assert s.password == "fbsecret"       # decrypted
+    assert s.verify_ssl is False
+    raw = cfg.CONFIG_FILE.read_text()
+    assert "fbsecret" not in raw           # encrypted at rest
+    cfg.delete_filebrowser_config("fb")
+    assert cfg.get_filebrowser_config("fb") is None

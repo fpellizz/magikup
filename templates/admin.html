@@ -697,6 +697,74 @@
                 </div>
             </div>
         </div>
+
+        <!-- filebrowser (github.com/filebrowser/filebrowser) -->
+        <div class="card config-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-hdd-stack"></i> filebrowser</span>
+                <button class="btn btn-sm btn-primary" onclick="openFileBrowserModalForAdd()" data-bs-toggle="modal" data-bs-target="#addFileBrowserModal">
+                    <i class="bi bi-plus"></i> Add filebrowser
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="endpoints-table-container m-3">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Base URL</th>
+                                <th>Root</th>
+                                <th>Auth</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileBrowsersTable">
+                            {% for name, fb in filebrowsers.items() %}
+                            <tr class="endpoint-row">
+                                <td><span class="endpoint-name">{{ name }}</span></td>
+                                <td class="endpoint-host-cell"><code>{{ fb.base_url }}</code></td>
+                                <td>{{ fb.root_path or '/' }}</td>
+                                <td>
+                                    {% if fb.username %}
+                                        <span class="badge bg-info">{{ fb.username }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">no-auth</span>
+                                    {% endif %}
+                                    {% if not fb.verify_ssl %}<span class="badge bg-warning text-dark" title="TLS verification disabled"><i class="bi bi-shield-slash"></i></span>{% endif %}
+                                </td>
+                                <td>
+                                    <div class="endpoint-actions">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="testFileBrowser('{{ name }}')" title="Test Connection">
+                                            <i class="bi bi-plug"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="editFileBrowser('{{ name }}')" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteFileBrowser('{{ name }}')" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-hdd-stack"></i>
+                                        <h6>No filebrowser instances configured</h6>
+                                        <p>Add a <a href="https://github.com/filebrowser/filebrowser" target="_blank" rel="noopener">filebrowser</a> instance to archive and retrieve backup files</p>
+                                        <button class="btn btn-primary btn-sm" onclick="openFileBrowserModalForAdd()" data-bs-toggle="modal" data-bs-target="#addFileBrowserModal">
+                                            <i class="bi bi-plus me-1"></i> Add filebrowser
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- ============================================
@@ -1399,6 +1467,68 @@
 </div>
 
 <!-- ============================================
+     Add / Edit filebrowser Modal
+     ============================================ -->
+<div class="modal fade" id="addFileBrowserModal" tabindex="-1" aria-labelledby="addFileBrowserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addFileBrowserModalLabel">
+                    <i class="bi bi-hdd-stack me-2"></i>Add filebrowser
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addFileBrowserForm">
+                    <div class="mb-3">
+                        <label for="fbName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="fbName" placeholder="filebrowser-prod" required>
+                        <div class="form-text">A unique identifier for this filebrowser instance</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fbBaseUrl" class="form-label">Base URL</label>
+                        <input type="text" class="form-control" id="fbBaseUrl" placeholder="https://files.example.com" required>
+                        <div class="form-text">The filebrowser root URL (no trailing <code>/api</code>)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fbRootPath" class="form-label">Root path <span class="text-muted">(optional)</span></label>
+                        <input type="text" class="form-control" id="fbRootPath" placeholder="backups">
+                        <div class="form-text">Subdirectory inside filebrowser where backups are stored/listed</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fbUsername" class="form-label">Username <span class="text-muted">(empty = no-auth)</span></label>
+                        <input type="text" class="form-control" id="fbUsername" placeholder="admin">
+                    </div>
+                    <div class="mb-3">
+                        <label for="fbPassword" class="form-label">Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="fbPassword" placeholder="••••••••">
+                            <button class="btn btn-outline-secondary password-toggle" type="button" onclick="togglePassword('fbPassword')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text" id="fbPasswordHint"></div>
+                    </div>
+                    <div class="ssm-toggle-wrapper">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="fbVerifySsl" checked>
+                            <label class="form-check-label" for="fbVerifySsl">Verify TLS certificate</label>
+                        </div>
+                        <span class="form-text mb-0">Disable only for self-signed/internal hosts</span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveFileBrowser()">
+                    <i class="bi bi-plus me-1" id="fbModalSaveIcon"></i> <span id="fbModalSaveText">Add filebrowser</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
      Add User Modal
      ============================================ -->
 <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
@@ -2078,6 +2208,92 @@
             location.reload();
         } catch (error) {
             showToast('Failed to delete file share', 'error');
+        }
+    }
+
+    // ========================================
+    // Remote Storage — filebrowser
+    // ========================================
+    let fbEditMode = false;
+
+    function openFileBrowserModalForAdd() {
+        fbEditMode = false;
+        document.getElementById('addFileBrowserForm').reset();
+        document.getElementById('fbName').readOnly = false;
+        document.getElementById('fbVerifySsl').checked = true;
+        document.getElementById('fbPasswordHint').textContent = '';
+        document.getElementById('addFileBrowserModalLabel').innerHTML = '<i class="bi bi-hdd-stack me-2"></i>Add filebrowser';
+        document.getElementById('fbModalSaveIcon').className = 'bi bi-plus me-1';
+        document.getElementById('fbModalSaveText').textContent = 'Add filebrowser';
+    }
+
+    async function editFileBrowser(name) {
+        try {
+            const data = await apiCall(`/api/config/filebrowser/${encodeURIComponent(name)}`);
+            fbEditMode = true;
+            document.getElementById('addFileBrowserForm').reset();
+            document.getElementById('fbName').value = data.name;
+            document.getElementById('fbName').readOnly = true;
+            document.getElementById('fbBaseUrl').value = data.base_url;
+            document.getElementById('fbRootPath').value = data.root_path || '';
+            document.getElementById('fbUsername').value = data.username || '';
+            document.getElementById('fbPassword').value = '';
+            document.getElementById('fbPasswordHint').textContent = data.has_password ? 'Leave blank to keep the current password' : '';
+            document.getElementById('fbVerifySsl').checked = !!data.verify_ssl;
+            document.getElementById('addFileBrowserModalLabel').innerHTML = '<i class="bi bi-pencil me-2"></i>Edit filebrowser';
+            document.getElementById('fbModalSaveIcon').className = 'bi bi-check-lg me-1';
+            document.getElementById('fbModalSaveText').textContent = 'Save Changes';
+            new bootstrap.Modal(document.getElementById('addFileBrowserModal')).show();
+        } catch (error) {
+            showToast('Failed to load filebrowser details', 'error');
+        }
+    }
+
+    async function saveFileBrowser() {
+        const name = document.getElementById('fbName').value.trim();
+        const baseUrl = document.getElementById('fbBaseUrl').value.trim();
+        if (!name || !baseUrl) {
+            showToast('Name and base URL are required', 'error');
+            return;
+        }
+        const payload = {
+            name,
+            base_url: baseUrl,
+            root_path: document.getElementById('fbRootPath').value.trim(),
+            username: document.getElementById('fbUsername').value.trim(),
+            password: document.getElementById('fbPassword').value,
+            verify_ssl: document.getElementById('fbVerifySsl').checked
+        };
+        try {
+            const res = await apiCall('/api/config/filebrowser', 'POST', payload);
+            if (res.success === false) { showToast(res.detail || 'Failed to save filebrowser', 'error'); return; }
+            showToast(`filebrowser ${fbEditMode ? 'updated' : 'added'} successfully`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('addFileBrowserModal')).hide();
+            location.reload();
+        } catch (error) {
+            showToast('Failed to save filebrowser', 'error');
+        }
+    }
+
+    async function testFileBrowser(name) {
+        try {
+            showToast(`Testing filebrowser ${name}...`, 'info');
+            const res = await apiCall(`/api/config/filebrowser/${encodeURIComponent(name)}/test`, 'POST');
+            if (res.success) showToast(res.message || `Connected to ${name}`, 'success');
+            else showToast(`Connection failed: ${res.error || 'Unknown error'}`, 'error');
+        } catch (error) {
+            showToast('Failed to test filebrowser', 'error');
+        }
+    }
+
+    async function deleteFileBrowser(name) {
+        if (!confirm(`Delete filebrowser "${name}"? This only removes the configuration, not the remote data.`)) return;
+        try {
+            await apiCall(`/api/config/filebrowser/${encodeURIComponent(name)}`, 'DELETE');
+            showToast('filebrowser deleted', 'success');
+            location.reload();
+        } catch (error) {
+            showToast('Failed to delete filebrowser', 'error');
         }
     }
 

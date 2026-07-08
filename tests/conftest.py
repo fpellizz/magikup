@@ -161,3 +161,91 @@ def fake_s3(monkeypatch):
 
     monkeypatch.setattr(rs, "_s3_client", lambda store: FakeS3())
     return bucket
+
+
+class _FBHandler(http.server.BaseHTTPRequestHandler):
+    """Minimal emulation of the filebrowser HTTP+JWT API:
+    POST /api/login -> token; GET/POST /api/resources/<path>; GET /api/raw/<path>.
+    Files live in server.store keyed by full subpath (e.g. 'backups/foo.backup')."""
+    TOKEN = "faketoken"
+
+    def log_message(self, *a):
+        pass
+
+    def _authed(self):
+        return self.headers.get("X-Auth") == self.TOKEN
+
+    def _path_after(self, prefix):
+        from urllib.parse import urlparse, unquote
+        p = urlparse(self.path).path
+        return unquote(p[len(prefix):]).strip("/")
+
+    def do_POST(self):
+        import json
+        if self.path.startswith("/api/login"):
+            n = int(self.headers.get("Content-Length", 0))
+            self.rfile.read(n)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(self.TOKEN.encode())
+            return
+        if self.path.startswith("/api/resources/"):
+            if not self._authed():
+                self.send_response(401); self.end_headers(); return
+            sub = self._path_after("/api/resources/")
+            n = int(self.headers.get("Content-Length", 0))
+            self.server.store[sub] = self.rfile.read(n)
+            self.send_response(200); self.end_headers()
+            return
+        self.send_response(404); self.end_headers()
+
+    def do_GET(self):
+        import json
+        if self.path.startswith("/api/resources/"):
+            if not self._authed():
+                self.send_response(401); self.end_headers(); return
+            base = self._path_after("/api/resources/")
+            prefix = (base + "/") if base else ""
+            items = []
+            for sub, data in self.server.store.items():
+                if sub.startswith(prefix):
+                    rest = sub[len(prefix):]
+                    if "/" not in rest:
+                        items.append({"name": rest, "path": "/" + sub, "size": len(data),
+                                      "extension": ".backup", "modified": "2026-01-01T00:00:00Z",
+                                      "isDir": False})
+            body = json.dumps({"items": items, "isDir": True}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers(); self.wfile.write(body)
+            return
+        if self.path.startswith("/api/raw/"):
+            if not self._authed():
+                self.send_response(401); self.end_headers(); return
+            sub = self._path_after("/api/raw/")
+            data = self.server.store.get(sub)
+            if data is None:
+                self.send_response(404); self.end_headers(); return
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers(); self.wfile.write(data)
+            return
+        self.send_response(404); self.end_headers()
+
+
+@pytest.fixture
+def filebrowser_fake():
+    """Local fake filebrowser. Yields an object with .base_url and .store (dict
+    keyed by subpath, e.g. 'backups/foo.backup')."""
+    httpd = socketserver.ThreadingTCPServer(("127.0.0.1", 0), _FBHandler)
+    httpd.store = {}
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+
+    class FB:
+        base_url = f"http://127.0.0.1:{port}"
+    fb = FB()
+    fb.store = httpd.store
+    yield fb
+    httpd.shutdown()

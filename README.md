@@ -630,7 +630,8 @@ The deployment includes an init container that copies the default `config.ini` f
 - **Remote backup storage** — archive and retrieve backup files from remote targets, keeping the local backup directory as the working area. Configure targets under **Admin → Remote Storage**; both secrets are encrypted at rest.
   - **S3 (and S3-compatible)** — one or more buckets (MinIO, Ceph, Wasabi… via optional endpoint URL + path-style addressing). Credentials can be dedicated per bucket or reuse an existing AWS Account. Push a backup to a bucket, browse the `.backup` objects under a prefix, and pull one back into the local directory.
   - **WebDAV / HTTP(S) file shares** — one or more instances (base URL + optional basic-auth). Push a backup via HTTP `PUT`; retrieve one from a pasted link (credentials auto-applied when the link matches a configured share).
-  - Engine-agnostic and dependency-light: S3 via the existing `boto3`, WebDAV via `urllib3` (already bundled) — no new dependencies. All transfers reuse the same filename/size/path-traversal guards as local uploads.
+  - **filebrowser** ([github.com/filebrowser/filebrowser](https://github.com/filebrowser/filebrowser)) — one or more instances via its native HTTP + JWT API (login → `X-Auth`). Push (`POST /api/resources`), browse the `.backup` files in a configured folder, and pull one back (`GET /api/raw`).
+  - Engine-agnostic and dependency-light: S3 via the existing `boto3`; WebDAV and filebrowser via `urllib3` (already bundled) — no new dependencies. All transfers reuse the same filename/size/path-traversal guards as local uploads.
 
 ### 3.4.0
 

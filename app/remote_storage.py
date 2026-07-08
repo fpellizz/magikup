@@ -485,3 +485,217 @@ def download_from_link(url: str, share_name: Optional[str] = None) -> Dict[str, 
     finally:
         if resp is not None:
             resp.release_conn()
+
+
+# =============================================================================
+# filebrowser (github.com/filebrowser/filebrowser) — HTTP + JWT API
+# =============================================================================
+
+def _fb_login(fb: cfg.FileBrowserConfig, pool):
+    """Return a JWT token for a filebrowser instance, or None for a no-auth
+    instance (empty username). Raises on auth failure."""
+    if not fb.username:
+        return None
+    import json as _json
+    import urllib3
+    url = fb.base_url.rstrip('/') + '/api/login'
+    body = _json.dumps({"username": fb.username, "password": fb.password}).encode()
+    resp = pool.request('POST', url, body=body,
+                        headers={"Content-Type": "application/json"},
+                        timeout=urllib3.Timeout(connect=15.0, read=30.0))
+    if resp.status != 200:
+        raise RuntimeError(f"login failed (HTTP {resp.status})")
+    return resp.data.decode().strip()
+
+
+def _fb_headers(token) -> Dict[str, str]:
+    return {"X-Auth": token} if token else {}
+
+
+def _fb_subpath(fb: cfg.FileBrowserConfig, filename: str) -> str:
+    root = (fb.root_path or "").strip("/")
+    return f"{root}/{filename}" if root else filename
+
+
+def _fb_url(fb: cfg.FileBrowserConfig, kind: str, subpath: str) -> str:
+    # kind: 'resources' (browse/upload) or 'raw' (download)
+    return f"{fb.base_url.rstrip('/')}/api/{kind}/" + quote(subpath, safe="/")
+
+
+def filebrowser_test_connection(name: Optional[str] = None,
+                                fb: Optional[cfg.FileBrowserConfig] = None) -> Dict[str, Any]:
+    """Log in (if credentials) and list the configured root to confirm access."""
+    fb = fb or (cfg.get_filebrowser_config(name) if name else None)
+    if not fb:
+        return {"success": False, "error": "filebrowser instance not found"}
+    if not fb.base_url:
+        return {"success": False, "error": "Base URL is empty"}
+    if urlparse(fb.base_url).scheme not in ('http', 'https'):
+        return {"success": False, "error": "Base URL must be http(s)"}
+    try:
+        import urllib3
+        pool = _http_pool(fb.verify_ssl)
+        token = _fb_login(fb, pool)
+        root = (fb.root_path or "").strip("/")
+        resp = pool.request('GET', _fb_url(fb, 'resources', root),
+                            headers=_fb_headers(token),
+                            timeout=urllib3.Timeout(connect=15.0, read=30.0))
+        resp.release_conn()
+        if resp.status == 200:
+            return {"success": True, "message": "Connected"}
+        if resp.status in (401, 403):
+            return {"success": False, "error": f"Authentication failed (HTTP {resp.status})"}
+        return {"success": False, "error": f"HTTP {resp.status}"}
+    except Exception as e:
+        logger.warning(f"filebrowser test failed for '{fb.name}': {e}")
+        return {"success": False, "error": str(e)}
+
+
+def filebrowser_upload_backup(name: str, filename: str) -> Dict[str, Any]:
+    """Upload a local backup to a filebrowser instance via POST /api/resources."""
+    fb = cfg.get_filebrowser_config(name)
+    if not fb:
+        return {"success": False, "error": f"filebrowser '{name}' not found"}
+    local_path, err = _local_backup_path(filename)
+    if err:
+        return {"success": False, "error": err}
+    if not local_path.exists():
+        return {"success": False, "error": f"Backup '{filename}' not found locally"}
+
+    subpath = _fb_subpath(fb, filename)
+    url = _fb_url(fb, 'resources', subpath) + "?override=true"
+    size = local_path.stat().st_size
+    resp = None
+    try:
+        import urllib3
+        pool = _http_pool(fb.verify_ssl)
+        token = _fb_login(fb, pool)
+        headers = _fb_headers(token)
+        headers['Content-Length'] = str(size)
+        headers['Content-Type'] = 'application/octet-stream'
+        with open(local_path, 'rb') as f:
+            resp = pool.request('POST', url, body=f, headers=headers,
+                                preload_content=False,
+                                timeout=urllib3.Timeout(connect=15.0, read=None))
+        if resp.status not in (200, 201):
+            return {"success": False, "error": f"Server returned HTTP {resp.status}"}
+        return {
+            "success": True,
+            "message": f"Uploaded to {fb.base_url.rstrip('/')}/{subpath}",
+            "size": size,
+            "size_human": br._format_size(size),
+        }
+    except Exception as e:
+        logger.error(f"filebrowser upload failed ({name}/{filename}): {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if resp is not None:
+            resp.release_conn()
+
+
+def filebrowser_list_backups(name: str) -> Dict[str, Any]:
+    """List .backup files in the configured root of a filebrowser instance."""
+    fb = cfg.get_filebrowser_config(name)
+    if not fb:
+        return {"success": False, "error": f"filebrowser '{name}' not found"}
+    root = (fb.root_path or "").strip("/")
+    try:
+        import json as _json
+        import urllib3
+        pool = _http_pool(fb.verify_ssl)
+        token = _fb_login(fb, pool)
+        resp = pool.request('GET', _fb_url(fb, 'resources', root),
+                            headers=_fb_headers(token),
+                            timeout=urllib3.Timeout(connect=15.0, read=30.0))
+        status, data = resp.status, resp.data
+        resp.release_conn()
+        if status != 200:
+            return {"success": False, "error": f"HTTP {status}"}
+        items = (_json.loads(data.decode()) or {}).get('items', []) or []
+        objects = []
+        for it in items:
+            if it.get('isDir'):
+                continue
+            nm = it.get('name', '')
+            if not nm.endswith('.backup'):
+                continue
+            objects.append({
+                "key": nm,
+                "name": nm,
+                "size": it.get('size', 0),
+                "size_human": br._format_size(it.get('size', 0)),
+                "modified": it.get('modified', '') or '',
+            })
+        objects.sort(key=lambda x: x["modified"], reverse=True)
+        return {"success": True, "objects": objects}
+    except Exception as e:
+        logger.error(f"filebrowser list failed ({name}): {e}")
+        return {"success": False, "error": str(e)}
+
+
+def filebrowser_download_backup(name: str, key: str) -> Dict[str, Any]:
+    """Download a .backup file from a filebrowser instance into the local dir."""
+    fb = cfg.get_filebrowser_config(name)
+    if not fb:
+        return {"success": False, "error": f"filebrowser '{name}' not found"}
+    if not key:
+        return {"success": False, "error": "Object key is required"}
+    # key is a plain filename within root_path; reject separators / traversal.
+    if '/' in key or '\\' in key or '..' in key:
+        return {"success": False, "error": "Invalid object key"}
+    if not key.endswith('.backup'):
+        return {"success": False, "error": "Only .backup objects can be downloaded"}
+
+    target, err = _safe_target(key)
+    if err:
+        return {"success": False, "error": err}
+
+    subpath = _fb_subpath(fb, key)
+    max_bytes = _max_bytes()
+    max_gb = cfg.get_settings().max_upload_size_gb
+    tmp = target.with_suffix('.tmp')
+    resp = None
+    try:
+        import urllib3
+        pool = _http_pool(fb.verify_ssl)
+        token = _fb_login(fb, pool)
+        resp = pool.request('GET', _fb_url(fb, 'raw', subpath),
+                            headers=_fb_headers(token), preload_content=False,
+                            timeout=urllib3.Timeout(connect=15.0, read=None))
+        if resp.status != 200:
+            return {"success": False, "error": f"Server returned HTTP {resp.status}"}
+        clen = resp.headers.get('Content-Length')
+        if clen and clen.isdigit() and int(clen) > max_bytes:
+            return {"success": False, "error": f"Remote file exceeds limit of {max_gb}GB"}
+        written = 0
+        too_big = False
+        with open(tmp, 'wb') as f:
+            for chunk in resp.stream(_CHUNK):
+                written += len(chunk)
+                if written > max_bytes:
+                    too_big = True
+                    break
+                f.write(chunk)
+        if too_big:
+            if tmp.exists():
+                tmp.unlink()
+            return {"success": False, "error": f"Remote file exceeds limit of {max_gb}GB"}
+        tmp.rename(target)
+        return {
+            "success": True,
+            "message": f"Downloaded {target.name}",
+            "filename": target.name,
+            "size": written,
+            "size_human": br._format_size(written),
+        }
+    except Exception as e:
+        logger.error(f"filebrowser download failed ({name}/{key}): {e}")
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        return {"success": False, "error": str(e)}
+    finally:
+        if resp is not None:
+            resp.release_conn()

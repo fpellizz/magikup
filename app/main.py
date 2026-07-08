@@ -244,6 +244,15 @@ class FileShareModel(BaseModel):
     verify_ssl: bool = True
 
 
+class FileBrowserModel(BaseModel):
+    name: str
+    base_url: str
+    root_path: Optional[str] = ""
+    username: Optional[str] = ""
+    password: Optional[str] = ""
+    verify_ssl: bool = True
+
+
 class RemotePushModel(BaseModel):
     target: str  # S3 storage name or file share name
 
@@ -592,6 +601,7 @@ async def admin_page(request: Request, user: dict = Depends(auth.require_admin))
     aws_accounts = cfg.get_aws_configs()
     s3_stores = cfg.get_s3_storage_configs()
     fileshares = cfg.get_fileshare_configs()
+    filebrowsers = cfg.get_filebrowser_configs()
     all_users = auth.get_all_users()
 
     return templates.TemplateResponse("admin.html", {
@@ -603,6 +613,7 @@ async def admin_page(request: Request, user: dict = Depends(auth.require_admin))
         "aws_accounts": aws_accounts,
         "s3_stores": s3_stores,
         "fileshares": fileshares,
+        "filebrowsers": filebrowsers,
         "all_users": all_users,
         "user": user["username"],
         "user_role": user["role"],
@@ -1265,6 +1276,10 @@ async def api_storage_targets(user: dict = Depends(auth.require_operator)):
             {"name": s.name, "base_url": s.base_url}
             for s in cfg.get_fileshare_configs().values()
         ],
+        "filebrowser": [
+            {"name": s.name, "base_url": s.base_url}
+            for s in cfg.get_filebrowser_configs().values()
+        ],
     }
 
 
@@ -1281,6 +1296,15 @@ async def api_push_backup_s3(filename: str, req: RemotePushModel, user: dict = D
 async def api_push_backup_fileshare(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
     """Upload a local backup file to a WebDAV file share target."""
     result = rs.webdav_upload_backup(req.target, filename)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
+    return result
+
+
+@app.post("/api/backups/{filename}/push/filebrowser")
+async def api_push_backup_filebrowser(filename: str, req: RemotePushModel, user: dict = Depends(auth.require_operator)):
+    """Upload a local backup file to a filebrowser target."""
+    result = rs.filebrowser_upload_backup(req.target, filename)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
     return result
@@ -1308,6 +1332,24 @@ async def api_s3_pull(name: str, req: S3PullModel, user: dict = Depends(auth.req
 async def api_fileshare_pull(req: LinkPullModel, user: dict = Depends(auth.require_operator)):
     """Download a backup from an http(s) link, optionally using a file share's credentials."""
     result = rs.download_from_link(req.url, req.fileshare)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Download failed"))
+    return result
+
+
+@app.get("/api/storage/filebrowser/{name}/objects")
+async def api_filebrowser_objects(name: str, user: dict = Depends(auth.require_operator)):
+    """List .backup objects available in a filebrowser target."""
+    result = rs.filebrowser_list_backups(name)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "List failed"))
+    return result
+
+
+@app.post("/api/storage/filebrowser/{name}/pull")
+async def api_filebrowser_pull(name: str, req: S3PullModel, user: dict = Depends(auth.require_operator)):
+    """Download an object from a filebrowser target into the local backup dir."""
+    result = rs.filebrowser_download_backup(name, req.key)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Download failed"))
     return result
@@ -1545,6 +1587,71 @@ async def api_delete_fileshare(name: str, user: dict = Depends(auth.require_admi
 async def api_test_fileshare(name: str, user: dict = Depends(auth.require_admin)):
     """Test connectivity to a saved file share config."""
     return rs.webdav_test_connection(share_name=name)
+
+
+@app.get("/api/config/filebrowser")
+async def api_get_filebrowsers(user: dict = Depends(auth.require_admin)):
+    """List filebrowser configs (password masked)."""
+    return [
+        {
+            "name": s.name,
+            "base_url": s.base_url,
+            "root_path": s.root_path,
+            "username": s.username,
+            "password": "***" if s.password else "",
+            "verify_ssl": s.verify_ssl,
+        }
+        for s in cfg.get_filebrowser_configs().values()
+    ]
+
+
+@app.get("/api/config/filebrowser/{name}")
+async def api_get_filebrowser(name: str, user: dict = Depends(auth.require_admin)):
+    """Get a single filebrowser config for editing. The password is masked; a
+    blank password on save preserves the stored value (see api_save_filebrowser)."""
+    s = cfg.get_filebrowser_config(name)
+    if not s:
+        raise HTTPException(status_code=404, detail="filebrowser instance not found")
+    return {
+        "name": s.name,
+        "base_url": s.base_url,
+        "root_path": s.root_path,
+        "username": s.username,
+        "has_password": bool(s.password),
+        "verify_ssl": s.verify_ssl,
+    }
+
+
+@app.post("/api/config/filebrowser")
+async def api_save_filebrowser(fb: FileBrowserModel, user: dict = Depends(auth.require_admin)):
+    """Save a filebrowser config. Keeps the existing password when left blank on edit."""
+    password = fb.password or ""
+    if not password:
+        existing = cfg.get_filebrowser_config(fb.name)
+        if existing:
+            password = existing.password
+    cfg.save_filebrowser_config(cfg.FileBrowserConfig(
+        name=fb.name,
+        base_url=fb.base_url,
+        root_path=fb.root_path or "",
+        username=fb.username or "",
+        password=password,
+        verify_ssl=fb.verify_ssl,
+    ))
+    return {"success": True, "message": f"filebrowser '{fb.name}' saved"}
+
+
+@app.delete("/api/config/filebrowser/{name}")
+async def api_delete_filebrowser(name: str, user: dict = Depends(auth.require_admin)):
+    """Delete a filebrowser config."""
+    cfg.delete_filebrowser_config(name)
+    return {"success": True, "message": f"filebrowser '{name}' deleted"}
+
+
+@app.post("/api/config/filebrowser/{name}/test")
+async def api_test_filebrowser(name: str, user: dict = Depends(auth.require_admin)):
+    """Test connectivity to a saved filebrowser config."""
+    return rs.filebrowser_test_connection(name=name)
 
 
 @app.get("/api/config/settings")

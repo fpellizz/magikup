@@ -85,6 +85,18 @@ class FileShareConfig:
     verify_ssl: bool = True
 
 
+@dataclass
+class FileBrowserConfig:
+    """filebrowser (github.com/filebrowser/filebrowser) instance used to
+    archive/retrieve backup files through its HTTP + JWT API."""
+    name: str
+    base_url: str = ""              # filebrowser root, e.g. https://files.example.com
+    root_path: str = ""             # subdirectory within filebrowser for backups (optional)
+    username: str = ""              # empty => no-auth instance
+    password: str = ""              # encrypted at rest (JWT login password)
+    verify_ssl: bool = True
+
+
 APP_ROOT = Path(__file__).parent.parent
 
 @dataclass
@@ -270,6 +282,14 @@ region = us-east-1
 #   [fileshare:my-share]
 #   base_url = https://host/remote.php/dav/files/user/backups
 #   username =
+#   password =                ; stored encrypted as ENC:...
+#   verify_ssl = true
+#
+# filebrowser (github.com/filebrowser/filebrowser). One [filebrowser:<name>] per instance:
+#   [filebrowser:my-fb]
+#   base_url = https://files.example.com   ; filebrowser root
+#   root_path = backups                    ; subdirectory for backups (optional)
+#   username =                             ; empty for a no-auth instance
 #   password =                ; stored encrypted as ENC:...
 #   verify_ssl = true
 """
@@ -601,6 +621,54 @@ def delete_fileshare_config(name: str) -> None:
         config.remove_section(section)
         write_config(config)
         logger.info(f"Deleted file share '{name}'")
+
+
+def get_filebrowser_configs() -> Dict[str, FileBrowserConfig]:
+    """Get all filebrowser configs from [filebrowser:<name>] sections (password decrypted)."""
+    config = read_config()
+    out: Dict[str, FileBrowserConfig] = {}
+    for section in config.sections():
+        if section.startswith('filebrowser:'):
+            name = section[len('filebrowser:'):]
+            out[name] = FileBrowserConfig(
+                name=name,
+                base_url=config.get(section, 'base_url', fallback=''),
+                root_path=config.get(section, 'root_path', fallback=''),
+                username=config.get(section, 'username', fallback=''),
+                password=decrypt_password(config.get(section, 'password', fallback='')),
+                verify_ssl=config.getboolean(section, 'verify_ssl', fallback=True),
+            )
+    return out
+
+
+def get_filebrowser_config(name: str) -> Optional[FileBrowserConfig]:
+    """Get a specific filebrowser config by name."""
+    return get_filebrowser_configs().get(name)
+
+
+def save_filebrowser_config(fb: FileBrowserConfig) -> None:
+    """Save a filebrowser config under [filebrowser:<name>] (password encrypted at rest)."""
+    config = read_config()
+    section = f'filebrowser:{fb.name}'
+    if section not in config:
+        config.add_section(section)
+    config.set(section, 'base_url', fb.base_url)
+    config.set(section, 'root_path', fb.root_path)
+    config.set(section, 'username', fb.username)
+    config.set(section, 'password', encrypt_password(fb.password))
+    config.set(section, 'verify_ssl', str(fb.verify_ssl).lower())
+    write_config(config)
+    logger.info(f"Saved filebrowser '{fb.name}' (url: {fb.base_url})")
+
+
+def delete_filebrowser_config(name: str) -> None:
+    """Delete a filebrowser config."""
+    config = read_config()
+    section = f'filebrowser:{name}'
+    if config.has_section(section):
+        config.remove_section(section)
+        write_config(config)
+        logger.info(f"Deleted filebrowser '{name}'")
 
 
 # =============================================================================
