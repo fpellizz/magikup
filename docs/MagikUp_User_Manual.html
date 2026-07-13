@@ -501,24 +501,36 @@ docker push ghcr.io/fpellizz/magikup:3.5.0
   <div class="step">Sostituire <code>REPLACE_WITH_GENERATED_KEY</code> in <code>secret.yaml</code> con la chiave generata.</div>
 </div>
 
+<h3>Struttura dei manifest (Kustomize base + overlay)</h3>
+<p>I manifest sono organizzati in una <strong>base</strong> Kustomize con <strong>overlay</strong> per-cluster (GitHub &egrave; l&rsquo;unica fonte di verit&agrave;):</p>
+<ul>
+  <li><code>kubernetes/base/</code> &mdash; risorse comuni (rbac, configmap, pvc, deployment, service, ingress). Namespace <code>magikup</code>. <strong>Senza</strong> Secret e <strong>senza</strong> NetworkPolicy.</li>
+  <li><code>kubernetes/overlays/panservice/</code> &mdash; base + patch ingress (host <code>magikup.decisyon.com</code> + cert-manager). Niente NetworkPolicy (l&rsquo;ingress-nginx di RKE2 gira in hostNetwork e la bloccherebbe). &Egrave; ci&ograve; che gira in produzione.</li>
+  <li><code>kubernetes/overlays/generic/</code> &mdash; base + <code>networkpolicy.yaml</code>, per cluster con networking dei pod standard.</li>
+</ul>
+
 <h3>Configurazione Ingress</h3>
-<p>Modificare il file <code>kubernetes/ingress.yaml</code> e sostituire <code>magikup.example.com</code> con l&rsquo;hostname reale.</p>
+<p>Per panservice l&rsquo;hostname &egrave; gi&agrave; nel patch <code>kubernetes/overlays/panservice/ingress-patch.yaml</code>. Per un altro cluster, modificare l&rsquo;host in <code>kubernetes/base/ingress.yaml</code> (placeholder <code>magikup.example.com</code>).</p>
 
 <div class="tip">
   <strong>Context Path:</strong> Per il deploy sotto un prefisso URL (es. <code>/magikup</code>),
-  impostare la variabile d&rsquo;ambiente <code>ROOT_PATH</code> nel file <code>kubernetes/deployment.yaml</code>
+  impostare la variabile d&rsquo;ambiente <code>ROOT_PATH</code> nel file <code>kubernetes/base/deployment.yaml</code>
   e configurare le regole di path nell&rsquo;ingress. Vedi la sezione <a href="#cap2-5">2.5 Context Path / Reverse Proxy</a> per i dettagli.
 </div>
 
 <h3>Deploy con Kustomize</h3>
 <pre>
-# Applica tutti i manifest
-kubectl apply -k kubernetes/
+# Il Secret (ENCRYPTION_KEY) si applica out-of-band (mai committato)
+kubectl apply -f kubernetes/secret.yaml -n magikup
+
+# Applica l'overlay del cluster (panservice in produzione)
+kubectl apply -k kubernetes/overlays/panservice
 
 # Verifica lo stato
-kubectl get pods -l app=magikup
-kubectl logs deploy/magikup
+kubectl -n magikup rollout status deploy/magikup
+kubectl -n magikup get pods -l app=magikup
 </pre>
+<p>In alternativa: <code>./scripts/deploy.sh</code> (overlay <code>panservice</code> di default; <code>-o generic</code> per l&rsquo;altro).</p>
 
 <h3>Accesso all&rsquo;applicazione</h3>
 <pre>
@@ -631,7 +643,7 @@ location /magikup/ {
 
 <h3>Esempio Kubernetes Ingress</h3>
 <p>Per il routing basato su path nell&rsquo;ingress, decommentare le annotazioni e le regole di path rilevanti in
-<code>kubernetes/ingress.yaml</code> e impostare <code>ROOT_PATH</code> in <code>kubernetes/deployment.yaml</code>:</p>
+<code>kubernetes/base/ingress.yaml</code> e impostare <code>ROOT_PATH</code> in <code>kubernetes/base/deployment.yaml</code>:</p>
 <pre>
 # In deployment.yaml, aggiungere alla sezione env:
 - name: ROOT_PATH
