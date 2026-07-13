@@ -23,6 +23,7 @@ config/audit.log
 
 # Kubernetes secrets (generated)
 kubernetes/secret.yaml
+kubernetes/**/secret.yaml
 
 # Backups
 backups/

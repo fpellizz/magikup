@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace + common label shared by every overlay.
+namespace: magikup
+
+commonLabels:
+  app: magikup
+
+# Core resources. Two things are intentionally NOT here:
+#   * the Secret (ENCRYPTION_KEY) — it must never be committed to git; create it
+#     out-of-band from ../secret.yaml.example (see scripts/create-secret.sh).
+#   * the NetworkPolicy — see overlays/generic. Some clusters (e.g. RKE2 with a
+#     hostNetwork ingress-nginx) must NOT have it or ingress traffic is blocked.
+resources:
+  - rbac.yaml
+  - configmap.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml

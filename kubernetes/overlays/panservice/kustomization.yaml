@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# panservice (RKE2): ingress-nginx runs with hostNetwork, so a namespaceSelector
+# NetworkPolicy would block ingress — this overlay deliberately omits it.
+# The Secret (magikup-secret / ENCRYPTION_KEY) is applied out-of-band, not here.
+#
+# Deploy:  kubectl apply -f ../../secret.yaml   # once, out-of-band
+#          kubectl apply -k .                     # from this directory
+resources:
+  - ../../base
+
+# Real hostname + cert-manager issuer for this cluster.
+patches:
+  - path: ingress-patch.yaml
