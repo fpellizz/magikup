@@ -1,0 +1,1337 @@
+{% extends "base.html" %}
+
+{% block title %}Scheduled Backups - Magiku(r)p{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h2 class="mb-0"><i class="bi bi-calendar-check"></i> Scheduled Backups</h2>
+            {% if user_role == 'admin' %}
+            <button class="btn btn-primary" onclick="openScheduleModal()">
+                <i class="bi bi-plus-lg me-1"></i> New Schedule
+            </button>
+            {% endif %}
+        </div>
+        <hr>
+    </div>
+</div>
+
+<!-- Summary Banner -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="storage-info-banner">
+            <div class="storage-info-item">
+                <i class="bi bi-calendar2-week-fill"></i>
+                <div>
+                    <span class="storage-label">Active Schedules</span>
+                    <span class="storage-value" id="summaryActive">—</span>
+                </div>
+            </div>
+            <div class="storage-info-item">
+                <i class="bi bi-hourglass-split"></i>
+                <div>
+                    <span class="storage-label">Next Run</span>
+                    <span class="storage-value" id="summaryNext">—</span>
+                </div>
+            </div>
+            <div class="storage-info-item">
+                <i class="bi bi-check2-circle"></i>
+                <div>
+                    <span class="storage-label">Last Run</span>
+                    <span class="storage-value" id="summaryLast">—</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="sched-note">
+            <i class="bi bi-info-circle"></i>
+            Runs are <strong>skipped, not queued</strong>, while the server is offline. All times are evaluated in UTC.
+        </div>
+    </div>
+</div>
+
+<!-- Remote transfer progress (one bar per in-flight scheduled push) -->
+<div class="row mb-4" id="transferProgressRow" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-arrow-left-right"></i> Remote transfers
+            </div>
+            <div class="card-body" id="transferProgressBody"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedules Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-check"></i> Schedules</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadSchedules()" id="refreshSchedBtn">
+                    <i class="bi bi-arrow-repeat"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive sched-table-container">
+                    <table class="table table-hover align-middle mb-0" id="schedulesTableContainer">
+                        <thead>
+                            <tr>
+                                <th style="width: 64px;">On</th>
+                                <th>Name</th>
+                                <th style="width: 150px;">Endpoint</th>
+                                <th>Schedule</th>
+                                <th style="width: 210px;">Next run</th>
+                                <th style="width: 150px;">Last run</th>
+                                <th style="width: 170px;">Destination</th>
+                                <th class="text-end" style="width: 150px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedulesTable">
+                            <tr>
+                                <td colspan="8">
+                                    <div class="sched-loading">
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                        Loading schedules...
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Runs Card -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history"></i> Recent Runs</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadRuns()" id="refreshRunsBtn">
+                    <i class="bi bi-arrow-repeat"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Schedule</th>
+                                <th>Database</th>
+                                <th>Endpoint</th>
+                                <th>Trigger</th>
+                                <th style="width: 180px;">Started</th>
+                                <th style="width: 130px;">Status</th>
+                                <th class="text-end" style="width: 90px;">Log</th>
+                            </tr>
+                        </thead>
+                        <tbody id="runsTable">
+                            <tr>
+                                <td colspan="7">
+                                    <div class="sched-loading">
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                        Loading run history...
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Schedule Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scheduleModalLabel">
+                    <i class="bi bi-calendar-plus me-2"></i>New Schedule
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="schedEditMode" value="new">
+
+                <!-- Identity -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label" for="schedName">Name</label>
+                        <input type="text" class="form-control" id="schedName"
+                               placeholder="nightly-prod" maxlength="50">
+                        <div class="form-text">Letters, numbers, dash and underscore. 2–50 characters. This is the unique key.</div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="schedEndpoint">Endpoint</label>
+                        <select class="form-select" id="schedEndpoint" onchange="onSchedEndpointChange()">
+                            <option value="">Select endpoint...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="schedDatabase">Database</label>
+                        <select class="form-select" id="schedDatabase" disabled>
+                            <option value="">Select an endpoint first...</option>
+                        </select>
+                        <div class="form-text" id="schedDbHint"></div>
+                    </div>
+                </div>
+
+                <!-- Cron builder -->
+                <div class="cron-builder mb-3">
+                    <label class="form-label d-block">When to run</label>
+                    <div class="btn-group cron-mode-group mb-3" role="group" aria-label="Schedule mode">
+                        <input type="radio" class="btn-check" name="cronMode" id="cronModeHourly" value="hourly" autocomplete="off" onchange="onCronModeChange()">
+                        <label class="btn btn-outline-primary btn-sm" for="cronModeHourly">Hourly</label>
+                        <input type="radio" class="btn-check" name="cronMode" id="cronModeDaily" value="daily" autocomplete="off" checked onchange="onCronModeChange()">
+                        <label class="btn btn-outline-primary btn-sm" for="cronModeDaily">Daily</label>
+                        <input type="radio" class="btn-check" name="cronMode" id="cronModeWeekly" value="weekly" autocomplete="off" onchange="onCronModeChange()">
+                        <label class="btn btn-outline-primary btn-sm" for="cronModeWeekly">Weekly</label>
+                        <input type="radio" class="btn-check" name="cronMode" id="cronModeMonthly" value="monthly" autocomplete="off" onchange="onCronModeChange()">
+                        <label class="btn btn-outline-primary btn-sm" for="cronModeMonthly">Monthly</label>
+                        <input type="radio" class="btn-check" name="cronMode" id="cronModeCustom" value="custom" autocomplete="off" onchange="onCronModeChange()">
+                        <label class="btn btn-outline-primary btn-sm" for="cronModeCustom">Custom</label>
+                    </div>
+
+                    <!-- Hourly -->
+                    <div class="cron-panel" data-mode="hourly" style="display:none;">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-auto">
+                                <label class="form-label small">At minute</label>
+                                <select class="form-select" id="cronHourlyMinute" onchange="rebuildCron()"></select>
+                            </div>
+                            <div class="col text-muted small">past every hour</div>
+                        </div>
+                    </div>
+
+                    <!-- Daily -->
+                    <div class="cron-panel" data-mode="daily">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-auto">
+                                <label class="form-label small">At time (UTC)</label>
+                                <input type="time" class="form-control" id="cronDailyTime" value="02:30" onchange="rebuildCron()">
+                            </div>
+                            <div class="col text-muted small">every day</div>
+                        </div>
+                    </div>
+
+                    <!-- Weekly -->
+                    <div class="cron-panel" data-mode="weekly" style="display:none;">
+                        <div class="row g-2 align-items-end mb-2">
+                            <div class="col-auto">
+                                <label class="form-label small">At time (UTC)</label>
+                                <input type="time" class="form-control" id="cronWeeklyTime" value="02:30" onchange="rebuildCron()">
+                            </div>
+                        </div>
+                        <div class="btn-group cron-dow-group" role="group" aria-label="Days of week"></div>
+                    </div>
+
+                    <!-- Monthly -->
+                    <div class="cron-panel" data-mode="monthly" style="display:none;">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-auto">
+                                <label class="form-label small">At time (UTC)</label>
+                                <input type="time" class="form-control" id="cronMonthlyTime" value="02:30" onchange="rebuildCron()">
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label small">Day of month</label>
+                                <select class="form-select" id="cronMonthlyDom" onchange="rebuildCron()"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Custom -->
+                    <div class="cron-panel" data-mode="custom" style="display:none;">
+                        <label class="form-label small">Cron expression (5 fields: min hour dom month dow)</label>
+                        <input type="text" class="form-control cron-code-input" id="cronCustomInput"
+                               placeholder="30 2 * * *" oninput="onCustomCronInput()">
+                    </div>
+
+                    <!-- Raw + preview -->
+                    <div class="cron-preview mt-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                            <code class="cron-code" id="cronRawDisplay">30 2 * * *</code>
+                            <span class="cron-valid-badge" id="cronValidBadge"></span>
+                        </div>
+                        <div class="cron-human" id="cronHuman">—</div>
+                        <div class="cron-next-wrap mt-2">
+                            <div class="small text-muted mb-1"><i class="bi bi-hourglass"></i> Next 5 runs (UTC)</div>
+                            <ul class="cron-next-list" id="cronNextList"><li class="text-muted">—</li></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced backup options -->
+                <div class="mb-3">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#advancedOptions" aria-expanded="false">
+                        <i class="bi bi-sliders me-1"></i> Advanced backup options
+                    </button>
+                    <div class="collapse mt-3" id="advancedOptions">
+                        <div class="sched-advanced-panel">
+                            <div class="advanced-section-title"><i class="bi bi-toggle-on"></i> Dump options</div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="optLargeObjects" checked><label class="form-check-label" for="optLargeObjects">--large-objects</label></div></div>
+                                <div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="optNoOwner" checked><label class="form-check-label" for="optNoOwner">--no-owner</label></div></div>
+                                <div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="optNoPrivileges" checked><label class="form-check-label" for="optNoPrivileges">--no-privileges</label></div></div>
+                                <div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="optNoTablespaces" checked><label class="form-check-label" for="optNoTablespaces">--no-tablespaces</label></div></div>
+                                <div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="optNoComments" checked><label class="form-check-label" for="optNoComments">--no-comments</label></div></div>
+                                <div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="optDataOnly"><label class="form-check-label" for="optDataOnly">--data-only</label></div></div>
+                                <div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="optSchemaOnly"><label class="form-check-label" for="optSchemaOnly">--schema-only</label></div></div>
+                                <div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="optClean"><label class="form-check-label" for="optClean">--clean</label></div></div>
+                                <div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="optCreate"><label class="form-check-label" for="optCreate">--create</label></div></div>
+                            </div>
+
+                            <div class="advanced-section-title"><i class="bi bi-funnel"></i> Scope &amp; exclusions</div>
+                            <div class="row g-3">
+                                <div class="col-md-12">
+                                    <label class="form-label small" for="optSchemas">Schemas <span class="text-muted">(comma-separated; empty = all)</span></label>
+                                    <input type="text" class="form-control form-control-sm" id="optSchemas" placeholder="public, reporting">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small" for="optExcludeTable">--exclude-table</label>
+                                    <input type="text" class="form-control form-control-sm" id="optExcludeTable" placeholder="public.temp_*">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small" for="optExcludeTableData">--exclude-table-data</label>
+                                    <input type="text" class="form-control form-control-sm" id="optExcludeTableData" placeholder="public.audit_*">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small" for="optExcludeSchema">--exclude-schema</label>
+                                    <input type="text" class="form-control form-control-sm" id="optExcludeSchema" placeholder="tmp">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Destination -->
+                <div class="sched-dest-block mb-3">
+                    <label class="form-label" for="schedDest">Destination</label>
+                    <select class="form-select" id="schedDest" onchange="onDestChange()">
+                        <option value="none" data-kind="none">Local backup directory</option>
+                    </select>
+                    <div class="ssm-toggle-wrapper mt-3" id="deleteAfterWrapper" style="display:none;">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="schedDeleteAfter">
+                        </div>
+                        <label class="form-check-label" for="schedDeleteAfter">
+                            Delete local copy after a verified successful upload
+                            <span class="d-block text-muted small">Deletion happens <strong>only after</strong> the upload is verified (size match). On any failure the local file is kept.</span>
+                        </label>
+                    </div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <label class="form-label small" for="schedKeepLastN">Local retention (keep newest N for this DB)</label>
+                            <input type="number" class="form-control" id="schedKeepLastN" min="0" value="0">
+                            <div class="form-text">0 = keep all local backups.</div>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="schedEnabled" checked>
+                                <label class="form-check-label" for="schedEnabled">Enabled</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveSchedule()" id="saveSchedBtn" disabled>
+                    <i class="bi bi-save me-1"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Summary banner (shared visual language with Files) */
+    .storage-info-banner {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        padding: 1.25rem 1.5rem;
+        background: var(--accent-gradient);
+        border-radius: 12px;
+        color: white;
+    }
+    .storage-info-item { display: flex; align-items: center; gap: 0.75rem; }
+    .storage-info-item > i { font-size: 1.5rem; opacity: 0.9; }
+    .storage-info-item > div { display: flex; flex-direction: column; }
+    .storage-label { font-size: 0.75rem; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.5px; }
+    .storage-value { font-weight: 600; font-size: 0.95rem; }
+
+    .sched-note {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1rem;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+    .sched-note i { color: var(--accent-primary); }
+
+    .sched-table-container { border-radius: 10px; overflow: hidden; border: 1px solid var(--border-color); }
+    .sched-table-container .table { margin-bottom: 0; }
+
+    .sched-loading, .sched-empty-state { text-align: center; padding: 2rem; color: var(--text-muted); }
+    .sched-empty-state { padding: 3rem 2rem; }
+    .sched-empty-state i { font-size: 3.5rem; margin-bottom: 1rem; opacity: 0.3; display: block; }
+    .sched-empty-state h6 { color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 600; }
+    .sched-empty-state p { margin-bottom: 1.5rem; font-size: 0.9rem; }
+
+    .sched-name { font-weight: 600; color: var(--text-primary); }
+    .sched-subtle { font-size: 0.8rem; color: var(--text-muted); }
+
+    .cron-code {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        padding: 0.15rem 0.5rem;
+        border-radius: 6px;
+    }
+
+    /* Status badges */
+    .sched-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .sched-badge-success { background: var(--success-bg); color: var(--success); }
+    .sched-badge-failed { background: var(--danger-bg); color: var(--danger); }
+    .sched-badge-copy_failed { background: var(--warning-bg); color: var(--warning); }
+    .sched-badge-running { background: var(--info-bg); color: var(--info); }
+    .sched-badge-never { background: var(--bg-tertiary); color: var(--text-muted); }
+
+    /* Destination chip */
+    .dest-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.2rem 0.55rem;
+        border-radius: 8px;
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        font-weight: 500;
+        max-width: 100%;
+    }
+    .dest-chip i { color: var(--accent-primary); }
+    .dest-chip .dest-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px; }
+    .autoclean-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-top: 0.25rem;
+        font-size: 0.72rem;
+        color: var(--warning);
+    }
+
+    .countdown { font-weight: 600; color: var(--text-primary); font-size: 0.85rem; }
+    .countdown-off { color: var(--text-muted); font-weight: 500; }
+    .next-local { font-size: 0.78rem; color: var(--text-secondary); }
+    .next-utc { font-size: 0.7rem; color: var(--text-muted); }
+
+    .sched-actions { display: flex; gap: 0.35rem; justify-content: flex-end; }
+    .sched-actions .btn { padding: 0.3rem 0.5rem; }
+
+    .fail-warn { font-size: 0.72rem; color: var(--warning); margin-top: 0.2rem; }
+    .disabled-note { font-size: 0.72rem; color: var(--danger); margin-top: 0.2rem; }
+
+    /* Cron builder */
+    .cron-builder {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+    }
+    .cron-mode-group { flex-wrap: wrap; }
+    .cron-dow-group { flex-wrap: wrap; gap: 0.25rem; }
+    .cron-code-input { font-family: 'JetBrains Mono', monospace; }
+
+    .cron-preview {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+    }
+    .cron-human { font-weight: 600; color: var(--text-primary); }
+    .cron-valid-badge { font-size: 0.78rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.3rem; }
+    .cron-valid-ok { color: var(--success); }
+    .cron-valid-bad { color: var(--danger); }
+    .cron-valid-warn { color: var(--warning); }
+    .cron-next-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .cron-next-list li {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.76rem;
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        padding: 0.15rem 0.5rem;
+        border-radius: 6px;
+    }
+
+    .sched-advanced-panel {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+    }
+    .advanced-section-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+    }
+    .advanced-section-title i { color: var(--accent-primary); margin-right: 0.3rem; }
+
+    .sched-dest-block {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+    }
+    .ssm-toggle-wrapper { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--bg-tertiary); border-radius: 8px; }
+    .ssm-toggle-wrapper .form-check-label { font-weight: 500; cursor: pointer; }
+
+    @media (max-width: 768px) {
+        .storage-info-banner { flex-direction: column; gap: 1rem; }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const IS_ADMIN = {% if user_role == 'admin' %}true{% else %}false{% endif %};
+
+    let schedules = [];
+    let storageTargets = { s3: [], fileshare: [], filebrowser: [] };
+    let cronPreviewTimer = null;
+    let cronCurrentlyValid = false;
+    let countdownTimer = null;
+    let dbLoadedForEndpoint = null;
+
+    // ============================================================
+    // Formatting helpers
+    // ============================================================
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function formatSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let size = bytes, i = 0;
+        while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+        return `${size.toFixed(1)} ${units[i]}`;
+    }
+
+    function formatLocal(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d)) return '';
+        return d.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatUtc(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d)) return '';
+        const p = n => String(n).padStart(2, '0');
+        return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
+    }
+
+    function countdownText(iso) {
+        if (!iso) return '';
+        const diff = new Date(iso).getTime() - Date.now();
+        if (isNaN(diff)) return '';
+        if (diff <= 0) return 'due now';
+        const mins = Math.floor(diff / 60000);
+        const days = Math.floor(mins / 1440);
+        const hrs = Math.floor((mins % 1440) / 60);
+        const m = mins % 60;
+        if (days > 0) return `in ${days}d ${hrs}h`;
+        if (hrs > 0) return `in ${hrs}h ${m}m`;
+        if (m > 0) return `in ${m}m`;
+        return 'in <1m';
+    }
+
+    function relativePast(iso) {
+        if (!iso) return '';
+        const diff = Date.now() - new Date(iso).getTime();
+        if (isNaN(diff)) return '';
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'just now';
+        const hrs = Math.floor(mins / 60);
+        const days = Math.floor(hrs / 24);
+        if (days > 0) return `${days}d ago`;
+        if (hrs > 0) return `${hrs}h ago`;
+        return `${mins}m ago`;
+    }
+
+    // ============================================================
+    // Load + render schedules
+    // ============================================================
+    async function loadSchedules() {
+        try {
+            const res = await apiCall('/api/schedules');
+            schedules = (res && res.schedules) || [];
+        } catch (e) {
+            schedules = [];
+        }
+        anyScheduleRunning = schedules.some(s => s.running || s.last_status === 'running');
+        if (anyScheduleRunning) startOperationsPolling(5000);  // keep bars/status live
+        renderSchedules();
+        updateSummary();
+    }
+
+    function destChip(sched) {
+        let icon = 'bi-hdd', label = 'Local', name = '';
+        if (sched.dest_kind === 's3') { icon = 'bi-bucket'; label = 'S3'; name = sched.dest_target || ''; }
+        else if (sched.dest_kind === 'fileshare') { icon = 'bi-link-45deg'; label = 'File share'; name = sched.dest_target || ''; }
+        else if (sched.dest_kind === 'filebrowser') { icon = 'bi-hdd-stack'; label = 'filebrowser'; name = sched.dest_target || ''; }
+        let html = `<span class="dest-chip"><i class="bi ${icon}"></i> ${esc(label)}${name ? ` <span class="dest-name" title="${esc(name)}">${esc(name)}</span>` : ''}</span>`;
+        // copy_failed => data is still safe locally: reinforce the Local chip
+        if (sched.dest_kind !== 'none' && sched.last_status === 'copy_failed') {
+            html = `<span class="dest-chip"><i class="bi bi-hdd"></i> Local</span>` +
+                   `<div class="autoclean-badge"><i class="bi bi-exclamation-triangle"></i> upload failed</div>`;
+        } else if (sched.dest_kind !== 'none' && sched.delete_local_after_copy) {
+            html += `<div class="autoclean-badge"><i class="bi bi-stars"></i> auto-clean</div>`;
+        }
+        return html;
+    }
+
+    function statusBadge(sched) {
+        if (sched.running) {
+            return `<span class="sched-badge sched-badge-running"><span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> Running</span>`;
+        }
+        const s = sched.last_status;
+        if (!s) return `<span class="sched-badge sched-badge-never"><i class="bi bi-dash-circle"></i> Never run</span>`;
+        if (s === 'success') return `<span class="sched-badge sched-badge-success"><i class="bi bi-check-circle-fill"></i> Success</span>`;
+        if (s === 'running') return `<span class="sched-badge sched-badge-running"><span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> Running</span>`;
+        if (s === 'copy_failed') return `<span class="sched-badge sched-badge-copy_failed" title="${esc(sched.last_error || '')}"><i class="bi bi-cloud-slash"></i> Upload failed — saved locally</span>`;
+        if (s === 'failed') return `<span class="sched-badge sched-badge-failed" title="${esc(sched.last_error || '')}"><i class="bi bi-x-circle-fill"></i> Failed</span>`;
+        return `<span class="sched-badge sched-badge-never">${esc(s)}</span>`;
+    }
+
+    function nextRunCell(sched) {
+        if (!sched.enabled) return `<span class="countdown-off"><i class="bi bi-pause-circle"></i> disabled</span>`;
+        if (!sched.next_run) return `<span class="countdown-off">—</span>`;
+        return `
+            <div class="countdown js-countdown" data-next="${esc(sched.next_run)}">${countdownText(sched.next_run)}</div>
+            <div class="next-local">${esc(formatLocal(sched.next_run))}</div>
+            <div class="next-utc">${esc(formatUtc(sched.next_run))}</div>`;
+    }
+
+    function renderSchedules() {
+        const tbody = document.getElementById('schedulesTable');
+        if (!schedules.length) {
+            tbody.innerHTML = `
+                <tr><td colspan="8">
+                    <div class="sched-empty-state">
+                        <i class="bi bi-calendar-x"></i>
+                        <h6>No schedules yet</h6>
+                        <p>Automate recurring backups on a cron schedule.</p>
+                        ${IS_ADMIN ? `<button class="btn btn-primary btn-sm" onclick="openScheduleModal()"><i class="bi bi-plus-lg me-1"></i> New Schedule</button>` : `<p class="text-muted">Ask an administrator to create one.</p>`}
+                    </div>
+                </td></tr>`;
+            return;
+        }
+        tbody.innerHTML = schedules.map(s => {
+            const n = esc(s.name);
+            const failWarn = (s.consecutive_failures > 0 && s.enabled)
+                ? `<div class="fail-warn"><i class="bi bi-exclamation-triangle"></i> ${s.consecutive_failures} consecutive failure${s.consecutive_failures !== 1 ? 's' : ''}</div>` : '';
+            const disabledNote = (!s.enabled && s.consecutive_failures >= 5)
+                ? `<div class="disabled-note"><i class="bi bi-shield-exclamation"></i> auto-disabled after repeated failures</div>` : '';
+            return `
+            <tr>
+                <td>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" ${s.enabled ? 'checked' : ''}
+                               ${IS_ADMIN ? '' : 'disabled'}
+                               onchange="toggleSchedule('${n}', this.checked)"
+                               aria-label="Enable or disable schedule ${n}"
+                               title="${s.enabled ? 'Enabled' : 'Disabled'}">
+                    </div>
+                </td>
+                <td>
+                    <div class="sched-name">${n}</div>
+                    <div class="sched-subtle"><i class="bi bi-database"></i> ${esc(s.database)}</div>
+                    ${disabledNote}${failWarn}
+                </td>
+                <td><span class="sched-subtle"><i class="bi bi-hdd-network"></i> ${esc(s.endpoint)}</span></td>
+                <td>
+                    <div>${esc(s.cron_human || '')}</div>
+                    <code class="cron-code">${esc(s.cron)}</code>
+                </td>
+                <td>${nextRunCell(s)}</td>
+                <td>
+                    ${statusBadge(s)}
+                    ${s.last_run ? `<div class="sched-subtle mt-1" title="${esc(formatUtc(s.last_run))}">${esc(relativePast(s.last_run))}</div>` : ''}
+                </td>
+                <td>${destChip(s)}</td>
+                <td class="text-end">
+                    <div class="sched-actions">
+                        <button class="btn btn-sm btn-outline-primary" onclick="runNow('${n}')" title="Run now" aria-label="Run schedule ${n} now" ${s.running ? 'disabled' : ''}>
+                            <i class="bi bi-play-fill"></i>
+                        </button>
+                        ${IS_ADMIN ? `
+                        <button class="btn btn-sm btn-outline-secondary" onclick="editSchedule('${n}')" title="Edit" aria-label="Edit schedule ${n}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteSchedule('${n}')" title="Delete" aria-label="Delete schedule ${n}">
+                            <i class="bi bi-trash"></i>
+                        </button>` : ''}
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function updateSummary() {
+        const active = schedules.filter(s => s.enabled);
+        document.getElementById('summaryActive').textContent =
+            `${active.length} of ${schedules.length}`;
+
+        const nexts = active.map(s => s.next_run).filter(Boolean).sort();
+        const nextEl = document.getElementById('summaryNext');
+        if (nexts.length) {
+            nextEl.textContent = `${countdownText(nexts[0])} · ${formatLocal(nexts[0])}`;
+        } else {
+            nextEl.textContent = '—';
+        }
+
+        const lasts = schedules.map(s => s.last_run).filter(Boolean).sort();
+        const lastEl = document.getElementById('summaryLast');
+        lastEl.textContent = lasts.length ? relativePast(lasts[lasts.length - 1]) : 'Never';
+    }
+
+    function startCountdownTicker() {
+        if (countdownTimer) return;
+        countdownTimer = setInterval(() => {
+            document.querySelectorAll('.js-countdown').forEach(el => {
+                el.textContent = countdownText(el.getAttribute('data-next'));
+            });
+            updateSummary();   // keep the banner "next run" countdown fresh too
+        }, 30000);
+    }
+
+    // ============================================================
+    // Toggle / run / delete
+    // ============================================================
+    async function toggleSchedule(name, enabled) {
+        const res = await apiCall(`/api/schedules/${encodeURIComponent(name)}/enabled`, 'PATCH', { enabled });
+        if (res && res.success) {
+            showToast(`Schedule ${enabled ? 'enabled' : 'disabled'}`, 'success');
+        } else {
+            showToast((res && res.detail) || 'Failed to update schedule', 'error');
+        }
+        loadSchedules();
+    }
+
+    async function runNow(name) {
+        showToast(`Starting ${name}...`, 'info');
+        // Grace window bridges the pg_dump phase (no transfer op yet) until the
+        // run shows up as running / the upload starts.
+        startOperationsPolling(12000);
+        try {
+            const res = await apiCall(`/api/schedules/${encodeURIComponent(name)}/run`, 'POST', {});
+            if (!res || res.detail || res.success === false) {
+                showToast((res && res.detail) || 'Failed to start run', 'error');
+                return;
+            }
+            showToast('Backup started', 'success');
+            setTimeout(loadSchedules, 800);
+            setTimeout(loadRuns, 1500);
+        } catch (e) {
+            showToast('Failed to start run', 'error');
+        }
+    }
+
+    async function deleteSchedule(name) {
+        if (!confirm(`Delete schedule "${name}"?\n\nThis removes the schedule definition and its run history state. Existing backup files are not deleted.`)) return;
+        const res = await apiCall(`/api/schedules/${encodeURIComponent(name)}`, 'DELETE');
+        if (res && res.success) {
+            showToast('Schedule deleted', 'success');
+            loadSchedules();
+        } else {
+            showToast((res && res.detail) || 'Failed to delete schedule', 'error');
+        }
+    }
+
+    // ============================================================
+    // Recent runs
+    // ============================================================
+    async function loadRuns() {
+        const tbody = document.getElementById('runsTable');
+        let runs = [];
+        try {
+            const res = await apiCall('/api/schedules/runs?limit=50');
+            runs = (res && res.runs) || [];
+        } catch (e) { runs = []; }
+
+        if (!runs.length) {
+            tbody.innerHTML = `<tr><td colspan="7"><div class="sched-empty-state"><i class="bi bi-clock-history"></i><h6>No runs yet</h6><p>Scheduled and run-now backups will appear here.</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = runs.map(op => {
+            const meta = op.metadata || {};
+            const trigger = meta.trigger === 'manual-schedule' ? 'Run now' : 'Scheduled';
+            const started = op.started_at ? formatLocal(op.started_at) : '';
+            const logId = op.operation_id;
+            return `
+            <tr>
+                <td class="sched-name">${esc(meta.schedule || '—')}</td>
+                <td>${esc(op.database || '')}</td>
+                <td>${esc(op.endpoint || '')}</td>
+                <td><span class="sched-subtle">${esc(trigger)}</span></td>
+                <td>${esc(started)}</td>
+                <td>${runStatusBadge(op)}</td>
+                <td class="text-end">
+                    ${logId ? `<a class="btn btn-sm btn-outline-secondary" href="${BASE_PATH}/api/operations/${encodeURIComponent(logId)}/log" title="Download log" target="_blank"><i class="bi bi-file-text"></i></a>` : ''}
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function runStatusBadge(op) {
+        const s = op.status;
+        if (s === 'running') return `<span class="sched-badge sched-badge-running"><span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> Running</span>`;
+        if (s === 'completed') {
+            // A completed op whose remote push failed carries an error string.
+            if (op.error) return `<span class="sched-badge sched-badge-copy_failed" title="${esc(op.error)}"><i class="bi bi-cloud-slash"></i> Saved locally</span>`;
+            return `<span class="sched-badge sched-badge-success"><i class="bi bi-check-circle-fill"></i> Success</span>`;
+        }
+        if (s === 'failed') return `<span class="sched-badge sched-badge-failed" title="${esc(op.error || '')}"><i class="bi bi-x-circle-fill"></i> Failed</span>`;
+        if (s === 'cancelled') return `<span class="sched-badge sched-badge-never"><i class="bi bi-slash-circle"></i> Cancelled</span>`;
+        return `<span class="sched-badge sched-badge-never">${esc(s || '')}</span>`;
+    }
+
+    // ============================================================
+    // Modal: endpoints, databases, targets
+    // ============================================================
+    async function loadEndpoints() {
+        const sel = document.getElementById('schedEndpoint');
+        try {
+            const eps = await apiCall('/api/endpoints');
+            const list = Array.isArray(eps) ? eps : [];
+            sel.innerHTML = '<option value="">Select endpoint...</option>' +
+                list.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('');
+        } catch (e) {
+            sel.innerHTML = '<option value="">Failed to load endpoints</option>';
+        }
+    }
+
+    async function loadTargets() {
+        try {
+            storageTargets = await apiCall('/api/storage/targets');
+        } catch (e) {
+            storageTargets = { s3: [], fileshare: [], filebrowser: [] };
+        }
+        const sel = document.getElementById('schedDest');
+        let opts = '<option value="none" data-kind="none">Local backup directory</option>';
+        const s3 = storageTargets.s3 || [], fs = storageTargets.fileshare || [], fb = storageTargets.filebrowser || [];
+        if (s3.length) {
+            opts += '<optgroup label="S3 buckets">' +
+                s3.map(s => `<option value="s3:${esc(s.name)}" data-kind="s3">${esc(s.name)}${s.bucket ? ` (${esc(s.bucket)})` : ''}</option>`).join('') +
+                '</optgroup>';
+        }
+        if (fs.length) {
+            opts += '<optgroup label="File shares">' +
+                fs.map(s => `<option value="fileshare:${esc(s.name)}" data-kind="fileshare">${esc(s.name)}</option>`).join('') +
+                '</optgroup>';
+        }
+        if (fb.length) {
+            opts += '<optgroup label="filebrowser">' +
+                fb.map(s => `<option value="filebrowser:${esc(s.name)}" data-kind="filebrowser">${esc(s.name)}</option>`).join('') +
+                '</optgroup>';
+        }
+        sel.innerHTML = opts;
+    }
+
+    async function onSchedEndpointChange() {
+        const ep = document.getElementById('schedEndpoint').value;
+        await loadSchedDatabases(ep, null);
+    }
+
+    async function loadSchedDatabases(endpoint, selectDb) {
+        const sel = document.getElementById('schedDatabase');
+        const hint = document.getElementById('schedDbHint');
+        hint.textContent = '';
+        if (!endpoint) {
+            sel.disabled = true;
+            sel.innerHTML = '<option value="">Select an endpoint first...</option>';
+            return;
+        }
+        sel.disabled = true;
+        sel.innerHTML = '<option value="">Loading databases...</option>';
+        try {
+            const res = await apiCall(`/api/databases/${encodeURIComponent(endpoint)}`);
+            if (res && res.success && Array.isArray(res.databases)) {
+                sel.innerHTML = '<option value="">Select database...</option>' +
+                    res.databases.map(d => `<option value="${esc(d.name)}">${esc(d.name)}${d.size ? ` (${esc(d.size)})` : ''}</option>`).join('');
+                dbLoadedForEndpoint = endpoint;
+            } else {
+                throw new Error((res && (res.detail || res.error)) || 'load failed');
+            }
+        } catch (e) {
+            // Fallback: keep the stored value editable even if we cannot connect.
+            sel.innerHTML = '<option value="">Type database name below</option>';
+            hint.textContent = 'Could not list databases (endpoint offline?). The stored name is kept.';
+        }
+        // Ensure the requested/stored db is selectable even if not in the live list.
+        if (selectDb) {
+            if (![...sel.options].some(o => o.value === selectDb)) {
+                sel.insertAdjacentHTML('beforeend', `<option value="${esc(selectDb)}">${esc(selectDb)}</option>`);
+            }
+            sel.value = selectDb;
+        }
+        sel.disabled = false;
+    }
+
+    function onDestChange() {
+        const sel = document.getElementById('schedDest');
+        const kind = sel.options[sel.selectedIndex]?.getAttribute('data-kind') || 'none';
+        const wrap = document.getElementById('deleteAfterWrapper');
+        if (kind === 'none') {
+            wrap.style.display = 'none';
+            document.getElementById('schedDeleteAfter').checked = false;
+        } else {
+            wrap.style.display = '';
+        }
+    }
+
+    // ============================================================
+    // Cron builder
+    // ============================================================
+    const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    function initCronControls() {
+        const min = document.getElementById('cronHourlyMinute');
+        if (!min.options.length) {
+            min.innerHTML = Array.from({length: 60}, (_, i) => `<option value="${i}">${String(i).padStart(2,'0')}</option>`).join('');
+        }
+        const dom = document.getElementById('cronMonthlyDom');
+        if (!dom.options.length) {
+            dom.innerHTML = Array.from({length: 31}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
+        }
+        const dowGroup = document.querySelector('.cron-dow-group');
+        if (!dowGroup.children.length) {
+            dowGroup.innerHTML = DOW_LABELS.map((lbl, i) => `
+                <input type="checkbox" class="btn-check cron-dow" id="cronDow${i}" value="${i}" autocomplete="off" onchange="rebuildCron()" ${i === 1 ? 'checked' : ''}>
+                <label class="btn btn-outline-primary btn-sm" for="cronDow${i}">${lbl}</label>`).join('');
+        }
+    }
+
+    function currentCronMode() {
+        return document.querySelector('input[name="cronMode"]:checked').value;
+    }
+
+    function onCronModeChange() {
+        const mode = currentCronMode();
+        document.querySelectorAll('.cron-panel').forEach(p => {
+            p.style.display = p.getAttribute('data-mode') === mode ? '' : 'none';
+        });
+        if (mode !== 'custom') rebuildCron();
+        else { document.getElementById('cronCustomInput').focus(); onCustomCronInput(); }
+    }
+
+    function hhmmToParts(v) {
+        const [h, m] = (v || '02:30').split(':').map(x => parseInt(x, 10) || 0);
+        return { h, m };
+    }
+
+    function rebuildCron() {
+        const mode = currentCronMode();
+        let expr = '';
+        if (mode === 'hourly') {
+            const m = document.getElementById('cronHourlyMinute').value;
+            expr = `${m} * * * *`;
+        } else if (mode === 'daily') {
+            const { h, m } = hhmmToParts(document.getElementById('cronDailyTime').value);
+            expr = `${m} ${h} * * *`;
+        } else if (mode === 'weekly') {
+            const { h, m } = hhmmToParts(document.getElementById('cronWeeklyTime').value);
+            const days = [...document.querySelectorAll('.cron-dow:checked')].map(c => c.value);
+            expr = `${m} ${h} * * ${days.length ? days.join(',') : '1'}`;
+        } else if (mode === 'monthly') {
+            const { h, m } = hhmmToParts(document.getElementById('cronMonthlyTime').value);
+            const d = document.getElementById('cronMonthlyDom').value;
+            expr = `${m} ${h} ${d} * *`;
+        } else {
+            expr = document.getElementById('cronCustomInput').value.trim();
+        }
+        document.getElementById('cronRawDisplay').textContent = expr || '—';
+        scheduleCronPreview(expr);
+    }
+
+    function onCustomCronInput() {
+        const expr = document.getElementById('cronCustomInput').value.trim();
+        document.getElementById('cronRawDisplay').textContent = expr || '—';
+        scheduleCronPreview(expr);
+    }
+
+    function getCronExpression() {
+        return document.getElementById('cronRawDisplay').textContent.trim();
+    }
+
+    function scheduleCronPreview(expr) {
+        if (cronPreviewTimer) clearTimeout(cronPreviewTimer);
+        cronPreviewTimer = setTimeout(() => previewCron(expr), 300);
+    }
+
+    function setSaveEnabled(ok) {
+        cronCurrentlyValid = ok;
+        document.getElementById('saveSchedBtn').disabled = !ok;
+    }
+
+    async function previewCron(expr) {
+        const badge = document.getElementById('cronValidBadge');
+        const human = document.getElementById('cronHuman');
+        const nextList = document.getElementById('cronNextList');
+        if (!expr) {
+            badge.className = 'cron-valid-badge cron-valid-bad';
+            badge.innerHTML = '<i class="bi bi-x-circle"></i> Empty';
+            human.textContent = '—';
+            nextList.innerHTML = '<li class="text-muted">—</li>';
+            setSaveEnabled(false);
+            return;
+        }
+        let res;
+        try {
+            res = await apiCall('/api/schedules/cron/preview', 'POST', { cron: expr, count: 5 });
+        } catch (e) {
+            res = { valid: false, error: 'Preview failed' };
+        }
+        // Ignore stale responses if the expression changed meanwhile.
+        if (getCronExpression() !== expr) return;
+
+        if (!res || !res.valid) {
+            badge.className = 'cron-valid-badge cron-valid-bad';
+            badge.innerHTML = `<i class="bi bi-x-circle"></i> Invalid`;
+            human.textContent = (res && res.error) || 'Invalid cron expression';
+            nextList.innerHTML = '<li class="text-muted">—</li>';
+            setSaveEnabled(false);
+            return;
+        }
+        human.textContent = res.human || '';
+        nextList.innerHTML = (res.next_runs || []).length
+            ? res.next_runs.map(t => `<li title="${esc(formatLocal(t))} (local)">${esc(formatUtc(t))}</li>`).join('')
+            : '<li class="text-muted">No upcoming runs</li>';
+        if (res.warning) {
+            badge.className = 'cron-valid-badge cron-valid-warn';
+            badge.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${esc(res.warning)}`;
+            setSaveEnabled(false); // sub-15-min is rejected on save
+        } else {
+            badge.className = 'cron-valid-badge cron-valid-ok';
+            badge.innerHTML = `<i class="bi bi-check-circle"></i> Valid${res.min_interval_minutes ? ` · every ~${res.min_interval_minutes}m min gap` : ''}`;
+            setSaveEnabled(true);
+        }
+    }
+
+    function hydrateBuilderFromCron(expr) {
+        const parts = (expr || '').trim().split(/\s+/);
+        const setMode = m => { document.getElementById('cronMode' + m).checked = true; };
+        const isNum = x => /^\d+$/.test(x);
+
+        if (parts.length === 5) {
+            const [mi, ho, dom, mon, dow] = parts;
+            // Hourly: M * * * *
+            if (isNum(mi) && ho === '*' && dom === '*' && mon === '*' && dow === '*') {
+                setMode('Hourly');
+                document.getElementById('cronHourlyMinute').value = String(parseInt(mi, 10));
+                onCronModeChange();
+                return;
+            }
+            // Daily: m h * * *
+            if (isNum(mi) && isNum(ho) && dom === '*' && mon === '*' && dow === '*') {
+                setMode('Daily');
+                document.getElementById('cronDailyTime').value = pad2(ho) + ':' + pad2(mi);
+                onCronModeChange();
+                return;
+            }
+            // Weekly: m h * * d[,d]
+            if (isNum(mi) && isNum(ho) && dom === '*' && mon === '*' && /^\d+(,\d+)*$/.test(dow)) {
+                setMode('Weekly');
+                document.getElementById('cronWeeklyTime').value = pad2(ho) + ':' + pad2(mi);
+                const days = dow.split(',');
+                document.querySelectorAll('.cron-dow').forEach(c => { c.checked = days.includes(c.value); });
+                onCronModeChange();
+                return;
+            }
+            // Monthly: m h D * *
+            if (isNum(mi) && isNum(ho) && isNum(dom) && mon === '*' && dow === '*') {
+                setMode('Monthly');
+                document.getElementById('cronMonthlyTime').value = pad2(ho) + ':' + pad2(mi);
+                document.getElementById('cronMonthlyDom').value = String(parseInt(dom, 10));
+                onCronModeChange();
+                return;
+            }
+        }
+        // Fallback: custom
+        setMode('Custom');
+        document.getElementById('cronCustomInput').value = expr || '';
+        onCronModeChange();
+    }
+
+    function pad2(x) { return String(parseInt(x, 10)).padStart(2, '0'); }
+
+    // ============================================================
+    // Modal open / edit / save
+    // ============================================================
+    function resetScheduleForm() {
+        document.getElementById('schedEditMode').value = 'new';
+        document.getElementById('schedName').value = '';
+        document.getElementById('schedName').disabled = false;
+        document.getElementById('schedEndpoint').value = '';
+        const dbSel = document.getElementById('schedDatabase');
+        dbSel.innerHTML = '<option value="">Select an endpoint first...</option>';
+        dbSel.disabled = true;
+        document.getElementById('schedDbHint').textContent = '';
+        // options defaults
+        ['optLargeObjects','optNoOwner','optNoPrivileges','optNoTablespaces','optNoComments'].forEach(id => document.getElementById(id).checked = true);
+        ['optDataOnly','optSchemaOnly','optClean','optCreate'].forEach(id => document.getElementById(id).checked = false);
+        ['optSchemas','optExcludeTable','optExcludeTableData','optExcludeSchema'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('schedDest').value = 'none';
+        document.getElementById('schedDeleteAfter').checked = false;
+        document.getElementById('schedKeepLastN').value = '0';
+        document.getElementById('schedEnabled').checked = true;
+        onDestChange();
+        // cron default: daily 02:30
+        document.getElementById('cronDailyTime').value = '02:30';
+        document.getElementById('cronModeDaily').checked = true;
+        onCronModeChange();
+    }
+
+    function openScheduleModal() {
+        document.getElementById('scheduleModalLabel').innerHTML = '<i class="bi bi-calendar-plus me-2"></i>New Schedule';
+        resetScheduleForm();
+        setSaveEnabled(false);   // stay disabled until the first cron preview confirms validity
+        new bootstrap.Modal(document.getElementById('scheduleModal')).show();
+    }
+
+    async function editSchedule(name) {
+        let cfg;
+        try {
+            cfg = await apiCall(`/api/schedules/${encodeURIComponent(name)}`);
+        } catch (e) {
+            showToast('Failed to load schedule', 'error');
+            return;
+        }
+        if (!cfg || cfg.detail) {
+            showToast((cfg && cfg.detail) || 'Schedule not found', 'error');
+            return;
+        }
+        document.getElementById('scheduleModalLabel').innerHTML = '<i class="bi bi-pencil-square me-2"></i>Edit Schedule';
+        resetScheduleForm();
+        document.getElementById('schedEditMode').value = 'edit';
+        document.getElementById('schedName').value = cfg.name;
+        document.getElementById('schedName').disabled = true; // name is the key
+        document.getElementById('schedEndpoint').value = cfg.endpoint;
+        // options
+        document.getElementById('optLargeObjects').checked = !!cfg.large_objects;
+        document.getElementById('optNoOwner').checked = !!cfg.no_owner;
+        document.getElementById('optNoPrivileges').checked = !!cfg.no_privileges;
+        document.getElementById('optNoTablespaces').checked = !!cfg.no_tablespaces;
+        document.getElementById('optNoComments').checked = !!cfg.no_comments;
+        document.getElementById('optDataOnly').checked = !!cfg.data_only;
+        document.getElementById('optSchemaOnly').checked = !!cfg.schema_only;
+        document.getElementById('optClean').checked = !!cfg.clean;
+        document.getElementById('optCreate').checked = !!cfg.create;
+        document.getElementById('optSchemas').value = (cfg.schemas || []).join(', ');
+        document.getElementById('optExcludeTable').value = cfg.exclude_table || '';
+        document.getElementById('optExcludeTableData').value = cfg.exclude_table_data || '';
+        document.getElementById('optExcludeSchema').value = cfg.exclude_schema || '';
+        // destination
+        const destVal = cfg.dest_kind === 'none' ? 'none' : `${cfg.dest_kind}:${cfg.dest_target}`;
+        const destSel = document.getElementById('schedDest');
+        if (![...destSel.options].some(o => o.value === destVal)) {
+            // target no longer exists — add a placeholder so the value round-trips
+            destSel.insertAdjacentHTML('beforeend', `<option value="${esc(destVal)}" data-kind="${esc(cfg.dest_kind)}">${esc(cfg.dest_target)} (missing)</option>`);
+        }
+        destSel.value = destVal;
+        onDestChange();
+        document.getElementById('schedDeleteAfter').checked = !!cfg.delete_local_after_copy;
+        document.getElementById('schedKeepLastN').value = cfg.keep_last_n || 0;
+        document.getElementById('schedEnabled').checked = !!cfg.enabled;
+        // cron
+        hydrateBuilderFromCron(cfg.cron);
+        // databases (may fail if offline; stored db kept selectable)
+        loadSchedDatabases(cfg.endpoint, cfg.database);
+        new bootstrap.Modal(document.getElementById('scheduleModal')).show();
+    }
+
+    async function saveSchedule() {
+        const name = document.getElementById('schedName').value.trim();
+        const endpoint = document.getElementById('schedEndpoint').value;
+        const database = document.getElementById('schedDatabase').value.trim();
+        const cron = getCronExpression();
+
+        if (!name) { showToast('Name is required', 'error'); return; }
+        if (!endpoint) { showToast('Select an endpoint', 'error'); return; }
+        if (!database) { showToast('Select a database', 'error'); return; }
+        if (!cronCurrentlyValid) { showToast('Fix the schedule expression before saving', 'error'); return; }
+
+        const destSel = document.getElementById('schedDest');
+        const destVal = destSel.value;
+        let dest_kind = 'none', dest_target = null;
+        if (destVal && destVal !== 'none') {
+            const sep = destVal.indexOf(':');
+            dest_kind = destVal.substring(0, sep);
+            dest_target = destVal.substring(sep + 1);
+        }
+
+        const schemas = document.getElementById('optSchemas').value
+            .split(',').map(s => s.trim()).filter(Boolean);
+
+        const payload = {
+            name, cron, endpoint, database,
+            enabled: document.getElementById('schedEnabled').checked,
+            large_objects: document.getElementById('optLargeObjects').checked,
+            no_owner: document.getElementById('optNoOwner').checked,
+            no_privileges: document.getElementById('optNoPrivileges').checked,
+            no_tablespaces: document.getElementById('optNoTablespaces').checked,
+            no_comments: document.getElementById('optNoComments').checked,
+            data_only: document.getElementById('optDataOnly').checked,
+            schema_only: document.getElementById('optSchemaOnly').checked,
+            clean: document.getElementById('optClean').checked,
+            create: document.getElementById('optCreate').checked,
+            schemas,
+            exclude_table: document.getElementById('optExcludeTable').value.trim() || null,
+            exclude_table_data: document.getElementById('optExcludeTableData').value.trim() || null,
+            exclude_schema: document.getElementById('optExcludeSchema').value.trim() || null,
+            dest_kind, dest_target,
+            delete_local_after_copy: document.getElementById('schedDeleteAfter').checked,
+            keep_last_n: parseInt(document.getElementById('schedKeepLastN').value, 10) || 0,
+        };
+
+        const btn = document.getElementById('saveSchedBtn');
+        btn.disabled = true;
+        try {
+            const res = await apiCall('/api/schedules', 'POST', payload);
+            if (res && res.success) {
+                showToast('Schedule saved', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
+                loadSchedules();
+            } else {
+                showToast((res && res.detail) || 'Failed to save schedule', 'error');
+            }
+        } catch (e) {
+            showToast('Failed to save schedule', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // ============================================================
+    // Live progress bars for remote transfers (reused from Files)
+    // ============================================================
+    let operationsPollTimer = null;
+    let anyScheduleRunning = false;   // set by loadSchedules from s.running/last_status
+    let pollActiveUntil = 0;          // keep polling at least until this epoch (ms)
+
+    function startOperationsPolling(graceMs = 0) {
+        if (graceMs) pollActiveUntil = Math.max(pollActiveUntil, Date.now() + graceMs);
+        if (operationsPollTimer) return;
+        pollOperations();
+        operationsPollTimer = setInterval(pollOperations, 2000);
+    }
+
+    async function pollOperations() {
+        let ops = [];
+        try {
+            const res = await apiCall('/api/storage/operations');
+            ops = (res && res.operations) || [];
+        } catch (e) { /* transient; keep polling */ }
+        renderOperations(ops);
+
+        // A run's lifecycle is pg_dump THEN (optionally) upload. pg_dump registers
+        // NO transfer op, so we must not stop on an empty snapshot: keep polling
+        // while a schedule is running or within the grace window, refreshing the
+        // list each cycle so status/next-run stay live.
+        const active = ops.length > 0 || anyScheduleRunning || Date.now() < pollActiveUntil;
+        loadSchedules();   // refreshes row state and recomputes anyScheduleRunning
+        if (active) return;
+        if (operationsPollTimer) {
+            clearInterval(operationsPollTimer);
+            operationsPollTimer = null;
+            loadRuns();    // a run just finished — refresh the history table
+        }
+    }
+
+    function renderOperations(ops) {
+        const row = document.getElementById('transferProgressRow');
+        const body = document.getElementById('transferProgressBody');
+        if (!ops.length) { row.style.display = 'none'; body.innerHTML = ''; return; }
+        row.style.display = '';
+        body.innerHTML = ops.map(op => {
+            const dir = op.direction === 'upload' ? 'Uploading' : 'Downloading';
+            const prep = op.direction === 'upload' ? 'to' : 'from';
+            const icon = op.direction === 'upload' ? 'bi-cloud-upload' : 'bi-cloud-download';
+            const known = op.percent !== null && op.percent !== undefined;
+            let barClass = 'progress-bar';
+            let width = known ? op.percent : 100;
+            let label = known ? (op.percent + '%') : '';
+            if (op.status === 'running') barClass += ' progress-bar-striped progress-bar-animated';
+            if (op.status === 'error') { barClass += ' bg-danger'; width = 100; }
+            if (op.status === 'done') { barClass += ' bg-success'; width = 100; label = '100%'; }
+            const sizeInfo = op.total ? `${formatSize(op.done)} / ${formatSize(op.total)}`
+                                      : (op.done ? formatSize(op.done) : '');
+            const right = op.status === 'error'
+                ? `<span class="text-danger small">${esc(op.error || 'failed')}</span>`
+                : `<span class="text-muted small">${label ? label + ' · ' : ''}${sizeInfo}</span>`;
+            return `
+            <div class="transfer-op mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-truncate me-2">
+                        <i class="bi ${icon} me-1"></i> ${dir} <strong>${esc(op.label)}</strong> ${prep} <code>${esc(op.kind)}:${esc(op.target)}</code>
+                    </span>
+                    ${right}
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="${barClass}" role="progressbar" style="width: ${width}%"></div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // ============================================================
+    // Init
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        initCronControls();
+        loadSchedules();
+        loadRuns();
+        loadEndpoints();
+        loadTargets();
+        startCountdownTicker();
+        startOperationsPolling(); // catch any transfer already in flight
+        setInterval(loadSchedules, 45000);  // reflect background-fired runs
+    });
+</script>
+{% endblock %}

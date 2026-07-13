@@ -10,6 +10,7 @@ import asyncio
 import logging
 import dataclasses
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Optional, List, Tuple
 from urllib.parse import urlsplit
 
@@ -19,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from . import config as cfg
 from . import db_service as db
@@ -29,6 +30,9 @@ from . import operation_logger as op_logger
 from . import aws_service as aws
 from . import remote_storage as rs
 from . import progress as progress_registry
+from . import cron
+from . import scheduler as sched_engine
+from . import schedule_state
 from .ssm_tunnel import tunnel_manager
 from .broadcaster import broadcaster
 
@@ -64,7 +68,7 @@ logger.info(f"Context path: '{_context_path}' (empty = root)")
 app = FastAPI(
     title="PostgreSQL Backup/Restore",
     description="Backup and restore PostgreSQL databases via direct or SSM tunnel connections",
-    version="3.5.0",
+    version="3.6.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -302,6 +306,42 @@ class QueryExecuteRequest(BaseModel):
     timeout_seconds: int = 30
     row_limit: int = 1000
     autocommit: bool = False
+
+
+class ScheduleModel(BaseModel):
+    # Reject unknown keys so no arbitrary option string can reach pg_dump.
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    cron: str
+    endpoint: str
+    database: str
+    enabled: bool = True
+    large_objects: bool = True
+    no_owner: bool = True
+    no_privileges: bool = True
+    no_tablespaces: bool = True
+    no_comments: bool = True
+    data_only: bool = False
+    schema_only: bool = False
+    clean: bool = False
+    create: bool = False
+    schemas: List[str] = []
+    exclude_table: Optional[str] = None
+    exclude_table_data: Optional[str] = None
+    exclude_schema: Optional[str] = None
+    dest_kind: str = "none"
+    dest_target: Optional[str] = None
+    delete_local_after_copy: bool = False
+    keep_last_n: int = 0
+
+
+class ScheduleToggleModel(BaseModel):
+    enabled: bool
+
+
+class CronPreviewModel(BaseModel):
+    cron: str
+    count: int = 5
 
 
 # =============================================================================
@@ -584,6 +624,19 @@ async def files_page(request: Request, user: dict = Depends(auth.require_operato
     settings = cfg.get_settings()
 
     return templates.TemplateResponse("files.html", {
+        "request": request,
+        "settings": settings,
+        "user": user["username"],
+        "user_role": user["role"],
+    })
+
+
+@app.get("/scheduled", response_class=HTMLResponse)
+async def scheduled_page(request: Request, user: dict = Depends(auth.require_operator)):
+    """Scheduled backups management page."""
+    settings = cfg.get_settings()
+
+    return templates.TemplateResponse("scheduled.html", {
         "request": request,
         "settings": settings,
         "user": user["username"],
@@ -1833,6 +1886,583 @@ async def api_clear_operations_history(user: dict = Depends(auth.require_admin))
 
 
 # =============================================================================
+# Scheduled Backups
+# =============================================================================
+#
+# Definitions live in config.ini under [schedule:<name>]; mutable run-state
+# lives in config/schedule_state.json. The in-process Scheduler (app/scheduler)
+# ticks every 30s and calls _execute_schedule for each due, enabled schedule.
+# All management mutations are admin; list / run-now / history / preview are
+# operator-level. Run-now additionally re-checks per-user endpoint scoping.
+
+_MAX_SCHEDULES = 50
+_MIN_INTERVAL_MINUTES = 15
+_AUTO_DISABLE_AFTER = 5
+
+
+def _schedule_to_dict(sched: cfg.ScheduleConfig) -> dict:
+    """Full schedule config as a JSON dict (schemas echoed as a list, matching
+    the ScheduleModel input shape so the edit form round-trips)."""
+    return {
+        "name": sched.name,
+        "cron": sched.cron,
+        "endpoint": sched.endpoint,
+        "database": sched.database,
+        "enabled": sched.enabled,
+        "large_objects": sched.large_objects,
+        "no_owner": sched.no_owner,
+        "no_privileges": sched.no_privileges,
+        "no_tablespaces": sched.no_tablespaces,
+        "no_comments": sched.no_comments,
+        "data_only": sched.data_only,
+        "schema_only": sched.schema_only,
+        "clean": sched.clean,
+        "create": sched.create,
+        "schemas": [s.strip() for s in sched.schemas.split(",") if s.strip()],
+        "exclude_table": sched.exclude_table,
+        "exclude_table_data": sched.exclude_table_data,
+        "exclude_schema": sched.exclude_schema,
+        "dest_kind": sched.dest_kind,
+        "dest_target": sched.dest_target,
+        "delete_local_after_copy": sched.delete_local_after_copy,
+        "keep_last_n": sched.keep_last_n,
+    }
+
+
+def _validate_and_build_schedule(model: ScheduleModel) -> cfg.ScheduleConfig:
+    """Enforce every save-time constraint (see plan section 7) and return the
+    ScheduleConfig to persist. Raises HTTPException(400) on any violation."""
+    # Name (charset + reserved-prefix guard).
+    try:
+        cfg.validate_schedule_name(model.name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Cron: parseable, and at least the minimum interval between fires.
+    expr = (model.cron or "").strip()
+    try:
+        cron.parse(expr)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid cron expression: {e}")
+    if cron.min_interval_minutes(expr) < _MIN_INTERVAL_MINUTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Schedule must not run more often than every {_MIN_INTERVAL_MINUTES} minutes",
+        )
+    # Reject expressions that can never fire (e.g. Feb 30) — otherwise next_run
+    # would scan the whole horizon on every subsequent list poll.
+    if cron.next_run(expr, datetime.now(timezone.utc)) is None:
+        raise HTTPException(status_code=400,
+                            detail="This cron expression never fires (impossible date)")
+
+    # Endpoint must resolve.
+    if not cfg.get_database_endpoint(model.endpoint):
+        raise HTTPException(status_code=400, detail=f"Endpoint '{model.endpoint}' not found")
+
+    # Database + identifiers/patterns.
+    schemas = [s.strip() for s in model.schemas if s and s.strip()]
+    try:
+        br._validate_identifier(model.database, "database")
+        for s in schemas:
+            br._validate_identifier(s, "schema")
+        for label, val in (
+            ("exclude_table", model.exclude_table),
+            ("exclude_table_data", model.exclude_table_data),
+            ("exclude_schema", model.exclude_schema),
+        ):
+            if val and val.strip():
+                br._validate_table_pattern(val.strip(), label)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # data-only / schema-only are mutually exclusive (mirrors the manual path).
+    if model.data_only and model.schema_only:
+        raise HTTPException(status_code=400, detail="data-only and schema-only are mutually exclusive")
+
+    # Destination.
+    if model.dest_kind not in ("none", "s3", "fileshare", "filebrowser"):
+        raise HTTPException(status_code=400, detail="Invalid destination kind")
+    dest_target = (model.dest_target or "").strip()
+    if model.dest_kind == "none":
+        if model.delete_local_after_copy:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete the local copy when there is no remote destination",
+            )
+        dest_target = ""
+    else:
+        if not dest_target:
+            raise HTTPException(status_code=400, detail="A destination target is required")
+        resolver = {
+            "s3": cfg.get_s3_storage_config,
+            "fileshare": cfg.get_fileshare_config,
+            "filebrowser": cfg.get_filebrowser_config,
+        }[model.dest_kind]
+        if not resolver(dest_target):
+            raise HTTPException(status_code=400, detail=f"Destination target '{dest_target}' not found")
+
+    if model.keep_last_n < 0:
+        raise HTTPException(status_code=400, detail="keep_last_n must be zero or greater")
+
+    return cfg.ScheduleConfig(
+        name=model.name,
+        cron=expr,
+        endpoint=model.endpoint,
+        database=model.database,
+        enabled=model.enabled,
+        large_objects=model.large_objects,
+        no_owner=model.no_owner,
+        no_privileges=model.no_privileges,
+        no_tablespaces=model.no_tablespaces,
+        no_comments=model.no_comments,
+        data_only=model.data_only,
+        schema_only=model.schema_only,
+        clean=model.clean,
+        create=model.create,
+        schemas=",".join(schemas),
+        exclude_table=(model.exclude_table or "").strip(),
+        exclude_table_data=(model.exclude_table_data or "").strip(),
+        exclude_schema=(model.exclude_schema or "").strip(),
+        dest_kind=model.dest_kind,
+        dest_target=dest_target,
+        delete_local_after_copy=model.delete_local_after_copy,
+        keep_last_n=model.keep_last_n,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Execution (called by the scheduler tick and by run-now)
+# ---------------------------------------------------------------------------
+
+def _record_schedule_failure(name: str, sched: cfg.ScheduleConfig, status: str, error: str) -> None:
+    """Persist a failure, bump consecutive_failures, and auto-disable at the
+    threshold. Never deletes local data."""
+    now = datetime.now(timezone.utc)
+    entry = schedule_state.load().get(name, {})
+    failures = int(entry.get("consecutive_failures", 0) or 0) + 1
+    schedule_state.mark(
+        name,
+        last_status=status,
+        last_error=error,
+        last_run=now.isoformat(),
+        consecutive_failures=failures,
+    )
+    if failures >= _AUTO_DISABLE_AFTER and sched.enabled:
+        try:
+            cfg.save_schedule(dataclasses.replace(sched, enabled=False))
+            logger.warning("Schedule '%s' auto-disabled after %d consecutive failures", name, failures)
+        except Exception as exc:
+            logger.error("Failed to auto-disable schedule '%s': %s", name, exc)
+
+
+def apply_local_retention(sched: cfg.ScheduleConfig) -> None:
+    """Keep only the newest keep_last_n local backups for this schedule's DB.
+    keep_last_n == 0 means unlimited. Deletes only files matching the DB prefix,
+    always through the traversal-guarded deleter."""
+    if sched.keep_last_n <= 0:
+        return
+    try:
+        # Anchored match on the exact generated pattern "{database}_YYYYMMDD_HHMMSS.backup"
+        # — a prefix match would delete another DB's backups (e.g. "sales" vs
+        # "sales_archive"), since DB names may contain '_'/'-'/'.'.
+        pat = re.compile(rf"^{re.escape(sched.database)}_\d{{8}}_\d{{6}}\.backup$")
+        # list_backup_files() is already sorted newest-first (modified desc).
+        matching = [f for f in br.list_backup_files() if pat.match(f["name"])]
+        for f in matching[sched.keep_last_n:]:
+            br.delete_backup(f["name"])
+    except Exception as exc:
+        logger.warning("Local retention for schedule '%s' failed: %s", sched.name, exc)
+
+
+async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=None, filename=None):
+    """Run a single backup for schedule ``name``. Reuses the manual backup
+    machinery (run_backup generator + broadcaster + _running_operations) and
+    adds the optional remote-push + verified-delete phases.
+
+    Called by the scheduler tick (trigger="schedule", no operation_id) and by
+    run-now (trigger="manual-schedule", pre-created operation_id + filename)."""
+    now = datetime.now(timezone.utc)
+    minute_key = now.strftime("%Y%m%d%H%M")
+    ol = op_logger.get_logger()
+
+    # Same-minute de-dup: only for tick-driven runs (the 30s tick sees each
+    # minute ~twice). Manual runs are intentional and always proceed.
+    if trigger == "schedule":
+        prev = schedule_state.load().get(name, {})
+        if prev.get("last_fired_minute") == minute_key:
+            return
+    schedule_state.mark(name, last_fired_minute=minute_key, last_status="running", last_error="")
+
+    # 1. Endpoint must still exist.
+    endpoint = cfg.get_database_endpoint(sched.endpoint)
+    if not endpoint:
+        if operation_id:
+            ol.complete_operation(operation_id, status="failed", error="Endpoint not found")
+        _record_schedule_failure(name, sched, "failed", "Endpoint not found")
+        return
+
+    # 2. Replica + SSM tunnel resolution (mirrors the manual path).
+    conn_endpoint = endpoint
+    from_replica = bool(endpoint.backup_use_replica and endpoint.replica_host)
+    if from_replica:
+        conn_endpoint = dataclasses.replace(endpoint, host=endpoint.replica_host)
+    try:
+        host, port = await asyncio.to_thread(get_endpoint_host_port, conn_endpoint)
+    except Exception as exc:
+        if operation_id:
+            ol.complete_operation(operation_id, status="failed", error=f"Connection failed: {exc}")
+        _record_schedule_failure(name, sched, "failed", f"Connection failed: {exc}")
+        return
+
+    # 3. Options + output file.
+    schemas = [s.strip() for s in sched.schemas.split(",") if s.strip()] or None
+    options = br.BackupOptions(
+        large_objects=sched.large_objects,
+        no_owner=sched.no_owner,
+        no_privileges=sched.no_privileges,
+        no_tablespaces=sched.no_tablespaces,
+        no_comments=sched.no_comments,
+        data_only=sched.data_only,
+        schema_only=sched.schema_only,
+        clean=sched.clean,
+        create=sched.create,
+        exclude_table=sched.exclude_table or None,
+        exclude_table_data=sched.exclude_table_data or None,
+        exclude_schema=sched.exclude_schema or None,
+        schemas=schemas,
+    )
+    if not filename:
+        filename = br.generate_backup_filename(sched.database)
+    output_file = str(br.get_backup_dir() / filename)
+
+    # 4. Operation record (pre-created by run-now, else created here).
+    if operation_id is None:
+        operation_id = ol.start_operation(
+            operation_type="backup",
+            endpoint=sched.endpoint,
+            database=sched.database,
+            metadata={
+                "trigger": trigger,
+                "schedule": name,
+                "scheduled": True,
+                "filename": filename,
+                "dest_kind": sched.dest_kind,
+                "dest_target": sched.dest_target,
+                "delete_local_after_copy": sched.delete_local_after_copy,
+            },
+        )
+    _running_operations[operation_id] = asyncio.Event()
+    schedule_state.mark(name, last_operation_id=operation_id, last_filename=filename)
+
+    # --- Phase 1: pg_dump (reuse run_backup generator + broadcaster) ---
+    broadcaster.start_operation(operation_id)
+    backup_ok = False
+    try:
+        async for progress in br.run_backup(
+            database=sched.database,
+            host=host,
+            port=port,
+            username=endpoint.username,
+            password=endpoint.password,
+            output_file=output_file,
+            options=options,
+            operation_id=operation_id,
+            cancel_event=_running_operations[operation_id],
+        ):
+            broadcaster.broadcast(operation_id, progress)
+            if progress.get("type") == "complete":
+                backup_ok = bool(progress.get("success"))
+    except Exception as exc:
+        logger.exception("Scheduled backup '%s' failed during pg_dump: %s", name, exc)
+        ol.complete_operation(operation_id, status="failed", error=str(exc))
+    finally:
+        _running_operations.pop(operation_id, None)
+        broadcaster.end_operation(operation_id)
+
+    if not backup_ok:
+        # run_backup already completed the operation as failed; ensure state too.
+        _record_schedule_failure(name, sched, "failed", "Backup failed")
+        return
+
+    # --- Phase 2: remote push (only when a destination is configured) ---
+    if sched.dest_kind == "none":
+        ol.complete_operation(operation_id, status="completed")
+        schedule_state.mark(name, last_status="success", last_run=now.isoformat(),
+                            last_error="", consecutive_failures=0)
+        apply_local_retention(sched)
+        return
+
+    try:
+        local_size = os.path.getsize(output_file)
+    except OSError:
+        local_size = -1
+    upload_fn = {
+        "s3": rs.s3_upload_backup,
+        "fileshare": rs.webdav_upload_backup,
+        "filebrowser": rs.filebrowser_upload_backup,
+    }[sched.dest_kind]
+    # _run_with_progress re-raises on exception, so wrap it: a background task
+    # must never raise.
+    try:
+        result = await asyncio.to_thread(
+            _run_with_progress, "upload", sched.dest_kind, sched.dest_target, filename,
+            lambda cb: upload_fn(sched.dest_target, filename, progress_cb=cb),
+        )
+    except Exception as exc:
+        result = {"success": False, "error": str(exc)}
+
+    if not result.get("success"):
+        # Backup is safe locally; complete the op as completed with a note and
+        # NEVER delete the local file.
+        err = f"remote push failed: {result.get('error')}"
+        ol.complete_operation(operation_id, status="completed", error=err)
+        ol.log_message(operation_id, f"Remote push failed; local copy kept: {result.get('error')}")
+        _record_schedule_failure(name, sched, "copy_failed", err)
+        return
+
+    # --- Phase 3: verified delete-local (opt-in) ---
+    verified = result.get("success") is True and result.get("size") == local_size
+    if sched.delete_local_after_copy and verified:
+        del_res = br.delete_backup(filename)
+        ol.log_message(
+            operation_id,
+            "Local copy deleted after verified upload" if del_res.get("success")
+            else f"Local delete note (harmless): {del_res.get('error')}",
+        )
+    elif sched.delete_local_after_copy and not verified:
+        ol.log_message(operation_id, "Upload unverified (size mismatch); keeping local copy")
+
+    ol.complete_operation(operation_id, status="completed")
+    schedule_state.mark(name, last_status="success", last_run=now.isoformat(),
+                        last_error="", consecutive_failures=0)
+    apply_local_retention(sched)
+
+
+def _reconcile_schedule_state() -> None:
+    """On boot, flip any schedule state entry stuck at 'running' (pod died
+    mid-run) to 'failed' — mirrors the stale-operation cleanup."""
+    try:
+        state = schedule_state.load()
+        for name, entry in state.items():
+            if isinstance(entry, dict) and entry.get("last_status") == "running":
+                schedule_state.mark(
+                    name,
+                    last_status="failed",
+                    last_error="Server restarted while a scheduled run was in progress",
+                )
+    except Exception as exc:
+        logger.warning("Could not reconcile schedule state: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# Schedule API
+# ---------------------------------------------------------------------------
+# NOTE: the static sub-paths (/runs, /cron/preview) are declared before the
+# /{name} routes so they aren't captured as a schedule name.
+
+@app.get("/api/schedules")
+async def api_list_schedules(user: dict = Depends(auth.require_operator)):
+    """List all schedules with computed next_run (UTC) and merged run-state."""
+    schedules = cfg.get_schedules()
+    state = schedule_state.load()
+    now = datetime.now(timezone.utc)
+    result = []
+    for name, sched in schedules.items():
+        # Respect per-user endpoint scoping (F-01): hide schedules whose endpoint
+        # the caller may not access.
+        if not user_can_access_endpoint(user, sched.endpoint):
+            continue
+        st = state.get(name, {}) if isinstance(state.get(name), dict) else {}
+        next_run = None
+        cron_human = ""
+        try:
+            # next_run can scan many minutes for sparse crons — off the event loop.
+            nxt = await asyncio.to_thread(cron.next_run, sched.cron, now)
+            if nxt is not None:
+                next_run = nxt.isoformat()
+            cron_human = cron.describe(sched.cron)
+        except ValueError:
+            cron_human = "Invalid schedule"
+        result.append({
+            "name": name,
+            "cron": sched.cron,
+            "cron_human": cron_human,
+            "endpoint": sched.endpoint,
+            "database": sched.database,
+            "enabled": sched.enabled,
+            "dest_kind": sched.dest_kind,
+            "dest_target": sched.dest_target,
+            "delete_local_after_copy": sched.delete_local_after_copy,
+            "keep_last_n": sched.keep_last_n,
+            "next_run": next_run,
+            "last_run": st.get("last_run"),
+            "last_status": st.get("last_status"),
+            "last_error": st.get("last_error"),
+            "last_filename": st.get("last_filename"),
+            "last_operation_id": st.get("last_operation_id"),
+            "consecutive_failures": int(st.get("consecutive_failures", 0) or 0),
+            "running": sched_engine.is_running(name),
+        })
+    return {"success": True, "schedules": result}
+
+
+@app.get("/api/schedules/runs")
+async def api_schedule_runs(limit: int = 50, user: dict = Depends(auth.require_operator)):
+    """All scheduled / run-now backup runs, for the Recent-runs table."""
+    limit = max(1, min(limit, 500))
+    history = op_logger.get_logger().get_operation_history(limit=500)
+    runs = [
+        op for op in history
+        if (op.get("metadata") or {}).get("trigger") in ("schedule", "manual-schedule")
+    ][:limit]
+    return {"success": True, "runs": runs}
+
+
+@app.post("/api/schedules/cron/preview")
+async def api_cron_preview(payload: CronPreviewModel, user: dict = Depends(auth.require_operator)):
+    """Validate a cron expression and preview the next fire times. No persistence."""
+    expr = (payload.cron or "").strip()
+    try:
+        cron.parse(expr)
+    except ValueError as e:
+        return {"valid": False, "error": str(e), "human": "", "next_runs": [],
+                "min_interval_minutes": 0, "warning": ""}
+    count = max(1, min(payload.count, 20))
+    now = datetime.now(timezone.utc)
+    # Cron scans can be heavy for sparse expressions — run off the event loop.
+    runs = await asyncio.to_thread(cron.next_runs, expr, now, count)
+    next_runs = [dt.isoformat() for dt in runs]
+    interval = await asyncio.to_thread(cron.min_interval_minutes, expr)
+    warning = ""
+    if not next_runs:
+        warning = "This expression never fires (impossible date); it will be rejected on save"
+    elif interval < _MIN_INTERVAL_MINUTES:
+        warning = (f"Runs more often than every {_MIN_INTERVAL_MINUTES} minutes; "
+                   f"this will be rejected on save")
+    return {
+        "valid": True,
+        "error": "",
+        "human": cron.describe(expr),
+        "next_runs": next_runs,
+        "min_interval_minutes": interval,
+        "warning": warning,
+    }
+
+
+@app.post("/api/schedules")
+async def api_save_schedule(schedule: ScheduleModel, request: Request,
+                            user: dict = Depends(auth.require_admin)):
+    """Create or update a schedule (the name is the key). Full validation."""
+    existing = cfg.get_schedules()
+    if schedule.name not in existing and len(existing) >= _MAX_SCHEDULES:
+        raise HTTPException(status_code=400,
+                            detail=f"Maximum number of schedules ({_MAX_SCHEDULES}) reached")
+    # Validation includes cron next_run/min_interval scans; run off the event loop.
+    sched_cfg = await asyncio.to_thread(_validate_and_build_schedule, schedule)
+    cfg.save_schedule(sched_cfg)
+    # A successful re-save (edit) clears the auto-disable failure streak.
+    schedule_state.mark(schedule.name, consecutive_failures=0)
+    ip = request.client.host if request.client else "unknown"
+    auth.audit_log("schedule_saved", user["username"], ip,
+                   f"name={schedule.name}, cron={sched_cfg.cron}, endpoint={schedule.endpoint}, "
+                   f"database={schedule.database}, enabled={schedule.enabled}")
+    return {"success": True, "name": schedule.name}
+
+
+@app.get("/api/schedules/{name}")
+async def api_get_schedule(name: str, user: dict = Depends(auth.require_admin)):
+    """Full config for one schedule (admin only — echoes the whole definition)."""
+    sched = cfg.get_schedule(name)
+    if not sched:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return _schedule_to_dict(sched)
+
+
+@app.delete("/api/schedules/{name}")
+async def api_delete_schedule(name: str, request: Request,
+                              user: dict = Depends(auth.require_admin)):
+    """Delete a schedule and its run-state."""
+    if not cfg.get_schedule(name):
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    cfg.delete_schedule(name)
+    schedule_state.drop(name)
+    ip = request.client.host if request.client else "unknown"
+    auth.audit_log("schedule_deleted", user["username"], ip, f"name={name}")
+    return {"success": True}
+
+
+@app.patch("/api/schedules/{name}/enabled")
+async def api_toggle_schedule(name: str, toggle: ScheduleToggleModel, request: Request,
+                              user: dict = Depends(auth.require_admin)):
+    """Enable/disable a schedule. Re-enabling clears the failure streak."""
+    sched = cfg.get_schedule(name)
+    if not sched:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    cfg.save_schedule(dataclasses.replace(sched, enabled=toggle.enabled))
+    if toggle.enabled:
+        schedule_state.mark(name, consecutive_failures=0)
+    ip = request.client.host if request.client else "unknown"
+    auth.audit_log("schedule_enabled", user["username"], ip,
+                   f"name={name}, enabled={toggle.enabled}")
+    return {"success": True, "enabled": toggle.enabled}
+
+
+@app.post("/api/schedules/{name}/run")
+async def api_run_schedule_now(name: str, request: Request,
+                               user: dict = Depends(auth.require_operator)):
+    """Run a schedule immediately (operator, re-checked against endpoint scope)."""
+    sched = cfg.get_schedule(name)
+    if not sched:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    require_endpoint_access(user, sched.endpoint)
+
+    # Reserve atomically THROUGH the scheduler: this is what makes the 409 real
+    # and keeps run-now inside the global single-backup concurrency guard, so a
+    # double-click can't launch two concurrent pg_dumps into the same file.
+    scheduler = sched_engine.get_scheduler()
+    if not scheduler.reserve(name):
+        raise HTTPException(status_code=409, detail="This schedule is already running")
+    try:
+        filename = br.generate_backup_filename(sched.database)
+        operation_id = op_logger.get_logger().start_operation(
+            operation_type="backup",
+            endpoint=sched.endpoint,
+            database=sched.database,
+            metadata={
+                "trigger": "manual-schedule",
+                "schedule": name,
+                "scheduled": True,
+                "filename": filename,
+                "dest_kind": sched.dest_kind,
+                "dest_target": sched.dest_target,
+                "delete_local_after_copy": sched.delete_local_after_copy,
+            },
+        )
+    except Exception:
+        scheduler.release(name)
+        raise
+    # run_reserved holds the global semaphore for the run and releases the
+    # reservation when done.
+    asyncio.create_task(scheduler.run_reserved(
+        name, sched, trigger="manual-schedule", operation_id=operation_id, filename=filename))
+    ip = request.client.host if request.client else "unknown"
+    auth.audit_log("schedule_run_now", user["username"], ip, f"name={name}")
+    return {"success": True, "operation_id": operation_id}
+
+
+@app.get("/api/schedules/{name}/history")
+async def api_schedule_history(name: str, user: dict = Depends(auth.require_operator)):
+    """Recent runs for one schedule (filtered from the operation history)."""
+    sched = cfg.get_schedule(name)
+    if not sched:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    require_endpoint_access(user, sched.endpoint)
+    history = op_logger.get_logger().get_operation_history(limit=100)
+    runs = [op for op in history if (op.get("metadata") or {}).get("schedule") == name]
+    return {"success": True, "runs": runs}
+
+
+# =============================================================================
 # User Management API (admin only)
 # =============================================================================
 
@@ -2747,8 +3377,23 @@ def startup_event():
     except Exception as e:
         logger.warning(f"Could not clean up stale operations: {e}")
 
+    # Start the backup scheduler. init_scheduler always runs (so run-now works);
+    # the ticking loop is skipped when MAGIKUP_DISABLE_SCHEDULER is set (tests),
+    # to avoid a background tick firing real backups during the suite.
+    try:
+        _reconcile_schedule_state()
+        sched_engine.init_scheduler(run_one=_execute_schedule)
+        if not os.environ.get("MAGIKUP_DISABLE_SCHEDULER"):
+            sched_engine.get_scheduler().start()
+    except Exception as e:
+        logger.error(f"Failed to start backup scheduler: {e}")
+
 
 @app.on_event("shutdown")
-def shutdown_event():
+async def shutdown_event():
     """Cleanup on shutdown."""
     tunnel_manager.stop_all_tunnels()
+    try:
+        await sched_engine.get_scheduler().stop()
+    except Exception as e:
+        logger.warning(f"Error stopping backup scheduler: {e}")

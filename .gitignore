@@ -20,6 +20,7 @@ config/users.json
 config/.encryption_key
 config/.session_key
 config/audit.log
+config/schedule_state.json
 
 # Kubernetes secrets (generated)
 kubernetes/secret.yaml

@@ -5,6 +5,7 @@ Includes password encryption for secure storage.
 """
 
 import os
+import re
 import glob
 import logging
 from pathlib import Path
@@ -73,6 +74,37 @@ class S3StorageConfig:
     aws_account_alias: str = ""     # used when cred_mode == "aws_account"
     access_key_id: str = ""         # used when cred_mode == "dedicated"
     secret_access_key: str = ""     # used when cred_mode == "dedicated" (encrypted at rest)
+
+
+@dataclass
+class ScheduleConfig:
+    """A scheduled (unattended) backup definition. Stored under
+    [schedule:<name>]; references an endpoint and an optional remote target by
+    name only — no secrets are ever copied in."""
+    name: str
+    cron: str
+    endpoint: str
+    database: str
+    enabled: bool = True
+    # --- backup options (subset of BackupOptions) ---
+    large_objects: bool = True
+    no_owner: bool = True
+    no_privileges: bool = True
+    no_tablespaces: bool = True
+    no_comments: bool = True
+    data_only: bool = False
+    schema_only: bool = False
+    clean: bool = False
+    create: bool = False
+    schemas: str = ""               # CSV; "" = all
+    exclude_table: str = ""
+    exclude_table_data: str = ""
+    exclude_schema: str = ""
+    # --- destination ---
+    dest_kind: str = "none"         # none|s3|fileshare|filebrowser
+    dest_target: str = ""           # referenced storage-config name; empty when dest_kind=none
+    delete_local_after_copy: bool = False
+    keep_last_n: int = 0            # local retention for this DB; 0 = unlimited
 
 
 @dataclass
@@ -292,6 +324,32 @@ region = us-east-1
 #   username =                             ; empty for a no-auth instance
 #   password =                ; stored encrypted as ENC:...
 #   verify_ssl = true
+#
+# Scheduled (unattended) backups. One [schedule:<name>] per job. The name must
+# be 2-50 chars of [a-zA-Z0-9_-] and references an endpoint + optional remote
+# target by name only (no secrets stored here):
+#   [schedule:nightly-prod]
+#   cron = 30 2 * * *         ; standard 5-field cron, evaluated in UTC
+#   endpoint = prod-aurora    ; must reference an [endpoints] entry
+#   database = appdb
+#   enabled = true
+#   large_objects = true      ; --- backup options (subset of BackupOptions) ---
+#   no_owner = true
+#   no_privileges = true
+#   no_tablespaces = true
+#   no_comments = true
+#   data_only = false
+#   schema_only = false
+#   clean = false
+#   create = false
+#   schemas =                 ; CSV; empty = all schemas
+#   exclude_table =
+#   exclude_table_data =
+#   exclude_schema =
+#   dest_kind = none          ; none|s3|fileshare|filebrowser (none = local-only)
+#   dest_target =             ; referenced storage-config name; empty when dest_kind=none
+#   delete_local_after_copy = false  ; honored only when dest_kind != none
+#   keep_last_n = 0           ; local retention for this DB; 0 = unlimited
 """
 
 
@@ -672,6 +730,129 @@ def delete_filebrowser_config(name: str) -> None:
 
 
 # =============================================================================
+# Scheduled Backups
+# =============================================================================
+
+# Section names / prefixes a schedule name may not collide with. A schedule
+# name is used verbatim as the [schedule:<name>] section key, so it must not be
+# able to masquerade as (or inject) any other config section.
+_RESERVED_PREFIXES = (
+    "settings", "auth", "query", "aws:", "s3:", "fileshare:",
+    "filebrowser:", "jumphosts", "endpoints", "schedule:",
+)
+
+_SCHEDULE_NAME_RE = re.compile(r'^[a-zA-Z0-9_-]{2,50}$')
+
+
+def validate_schedule_name(name: str) -> None:
+    """Validate a schedule name. Raises ValueError if it fails the charset
+    (^[a-zA-Z0-9_-]{2,50}$) or collides with a reserved section/prefix.
+
+    Unlike the S3/fileshare save functions (which don't validate), schedule
+    names are validated because the name is the section key and an unattended
+    job binds to it."""
+    if not name or not isinstance(name, str):
+        raise ValueError("Schedule name cannot be empty")
+    if not _SCHEDULE_NAME_RE.match(name):
+        raise ValueError(
+            "Schedule name must be 2-50 characters using only letters, "
+            "digits, hyphen and underscore"
+        )
+    lowered = name.lower()
+    for reserved in _RESERVED_PREFIXES:
+        if reserved.endswith(':'):
+            if lowered.startswith(reserved):
+                raise ValueError(f"Schedule name may not start with reserved prefix '{reserved}'")
+        elif lowered == reserved:
+            raise ValueError(f"Schedule name may not be the reserved section name '{reserved}'")
+
+
+def get_schedules() -> Dict[str, ScheduleConfig]:
+    """Get all scheduled backup definitions from [schedule:<name>] sections."""
+    config = read_config()
+    schedules: Dict[str, ScheduleConfig] = {}
+    for section in config.sections():
+        if section.startswith('schedule:'):
+            name = section[len('schedule:'):]
+            schedules[name] = ScheduleConfig(
+                name=name,
+                cron=config.get(section, 'cron', fallback=''),
+                endpoint=config.get(section, 'endpoint', fallback=''),
+                database=config.get(section, 'database', fallback=''),
+                enabled=config.getboolean(section, 'enabled', fallback=True),
+                large_objects=config.getboolean(section, 'large_objects', fallback=True),
+                no_owner=config.getboolean(section, 'no_owner', fallback=True),
+                no_privileges=config.getboolean(section, 'no_privileges', fallback=True),
+                no_tablespaces=config.getboolean(section, 'no_tablespaces', fallback=True),
+                no_comments=config.getboolean(section, 'no_comments', fallback=True),
+                data_only=config.getboolean(section, 'data_only', fallback=False),
+                schema_only=config.getboolean(section, 'schema_only', fallback=False),
+                clean=config.getboolean(section, 'clean', fallback=False),
+                create=config.getboolean(section, 'create', fallback=False),
+                schemas=config.get(section, 'schemas', fallback=''),
+                exclude_table=config.get(section, 'exclude_table', fallback=''),
+                exclude_table_data=config.get(section, 'exclude_table_data', fallback=''),
+                exclude_schema=config.get(section, 'exclude_schema', fallback=''),
+                dest_kind=config.get(section, 'dest_kind', fallback='none'),
+                dest_target=config.get(section, 'dest_target', fallback=''),
+                delete_local_after_copy=config.getboolean(section, 'delete_local_after_copy', fallback=False),
+                keep_last_n=config.getint(section, 'keep_last_n', fallback=0),
+            )
+    return schedules
+
+
+def get_schedule(name: str) -> Optional[ScheduleConfig]:
+    """Get a specific scheduled backup definition by name."""
+    return get_schedules().get(name)
+
+
+def save_schedule(sched: ScheduleConfig) -> None:
+    """Save a scheduled backup definition under [schedule:<name>].
+
+    The name is validated (validate_schedule_name); no secrets are stored — a
+    schedule references an endpoint and remote target by name only."""
+    validate_schedule_name(sched.name)
+    config = read_config()
+    section = f'schedule:{sched.name}'
+    if section not in config:
+        config.add_section(section)
+    config.set(section, 'cron', sched.cron)
+    config.set(section, 'endpoint', sched.endpoint)
+    config.set(section, 'database', sched.database)
+    config.set(section, 'enabled', str(sched.enabled).lower())
+    config.set(section, 'large_objects', str(sched.large_objects).lower())
+    config.set(section, 'no_owner', str(sched.no_owner).lower())
+    config.set(section, 'no_privileges', str(sched.no_privileges).lower())
+    config.set(section, 'no_tablespaces', str(sched.no_tablespaces).lower())
+    config.set(section, 'no_comments', str(sched.no_comments).lower())
+    config.set(section, 'data_only', str(sched.data_only).lower())
+    config.set(section, 'schema_only', str(sched.schema_only).lower())
+    config.set(section, 'clean', str(sched.clean).lower())
+    config.set(section, 'create', str(sched.create).lower())
+    config.set(section, 'schemas', sched.schemas)
+    config.set(section, 'exclude_table', sched.exclude_table)
+    config.set(section, 'exclude_table_data', sched.exclude_table_data)
+    config.set(section, 'exclude_schema', sched.exclude_schema)
+    config.set(section, 'dest_kind', sched.dest_kind)
+    config.set(section, 'dest_target', sched.dest_target)
+    config.set(section, 'delete_local_after_copy', str(sched.delete_local_after_copy).lower())
+    config.set(section, 'keep_last_n', str(sched.keep_last_n))
+    write_config(config)
+    logger.info(f"Saved schedule '{sched.name}' (cron: {sched.cron}, endpoint: {sched.endpoint}, "
+                f"database: {sched.database}, enabled: {sched.enabled})")
+
+
+def delete_schedule(name: str) -> None:
+    """Delete a scheduled backup definition."""
+    config = read_config()
+    section = f'schedule:{name}'
+    if config.has_section(section):
+        config.remove_section(section)
+        write_config(config)
+        logger.info(f"Deleted schedule '{name}'")
+
+
+# =============================================================================
 # Jump Hosts
 # =============================================================================
 
@@ -905,6 +1086,57 @@ def migrate_legacy_aws_config() -> bool:
     return True
 
 
+def _sanitize_imported_schedules() -> int:
+    """Force enabled=false on any imported [schedule:*] that is unsafe to run
+    unattended: an invalid name, an endpoint that doesn't resolve, or a
+    dest_target that doesn't resolve for its dest_kind. Returns the count
+    disabled. Operates on the currently written config file."""
+    config = read_config()
+    endpoints = get_database_configs()
+    s3 = get_s3_storage_configs()
+    fileshares = get_fileshare_configs()
+    filebrowsers = get_filebrowser_configs()
+
+    disabled = 0
+    for section in config.sections():
+        if not section.startswith('schedule:'):
+            continue
+        # Already-disabled schedules need no further handling.
+        if not config.getboolean(section, 'enabled', fallback=True):
+            continue
+
+        name = section[len('schedule:'):]
+        invalid = False
+        try:
+            validate_schedule_name(name)
+        except ValueError:
+            invalid = True
+
+        if not invalid:
+            endpoint = config.get(section, 'endpoint', fallback='')
+            if endpoint not in endpoints:
+                invalid = True
+
+        if not invalid:
+            dest_kind = config.get(section, 'dest_kind', fallback='none')
+            dest_target = config.get(section, 'dest_target', fallback='')
+            if dest_kind == 's3' and dest_target not in s3:
+                invalid = True
+            elif dest_kind == 'fileshare' and dest_target not in fileshares:
+                invalid = True
+            elif dest_kind == 'filebrowser' and dest_target not in filebrowsers:
+                invalid = True
+
+        if invalid:
+            config.set(section, 'enabled', 'false')
+            disabled += 1
+            logger.warning(f"Imported schedule '{name}' disabled (invalid name or unresolved reference)")
+
+    if disabled:
+        write_config(config)
+    return disabled
+
+
 def import_config_content(content: str) -> Dict:
     """
     Import a config file content. Validates structure before saving.
@@ -943,6 +1175,13 @@ def import_config_content(content: str) -> Dict:
     # Trigger migration if imported config has legacy [aws] section
     global _migration_done
     _migration_done = False  # Reset so migration can run on new config
+
+    # Guard imported schedules: any [schedule:*] with an invalid name or an
+    # unresolved endpoint/dest_target is imported disabled rather than executed.
+    try:
+        _sanitize_imported_schedules()
+    except Exception as e:
+        logger.warning(f"Failed to sanitize imported schedules: {e}")
 
     # Count what was imported
     endpoint_count = len(dict(test_config['endpoints'])) if 'endpoints' in test_config else 0
