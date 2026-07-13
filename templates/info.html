@@ -196,16 +196,20 @@
             <div class="card-body py-2">
                 <div class="mb-2">
                     <div class="d-flex align-items-center mb-1">
-                        <span class="badge bg-primary me-2">3.5.0</span>
+                        <span class="badge bg-primary me-2">3.6.0</span>
                         <span class="fw-semibold small">Current</span>
                     </div>
                     <ul class="list-unstyled ms-3 mb-0 small text-body-secondary">
-                        <li><i class="bi bi-check2 text-success me-1"></i>Remote backup storage: push/pull to S3 (and S3-compatible) buckets, WebDAV/HTTP file shares, and filebrowser instances</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>New "Remote Storage" settings tab (multiple buckets, file shares and filebrowser instances; secrets encrypted at rest)</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>Live progress bars for remote push/pull (one per in-flight operation)</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Scheduled backups: dedicated Schedules page with a graphical cron builder (plain-language preview + next runs)</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>In-process scheduler (UTC), zero new dependencies; run-now, enable/disable, next-run countdown, run history</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Per-schedule destination (local / S3 / WebDAV / filebrowser) with optional delete-local-after-verified-copy and local retention</li>
                     </ul>
                 </div>
                 <hr class="my-2">
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">3.5.0</span>
+                    <span class="small text-body-secondary">Remote backup storage (S3 / WebDAV / filebrowser) with live progress bars</span>
+                </div>
                 <div class="mb-2">
                     <span class="badge bg-secondary me-2">3.4.0</span>
                     <span class="small text-body-secondary">Backup lock-wait timeout + backup from a read replica (Aurora reader endpoint)</span>

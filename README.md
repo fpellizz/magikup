@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:3.5.0 .
-docker push ghcr.io/fpellizz/magikup:3.5.0
+docker build -t ghcr.io/fpellizz/magikup:3.6.0 .
+docker push ghcr.io/fpellizz/magikup:3.6.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,15 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 3.6.0
+
+- **Scheduled backups** — automate recurring backups from a dedicated **Schedules** page.
+  - **Graphical cron builder** — Hourly / Daily / Weekly / Monthly presets with a plain-language preview ("Every day at 02:30") and the next fire times, plus a raw-cron field for power users. Zero new dependencies: a small in-house 5-field cron parser (`app/cron.py`).
+  - **In-process scheduler** — a single asyncio tick (30s) evaluates enabled schedules in UTC; single-replica so no leader election, no back-fill of runs missed while the pod was down, one heavy `pg_dump` at a time.
+  - **Destinations** — a scheduled backup stays in the local backup directory by default, or is pushed to a configured **S3 / WebDAV / filebrowser** target, with an optional **delete-local-after-verified-copy** (never deleted unless the upload succeeded and the size matches). Optional local retention (`keep last N`).
+  - **Management** — enable/disable toggle, **Run now**, live next-run countdown, status (incl. "upload failed — saved locally"), recent-runs history; reuses the live transfer-progress bars. Definitions in `[schedule:<name>]`; run-state in a separate `schedule_state.json` (kept out of the exportable config).
+  - **Security** — schedule CRUD is admin-only, run-now is operator (re-checked against per-user endpoint scoping); cron + name validation, a 15-minute minimum interval, impossible-cron rejection, a 50-schedule cap, auto-disable after 5 consecutive failures, and audit logging.
 
 ### 3.5.0
 

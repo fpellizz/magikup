@@ -66,6 +66,11 @@
                             <i class="bi bi-folder2-open"></i> Files
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/scheduled' %}active{% endif %}" href="{{ base_path }}/scheduled">
+                            <i class="bi bi-calendar-check"></i> Schedules
+                        </a>
+                    </li>
                     {% if user_role == 'admin' %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.url.path == '/admin' %}active{% endif %}" href="{{ base_path }}/admin">

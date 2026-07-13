@@ -13,6 +13,10 @@ from pathlib import Path
 
 import pytest
 
+# Don't run the scheduler's background tick during tests (init still happens, so
+# run-now works) — otherwise a tick could fire a real backup mid-suite.
+os.environ["MAGIKUP_DISABLE_SCHEDULER"] = "1"
+
 # --- redirect config to a temp workspace BEFORE anything imports app.main ---
 import app.config as cfg
 
@@ -63,6 +67,29 @@ def client():
     main.app.dependency_overrides[auth.require_auth] = lambda: fake
     main.app.dependency_overrides[auth.require_operator] = lambda: fake
     main.app.dependency_overrides[auth.require_admin] = lambda: fake
+    with TestClient(main.app) as c:
+        yield c
+    main.app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def operator_client():
+    """TestClient authenticated as an operator: require_operator passes, but
+    require_admin is denied (403). Used to assert admin-only routes are gated
+    off from operators while operator routes (list / run-now) still work."""
+    import app.main as main
+    from app import auth
+    from fastapi import HTTPException
+    from fastapi.testclient import TestClient
+
+    op = {"username": "op", "role": "operator", "endpoints": ["*"]}
+
+    def _deny_admin():
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    main.app.dependency_overrides[auth.require_auth] = lambda: op
+    main.app.dependency_overrides[auth.require_operator] = lambda: op
+    main.app.dependency_overrides[auth.require_admin] = _deny_admin
     with TestClient(main.app) as c:
         yield c
     main.app.dependency_overrides.clear()
