@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:3.6.0 .
-docker push ghcr.io/fpellizz/magikup:3.6.0
+docker build -t ghcr.io/fpellizz/magikup:3.6.1 .
+docker push ghcr.io/fpellizz/magikup:3.6.1
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,11 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 3.6.1
+
+- **Durable encryption key** — the Fernet key is now persisted on the config volume (`config/.encryption_key`) and preferred over the `ENCRYPTION_KEY` env/Secret, which is used only to *seed* the file on first run. The key now shares fate with the encrypted passwords stored next to it, so a redeploy — or a lost/regenerated Kubernetes Secret — no longer silently makes every stored password undecryptable. If the env key diverges from the persisted one, the persisted key wins (a warning is logged; rotating is a deliberate replace-file + re-encrypt).
+- **Schedule UI** — removed the redundant "Enabled" toggle from the create/edit dialog (enable/disable is managed from the list); the list column is now labelled **Enabled**.
 
 ### 3.6.0
 
