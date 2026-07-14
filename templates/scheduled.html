@@ -82,7 +82,7 @@
                     <table class="table table-hover align-middle mb-0" id="schedulesTableContainer">
                         <thead>
                             <tr>
-                                <th style="width: 64px;">On</th>
+                                <th style="width: 90px;">Enabled</th>
                                 <th>Name</th>
                                 <th style="width: 150px;">Endpoint</th>
                                 <th>Schedule</th>
@@ -336,13 +336,7 @@
                         <div class="col-md-6">
                             <label class="form-label small" for="schedKeepLastN">Local retention (keep newest N for this DB)</label>
                             <input type="number" class="form-control" id="schedKeepLastN" min="0" value="0">
-                            <div class="form-text">0 = keep all local backups.</div>
-                        </div>
-                        <div class="col-md-6 d-flex align-items-end">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="schedEnabled" checked>
-                                <label class="form-check-label" for="schedEnabled">Enabled</label>
-                            </div>
+                            <div class="form-text">0 = keep all local backups. Enable/disable a schedule from the list.</div>
                         </div>
                     </div>
                 </div>
@@ -532,6 +526,7 @@
     let storageTargets = { s3: [], fileshare: [], filebrowser: [] };
     let cronPreviewTimer = null;
     let cronCurrentlyValid = false;
+    let editingEnabled = true;   // enable/disable is managed from the list, not the modal
     let countdownTimer = null;
     let dbLoadedForEndpoint = null;
 
@@ -1120,7 +1115,7 @@
         document.getElementById('schedDest').value = 'none';
         document.getElementById('schedDeleteAfter').checked = false;
         document.getElementById('schedKeepLastN').value = '0';
-        document.getElementById('schedEnabled').checked = true;
+        editingEnabled = true;   // new schedules are enabled by default
         onDestChange();
         // cron default: daily 02:30
         document.getElementById('cronDailyTime').value = '02:30';
@@ -1178,7 +1173,7 @@
         onDestChange();
         document.getElementById('schedDeleteAfter').checked = !!cfg.delete_local_after_copy;
         document.getElementById('schedKeepLastN').value = cfg.keep_last_n || 0;
-        document.getElementById('schedEnabled').checked = !!cfg.enabled;
+        editingEnabled = !!cfg.enabled;   // preserve current state; toggled from the list
         // cron
         hydrateBuilderFromCron(cfg.cron);
         // databases (may fail if offline; stored db kept selectable)
@@ -1211,7 +1206,7 @@
 
         const payload = {
             name, cron, endpoint, database,
-            enabled: document.getElementById('schedEnabled').checked,
+            enabled: editingEnabled,
             large_objects: document.getElementById('optLargeObjects').checked,
             no_owner: document.getElementById('optNoOwner').checked,
             no_privileges: document.getElementById('optNoPrivileges').checked,

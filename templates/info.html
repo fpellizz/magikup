@@ -196,16 +196,19 @@
             <div class="card-body py-2">
                 <div class="mb-2">
                     <div class="d-flex align-items-center mb-1">
-                        <span class="badge bg-primary me-2">3.6.0</span>
+                        <span class="badge bg-primary me-2">3.6.1</span>
                         <span class="fw-semibold small">Current</span>
                     </div>
                     <ul class="list-unstyled ms-3 mb-0 small text-body-secondary">
-                        <li><i class="bi bi-check2 text-success me-1"></i>Scheduled backups: dedicated Schedules page with a graphical cron builder (plain-language preview + next runs)</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>In-process scheduler (UTC), zero new dependencies; run-now, enable/disable, next-run countdown, run history</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>Per-schedule destination (local / S3 / WebDAV / filebrowser) with optional delete-local-after-verified-copy and local retention</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Durable encryption key: persisted on the config volume so a redeploy / lost Secret no longer breaks stored passwords</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Schedule dialog cleanup (enable/disable managed from the list)</li>
                     </ul>
                 </div>
                 <hr class="my-2">
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">3.6.0</span>
+                    <span class="small text-body-secondary">Scheduled backups: cron builder, in-process scheduler, remote destinations with delete-after-verified-copy</span>
+                </div>
                 <div class="mb-2">
                     <span class="badge bg-secondary me-2">3.5.0</span>
                     <span class="small text-body-secondary">Remote backup storage (S3 / WebDAV / filebrowser) with live progress bars</span>

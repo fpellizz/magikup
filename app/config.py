@@ -157,41 +157,61 @@ def _get_or_create_encryption_key() -> bytes:
     """
     Get or create the Fernet encryption key.
 
-    Priority:
-    1. ENCRYPTION_KEY environment variable (Fernet key format)
-    2. .encryption_key file in config directory
-    3. Generate new key and save to file
+    The key is made DURABLE by persisting it to ``ENCRYPTION_KEY_FILE`` on the
+    config volume — the same persistent storage that holds the encrypted
+    passwords — so the key and the ciphertext it protects always share fate. A
+    redeploy (or even a lost/rotated Kubernetes Secret) can no longer silently
+    break every stored password.
+
+    Resolution order:
+    1. **Persisted key file** (config volume) — wins if present and valid. This
+       is the durable source of truth across restarts and redeploys.
+    2. **ENCRYPTION_KEY env** (e.g. from a Secret) — used only to *seed* the file
+       on first run; the value is then written to the file and reused from there.
+    3. Otherwise generate a fresh key and persist it.
+
+    If a file key exists and the env key differs, the file wins and a warning is
+    logged (rotating the key is a deliberate act: replace the file + re-encrypt).
     """
-    # Check environment variable first
+    # Validate the env key up front (if any).
     env_key = os.environ.get('ENCRYPTION_KEY')
+    env_bytes = None
     if env_key:
         try:
-            Fernet(env_key.encode() if isinstance(env_key, str) else env_key)
-            return env_key.encode() if isinstance(env_key, str) else env_key
+            env_bytes = env_key.encode() if isinstance(env_key, str) else env_key
+            Fernet(env_bytes)  # validate format
         except Exception:
-            logger.warning("Invalid ENCRYPTION_KEY in environment, using file-based key")
+            logger.warning("Invalid ENCRYPTION_KEY in environment; ignoring it")
+            env_bytes = None
 
-    # Check for existing key file
+    # 1. Durable key on the config volume wins.
     if ENCRYPTION_KEY_FILE.exists():
         try:
-            key_data = ENCRYPTION_KEY_FILE.read_text().strip()
-            Fernet(key_data.encode())
-            return key_data.encode()
+            file_bytes = ENCRYPTION_KEY_FILE.read_text().strip().encode()
+            Fernet(file_bytes)  # validate
+            if env_bytes and env_bytes != file_bytes:
+                logger.warning(
+                    "ENCRYPTION_KEY env differs from the persisted key at %s; using the "
+                    "persisted key so stored passwords stay readable. To rotate, replace "
+                    "that file and re-encrypt.", ENCRYPTION_KEY_FILE)
+            return file_bytes
         except Exception as e:
-            logger.warning(f"Invalid encryption key in file, regenerating: {e}")
+            logger.warning(f"Invalid persisted encryption key, will re-seed: {e}")
 
-    # Generate new key
-    key = Fernet.generate_key()
-
-    ENCRYPTION_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    ENCRYPTION_KEY_FILE.write_text(key.decode())
-
+    # 2/3. Seed from the env Secret if present, else generate — and CAPTURE it to
+    # the config volume so it becomes the durable source from now on.
+    key = env_bytes if env_bytes else Fernet.generate_key()
     try:
-        ENCRYPTION_KEY_FILE.chmod(0o600)
-    except Exception:
-        pass
-
-    logger.info("Generated new encryption key")
+        ENCRYPTION_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        ENCRYPTION_KEY_FILE.write_text(key.decode())
+        try:
+            ENCRYPTION_KEY_FILE.chmod(0o600)
+        except Exception:
+            pass
+        logger.info("Persisted encryption key to %s (%s)", ENCRYPTION_KEY_FILE,
+                    "seeded from ENCRYPTION_KEY env" if env_bytes else "newly generated")
+    except Exception as e:
+        logger.warning(f"Could not persist encryption key to {ENCRYPTION_KEY_FILE}: {e}")
     return key
 
 
