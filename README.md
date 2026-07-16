@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:3.6.1 .
-docker push ghcr.io/fpellizz/magikup:3.6.1
+docker build -t ghcr.io/fpellizz/magikup:3.7.0 .
+docker push ghcr.io/fpellizz/magikup:3.7.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,12 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 3.7.0
+
+- **Selectable PostgreSQL client version per endpoint** — the image now bundles the official PGDG `pg_dump`/`pg_restore` tools for versions **14, 15, 16 and 17**. Each endpoint carries a **PostgreSQL client version** (default **17**), so a backup/restore against an older server can use a matching client. Cross-version flags are handled automatically (`--blobs` instead of the 16/17-only `--large-objects`; `--no-table-access-method` only on client ≥ 15).
+- **Per-endpoint `sslmode`** — endpoints gained an **SSL mode** property (`disable` / `allow` / `prefer` (default) / `require` / `verify-ca` / `verify-full`), applied both to in-app connections (`db_service`) and to `pg_dump`/`pg_restore` via `PGSSLMODE`.
+- Both settings are editable from **Admin → Endpoints** (add/edit dialog) and shown as compact badges in the endpoint list. Values are validated server-side and stored backward-compatibly — endpoints saved before 3.7.0 default to client 17 / `prefer`.
 
 ### 3.6.1
 

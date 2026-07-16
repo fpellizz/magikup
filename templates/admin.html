@@ -387,6 +387,12 @@
                                             <i class="bi bi-lock me-1"></i>Read-only
                                         </span>
                                     {% endif %}
+                                    <span class="badge bg-light text-dark border" title="pg_dump/pg_restore client version">
+                                        pg{{ endpoint.pg_version }}
+                                    </span>
+                                    <span class="badge bg-light text-dark border" title="libpq SSL mode">
+                                        <i class="bi bi-shield-lock me-1"></i>{{ endpoint.sslmode }}
+                                    </span>
                                 </td>
                                 <td>
                                     <div class="endpoint-actions">
@@ -1162,6 +1168,32 @@
                         <div class="form-text">Password will be encrypted automatically</div>
                     </div>
 
+                    <!-- PostgreSQL client version + SSL mode -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="endpointPgVersion" class="form-label">PostgreSQL client version</label>
+                            <select class="form-select" id="endpointPgVersion">
+                                <option value="17">17 (default)</option>
+                                <option value="16">16</option>
+                                <option value="15">15</option>
+                                <option value="14">14</option>
+                            </select>
+                            <div class="form-text">pg_dump / pg_restore version used for this endpoint.</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="endpointSslMode" class="form-label">SSL mode</label>
+                            <select class="form-select" id="endpointSslMode">
+                                <option value="disable">disable</option>
+                                <option value="allow">allow</option>
+                                <option value="prefer" selected>prefer (default)</option>
+                                <option value="require">require</option>
+                                <option value="verify-ca">verify-ca</option>
+                                <option value="verify-full">verify-full</option>
+                            </select>
+                            <div class="form-text">libpq sslmode for connections and backups.</div>
+                        </div>
+                    </div>
+
                     <!-- SSM Tunnel Toggle -->
                     <div class="ssm-toggle-wrapper">
                         <div class="form-check form-switch">
@@ -1800,6 +1832,8 @@
         document.getElementById('endpointReadOnly').checked = false;
         document.getElementById('endpointBackupUseReplica').checked = false;
         document.getElementById('endpointReplicaHost').value = '';
+        document.getElementById('endpointPgVersion').value = '17';
+        document.getElementById('endpointSslMode').value = 'prefer';
         detectAuroraReader();
         toggleReplicaHost();
         toggleSSMOptions();
@@ -1848,6 +1882,11 @@
             // Read replica (Aurora): reveal section by detection, keep stored values
             document.getElementById('endpointBackupUseReplica').checked = !!data.backup_use_replica;
             document.getElementById('endpointReplicaHost').value = data.replica_host || '';
+
+            // PostgreSQL client version + SSL mode
+            document.getElementById('endpointPgVersion').value = data.pg_version || '17';
+            document.getElementById('endpointSslMode').value = data.sslmode || 'prefer';
+
             detectAuroraReader(true);
             toggleReplicaHost();
 
@@ -1869,6 +1908,8 @@
         const backupUseReplica = document.getElementById('endpointBackupUseReplica').checked;
         const replicaHost = document.getElementById('endpointReplicaHost').value.trim();
         const jumphostAlias = document.getElementById('endpointJumphostAlias').value;
+        const pgVersion = document.getElementById('endpointPgVersion').value;
+        const sslMode = document.getElementById('endpointSslMode').value;
 
         if (!name || !host || !port || !username || !password) {
             showToast('Please fill in all required fields', 'error');
@@ -1898,7 +1939,9 @@
                 jumphost_alias: useSSM ? jumphostAlias : null,
                 read_only: readOnly,
                 backup_use_replica: backupUseReplica,
-                replica_host: replicaHost
+                replica_host: replicaHost,
+                pg_version: pgVersion,
+                sslmode: sslMode
             });
             showToast(`Endpoint ${action} successfully`, 'success');
             bootstrap.Modal.getInstance(document.getElementById('addEndpointModal')).hide();

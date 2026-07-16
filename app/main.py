@@ -68,7 +68,7 @@ logger.info(f"Context path: '{_context_path}' (empty = root)")
 app = FastAPI(
     title="PostgreSQL Backup/Restore",
     description="Backup and restore PostgreSQL databases via direct or SSM tunnel connections",
-    version="3.6.1",
+    version="3.7.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -206,6 +206,8 @@ class DatabaseEndpointModel(BaseModel):
     read_only: bool = False
     backup_use_replica: bool = False
     replica_host: Optional[str] = ""
+    pg_version: str = "17"
+    sslmode: str = "prefer"
 
 
 class JumphostModel(BaseModel):
@@ -799,6 +801,8 @@ async def api_list_endpoints(user: dict = Depends(auth.require_auth)):
             "read_only": endpoint.read_only,
             "backup_use_replica": endpoint.backup_use_replica,
             "replica_host": endpoint.replica_host,
+            "pg_version": endpoint.pg_version,
+            "sslmode": endpoint.sslmode,
         }
         for name, endpoint in endpoints.items()
         if user_can_access_endpoint(user, name)
@@ -808,6 +812,11 @@ async def api_list_endpoints(user: dict = Depends(auth.require_auth)):
 @app.post("/api/endpoints")
 async def api_save_endpoint(endpoint: DatabaseEndpointModel, user: dict = Depends(auth.require_admin)):
     """Save a database endpoint."""
+    try:
+        pg_version = cfg.validate_pg_version(endpoint.pg_version)
+        sslmode = cfg.validate_sslmode(endpoint.sslmode)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     cfg.save_database_config(cfg.DatabaseConfig(
         name=endpoint.name,
         host=endpoint.host,
@@ -819,6 +828,8 @@ async def api_save_endpoint(endpoint: DatabaseEndpointModel, user: dict = Depend
         read_only=endpoint.read_only,
         backup_use_replica=endpoint.backup_use_replica,
         replica_host=(endpoint.replica_host or ""),
+        pg_version=pg_version,
+        sslmode=sslmode,
     ))
     return {"success": True, "message": f"Endpoint '{endpoint.name}' saved"}
 
@@ -840,6 +851,8 @@ async def api_get_endpoint(name: str, user: dict = Depends(auth.require_admin)):
         "read_only": endpoint.read_only,
         "backup_use_replica": endpoint.backup_use_replica,
         "replica_host": endpoint.replica_host,
+        "pg_version": endpoint.pg_version,
+        "sslmode": endpoint.sslmode,
     }
 
 
@@ -972,6 +985,7 @@ async def api_list_databases(endpoint_name: str, user: dict = Depends(auth.requi
         port=port,
         username=endpoint.username,
         password=endpoint.password,
+        sslmode=endpoint.sslmode,
     )
 
 
@@ -996,6 +1010,7 @@ async def api_list_users(endpoint_name: str, database: str = "postgres", user: d
         username=endpoint.username,
         password=endpoint.password,
         database=database,
+        sslmode=endpoint.sslmode,
     )
 
 
@@ -1020,6 +1035,7 @@ async def api_list_schemas(endpoint_name: str, database: str, user: dict = Depen
         database=database,
         username=endpoint.username,
         password=endpoint.password,
+        sslmode=endpoint.sslmode,
     )
     return {"success": True, "schemas": schemas}
 
@@ -1070,6 +1086,7 @@ async def api_execute_query(req: QueryExecuteRequest, user: dict = Depends(auth.
             role=req.role if req.role else None,
             autocommit=req.autocommit,
             read_only=endpoint.read_only,
+            sslmode=endpoint.sslmode,
         )
     )
 
@@ -1091,7 +1108,8 @@ async def api_list_tables(endpoint_name: str, database: str, schema: str, user: 
 
     host, port = resolve_endpoint_connection(endpoint)
     tables = db.list_tables(host=host, port=port, database=database,
-                            username=endpoint.username, password=endpoint.password, schema=schema)
+                            username=endpoint.username, password=endpoint.password, schema=schema,
+                            sslmode=endpoint.sslmode)
     return {"success": True, "tables": tables}
 
 
@@ -1111,7 +1129,7 @@ async def api_list_columns(endpoint_name: str, database: str, schema: str, table
     host, port = resolve_endpoint_connection(endpoint)
     columns = db.list_table_columns(host=host, port=port, database=database,
                                     username=endpoint.username, password=endpoint.password,
-                                    schema=schema, table=table)
+                                    schema=schema, table=table, sslmode=endpoint.sslmode)
     return {"success": True, "columns": columns}
 
 
@@ -1130,7 +1148,8 @@ async def api_list_views(endpoint_name: str, database: str, schema: str, user: d
 
     host, port = resolve_endpoint_connection(endpoint)
     views = db.list_views(host=host, port=port, database=database,
-                          username=endpoint.username, password=endpoint.password, schema=schema)
+                          username=endpoint.username, password=endpoint.password, schema=schema,
+                          sslmode=endpoint.sslmode)
     return {"success": True, "views": views}
 
 
@@ -1149,7 +1168,8 @@ async def api_list_functions(endpoint_name: str, database: str, schema: str, use
 
     host, port = resolve_endpoint_connection(endpoint)
     functions = db.list_functions(host=host, port=port, database=database,
-                                 username=endpoint.username, password=endpoint.password, schema=schema)
+                                 username=endpoint.username, password=endpoint.password, schema=schema,
+                                 sslmode=endpoint.sslmode)
     return {"success": True, "functions": functions}
 
 
@@ -1169,7 +1189,7 @@ async def api_list_indexes(endpoint_name: str, database: str, schema: str, table
     host, port = resolve_endpoint_connection(endpoint)
     indexes = db.list_indexes(host=host, port=port, database=database,
                               username=endpoint.username, password=endpoint.password,
-                              schema=schema, table=table)
+                              schema=schema, table=table, sslmode=endpoint.sslmode)
     return {"success": True, "indexes": indexes}
 
 
@@ -1194,6 +1214,7 @@ async def api_test_connection(endpoint_name: str, user: dict = Depends(auth.requ
         port=port,
         username=endpoint.username,
         password=endpoint.password,
+        sslmode=endpoint.sslmode,
     )
 
 
@@ -2168,6 +2189,9 @@ async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=Non
             options=options,
             operation_id=operation_id,
             cancel_event=_running_operations[operation_id],
+            pg_dump_path=cfg.pg_tool_path("pg_dump", endpoint.pg_version),
+            sslmode=endpoint.sslmode,
+            pg_version=int(endpoint.pg_version),
         ):
             broadcaster.broadcast(operation_id, progress)
             if progress.get("type") == "complete":
@@ -2743,6 +2767,9 @@ async def websocket_backup(websocket: WebSocket):
                     options=options,
                     operation_id=operation_id,
                     cancel_event=cancel_event,
+                    pg_dump_path=cfg.pg_tool_path("pg_dump", endpoint.pg_version),
+                    sslmode=endpoint.sslmode,
+                    pg_version=int(endpoint.pg_version),
                 ):
                     broadcaster.broadcast(operation_id, progress)
             except Exception as exc:
@@ -2979,6 +3006,8 @@ async def websocket_restore(websocket: WebSocket):
                     options=options,
                     operation_id=operation_id,
                     cancel_event=cancel_event,
+                    pg_restore_path=cfg.pg_tool_path("pg_restore", endpoint.pg_version),
+                    sslmode=endpoint.sslmode,
                 ):
                     broadcaster.broadcast(operation_id, progress)
             except Exception as exc:

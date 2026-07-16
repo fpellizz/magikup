@@ -20,12 +20,15 @@ def get_connection(
     username: str = "postgres",
     password: str = "",
     read_only: bool = False,
+    sslmode: Optional[str] = None,
 ) -> psycopg2.extensions.connection:
     """Create a database connection.
 
     When read_only=True the connection starts every transaction read-only
     (default_transaction_read_only), so any write statement is rejected by
     PostgreSQL itself — used for endpoints flagged read-only.
+    ``sslmode`` (libpq) is forwarded when set — needed for managed Postgres such
+    as Supabase (require/verify-full).
     """
     options = "-c default_transaction_read_only=on" if read_only else ""
     return psycopg2.connect(
@@ -36,6 +39,7 @@ def get_connection(
         password=password,
         connect_timeout=10,
         options=options,
+        **({"sslmode": sslmode} if sslmode else {}),
     )
 
 
@@ -45,10 +49,11 @@ def test_connection(
     database: str = "postgres",
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Test database connection and return status."""
     try:
-        conn = get_connection(host, port, database, username, password)
+        conn = get_connection(host, port, database, username, password, sslmode=sslmode)
         cursor = conn.cursor()
         cursor.execute("SELECT version();")
         version = cursor.fetchone()[0]
@@ -75,11 +80,12 @@ def list_databases(
     port: int = 5432,
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List all databases in the PostgreSQL instance."""
     logger.info(f"Listing databases on {host}:{port} as {username}")
     try:
-        conn = get_connection(host, port, "postgres", username, password)
+        conn = get_connection(host, port, "postgres", username, password, sslmode=sslmode)
         cursor = conn.cursor()
 
         # Only list databases the current user has CONNECT privilege on
@@ -134,12 +140,13 @@ def list_users(
     port: int = 5432,
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
     database: str = "postgres",
 ) -> Dict[str, Any]:
     """List all users/roles in the PostgreSQL instance."""
     logger.info(f"Listing users on {host}:{port} as {username}")
     try:
-        conn = get_connection(host, port, database, username, password)
+        conn = get_connection(host, port, database, username, password, sslmode=sslmode)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -196,10 +203,11 @@ def list_schemas(
     database: str = "postgres",
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """List all schemas in a database."""
     try:
-        conn = get_connection(host, port, database, username, password)
+        conn = get_connection(host, port, database, username, password, sslmode=sslmode)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -232,10 +240,11 @@ def database_exists(
     port: int = 5432,
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
 ) -> bool:
     """Check if a database exists."""
     try:
-        conn = get_connection(host, port, "postgres", username, password)
+        conn = get_connection(host, port, "postgres", username, password, sslmode=sslmode)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -257,10 +266,11 @@ def get_database_size(
     port: int = 5432,
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
 ) -> Optional[str]:
     """Get the size of a database."""
     try:
-        conn = get_connection(host, port, "postgres", username, password)
+        conn = get_connection(host, port, "postgres", username, password, sslmode=sslmode)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -288,6 +298,7 @@ def execute_query(
     database: str = "postgres",
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
     timeout_seconds: int = 30,
     row_limit: int = 1000,
     role: str = None,
@@ -300,7 +311,7 @@ def execute_query(
     PostgreSQL level (used for endpoints flagged read-only)."""
     conn = None
     try:
-        conn = get_connection(host, port, database, username, password, read_only=read_only)
+        conn = get_connection(host, port, database, username, password, read_only=read_only, sslmode=sslmode)
         conn.autocommit = autocommit
         cursor = conn.cursor()
 
@@ -414,11 +425,12 @@ def list_tables(
     database: str = "postgres",
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
     schema: str = "public",
 ) -> List[Dict[str, Any]]:
     """List all tables in a schema with basic info."""
     try:
-        conn = get_connection(host, port, database, username, password)
+        conn = get_connection(host, port, database, username, password, sslmode=sslmode)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT
@@ -457,12 +469,13 @@ def list_table_columns(
     database: str = "postgres",
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
     schema: str = "public",
     table: str = "",
 ) -> List[Dict[str, Any]]:
     """List all columns for a specific table."""
     try:
-        conn = get_connection(host, port, database, username, password)
+        conn = get_connection(host, port, database, username, password, sslmode=sslmode)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT
@@ -502,11 +515,12 @@ def list_views(
     database: str = "postgres",
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
     schema: str = "public",
 ) -> List[Dict[str, Any]]:
     """List all views in a schema."""
     try:
-        conn = get_connection(host, port, database, username, password)
+        conn = get_connection(host, port, database, username, password, sslmode=sslmode)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT
@@ -542,11 +556,12 @@ def list_functions(
     database: str = "postgres",
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
     schema: str = "public",
 ) -> List[Dict[str, Any]]:
     """List all functions/procedures in a schema."""
     try:
-        conn = get_connection(host, port, database, username, password)
+        conn = get_connection(host, port, database, username, password, sslmode=sslmode)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT
@@ -590,12 +605,13 @@ def list_indexes(
     database: str = "postgres",
     username: str = "postgres",
     password: str = "",
+    sslmode: Optional[str] = None,
     schema: str = "public",
     table: str = None,
 ) -> List[Dict[str, Any]]:
     """List indexes in a schema, optionally filtered by table."""
     try:
-        conn = get_connection(host, port, database, username, password)
+        conn = get_connection(host, port, database, username, password, sslmode=sslmode)
         cursor = conn.cursor()
 
         q = """
