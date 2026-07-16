@@ -42,6 +42,8 @@ class DatabaseConfig:
     read_only: bool = False  # If True: query editor runs read-only; restore/transfer to it is refused
     backup_use_replica: bool = False  # If True: back up from replica_host instead of host
     replica_host: str = ""  # Read replica/reader host used for backups when backup_use_replica is True
+    pg_version: str = "17"  # pg_dump/pg_restore client major version (14-17); default 17
+    sslmode: str = "prefer"  # libpq sslmode (disable|allow|prefer|require|verify-ca|verify-full)
 
 
 @dataclass
@@ -135,8 +137,8 @@ APP_ROOT = Path(__file__).parent.parent
 class Settings:
     """Application settings."""
     backup_dir: str = str(APP_ROOT / "backups")
-    pg_dump_path: str = "/usr/bin/pg_dump"
-    pg_restore_path: str = "/usr/bin/pg_restore"
+    pg_dump_path: str = "/usr/lib/postgresql/17/bin/pg_dump"
+    pg_restore_path: str = "/usr/lib/postgresql/17/bin/pg_restore"
     max_upload_size_gb: int = 5
     lock_wait_timeout_seconds: int = 60  # pg_dump --lock-wait-timeout (0 = wait forever)
     log_level: str = "INFO"
@@ -271,8 +273,8 @@ def get_default_config() -> str:
     return f"""[settings]
 # Application settings
 backup_dir = {APP_ROOT / 'backups'}
-pg_dump_path = /usr/bin/pg_dump
-pg_restore_path = /usr/bin/pg_restore
+pg_dump_path = /usr/lib/postgresql/17/bin/pg_dump
+pg_restore_path = /usr/lib/postgresql/17/bin/pg_restore
 max_upload_size_gb = 5
 # pg_dump --lock-wait-timeout (seconds): fail fast if shared table locks can't be
 # acquired at the start of a backup, instead of blocking forever. 0 = wait forever.
@@ -304,7 +306,7 @@ region = us-east-1
 
 [endpoints]
 # Database endpoints
-# Format: name = host|port|username|password|use_ssm|jumphost_alias|read_only|backup_use_replica|replica_host
+# Format: name = host|port|username|password|use_ssm|jumphost_alias|read_only|backup_use_replica|replica_host|pg_version|sslmode
 # use_ssm: true or false
 # jumphost_alias: references a key in [jumphosts] (leave empty if use_ssm=false)
 # read_only: true or false (optional, default false). When true the query editor
@@ -312,6 +314,8 @@ region = us-east-1
 # backup_use_replica: true or false (optional). When true, backups connect to
 #            replica_host instead of host (e.g. an Aurora reader endpoint).
 # replica_host: read replica/reader host used for backups (optional).
+# pg_version: pg_dump/pg_restore client major version 14-17 (optional, default 17).
+# sslmode: libpq sslmode disable|allow|prefer|require|verify-ca|verify-full (optional, default prefer).
 # Example (direct):     local-db = 10.0.1.100|5432|postgres|mypassword|false||false
 # Example (SSM):        prod-aurora = aurora-cluster.rds.amazonaws.com|5432|admin|ENC:...|true|production-jh|false
 # Example (read-only):  prod-ro = reporting.rds.amazonaws.com|5432|readonly|ENC:...|false||true
@@ -416,17 +420,55 @@ def write_config(config: configparser.ConfigParser) -> None:
 # Extra directories can be added via the ALLOWED_PG_BIN_DIRS env var (comma-separated).
 _DEFAULT_PG_BIN_DIRS = ("/usr/bin", "/usr/local/bin", "/bin")
 _PG_BIN_DIR_GLOBS = ("/usr/lib/postgresql/*/bin",)
+# Supported pg client major versions bundled in the image (see Dockerfile). The
+# per-version bin dirs are allowlisted unconditionally so a path validates even
+# on hosts where the dir isn't present (existence is checked at exec time, not
+# here) — e.g. the test environment.
+SUPPORTED_PG_VERSIONS = ("14", "15", "16", "17")
+DEFAULT_PG_VERSION = "17"
+_VERSIONED_PG_BIN_DIRS = tuple(f"/usr/lib/postgresql/{v}/bin" for v in SUPPORTED_PG_VERSIONS)
+VALID_SSLMODES = ("disable", "allow", "prefer", "require", "verify-ca", "verify-full")
+DEFAULT_SSLMODE = "prefer"
 
 
 def _allowed_pg_bin_dirs() -> set:
     """Resolve the set of directories allowed to hold pg_dump/pg_restore."""
-    dirs = set(_DEFAULT_PG_BIN_DIRS)
+    dirs = set(_DEFAULT_PG_BIN_DIRS) | set(_VERSIONED_PG_BIN_DIRS)
     for pattern in _PG_BIN_DIR_GLOBS:
         dirs.update(glob.glob(pattern))
     extra = os.environ.get("ALLOWED_PG_BIN_DIRS", "").strip()
     if extra:
         dirs.update(d.strip() for d in extra.split(",") if d.strip())
     return {os.path.normpath(d) for d in dirs}
+
+
+def validate_pg_version(version) -> str:
+    """Validate a pg client major version string against the supported set."""
+    v = str(version).strip()
+    if v not in SUPPORTED_PG_VERSIONS:
+        raise ValueError(
+            f"Invalid PostgreSQL client version '{version}'. "
+            f"Allowed: {', '.join(SUPPORTED_PG_VERSIONS)}")
+    return v
+
+
+def validate_sslmode(mode) -> str:
+    """Validate a libpq sslmode value."""
+    m = (str(mode).strip() if mode else DEFAULT_SSLMODE)
+    if m not in VALID_SSLMODES:
+        raise ValueError(f"Invalid sslmode '{mode}'. Allowed: {', '.join(VALID_SSLMODES)}")
+    return m
+
+
+def pg_tool_path(tool: str, version) -> str:
+    """Absolute path to a versioned pg_dump/pg_restore binary, validated against
+    the allowlist. ``version`` is a major like '17'."""
+    if tool not in ("pg_dump", "pg_restore"):
+        raise ValueError(f"Unsupported pg tool: {tool}")
+    v = validate_pg_version(version)
+    path = f"/usr/lib/postgresql/{v}/bin/{tool}"
+    validate_pg_tool_path(path, tool)
+    return path
 
 
 def validate_pg_tool_path(path: str, expected_basename: str) -> None:
@@ -460,8 +502,8 @@ def get_settings() -> Settings:
     config = read_config()
     return Settings(
         backup_dir=config.get('settings', 'backup_dir', fallback=str(APP_ROOT / 'backups')),
-        pg_dump_path=config.get('settings', 'pg_dump_path', fallback='/usr/bin/pg_dump'),
-        pg_restore_path=config.get('settings', 'pg_restore_path', fallback='/usr/bin/pg_restore'),
+        pg_dump_path=config.get('settings', 'pg_dump_path', fallback='/usr/lib/postgresql/17/bin/pg_dump'),
+        pg_restore_path=config.get('settings', 'pg_restore_path', fallback='/usr/lib/postgresql/17/bin/pg_restore'),
         max_upload_size_gb=config.getint('settings', 'max_upload_size_gb', fallback=5),
         lock_wait_timeout_seconds=config.getint('settings', 'lock_wait_timeout_seconds', fallback=60),
         log_level=config.get('settings', 'log_level', fallback='INFO'),
@@ -949,6 +991,8 @@ def get_database_configs() -> Dict[str, DatabaseConfig]:
                     read_only = False
                     backup_use_replica = False
                     replica_host = ""
+                    pg_version = "17"
+                    sslmode = "prefer"
                     if len(parts) >= 5:
                         use_ssm = parts[4].strip().lower() == 'true'
                     if len(parts) >= 6:
@@ -960,6 +1004,11 @@ def get_database_configs() -> Dict[str, DatabaseConfig]:
                         backup_use_replica = parts[7].strip().lower() == 'true'
                     if len(parts) >= 9:
                         replica_host = parts[8].strip()
+                    # 10th/11th fields (optional): pg_version + sslmode
+                    if len(parts) >= 10 and parts[9].strip():
+                        pg_version = parts[9].strip()
+                    if len(parts) >= 11 and parts[10].strip():
+                        sslmode = parts[10].strip()
 
                     databases[name] = DatabaseConfig(
                         name=name,
@@ -972,6 +1021,8 @@ def get_database_configs() -> Dict[str, DatabaseConfig]:
                         read_only=read_only,
                         backup_use_replica=backup_use_replica,
                         replica_host=replica_host,
+                        pg_version=pg_version,
+                        sslmode=sslmode,
                     )
             except (ValueError, IndexError) as e:
                 logger.warning(f"Invalid database config for '{name}': {e}")
@@ -1024,7 +1075,8 @@ def save_database_config(db_config: DatabaseConfig) -> None:
 
     value = (f"{db_config.host}|{db_config.port}|{db_config.username}|{encrypted_password}"
              f"|{use_ssm_str}|{db_config.jumphost_alias}|{read_only_str}"
-             f"|{use_replica_str}|{db_config.replica_host}")
+             f"|{use_replica_str}|{db_config.replica_host}"
+             f"|{db_config.pg_version}|{db_config.sslmode}")
     config.set('endpoints', db_config.name, value)
     write_config(config)
 

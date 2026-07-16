@@ -25,8 +25,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     groff \
     less \
-    postgresql-client \
+    gnupg \
     ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PostgreSQL client tools (pg_dump / pg_restore) for versions 14-17 from the
+# official PGDG apt repository. Each version installs its binaries under
+# /usr/lib/postgresql/<major>/bin, so an endpoint can pick which pg_dump/pg_restore
+# to use (default 17). See app/config.py::pg_tool_path.
+RUN install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+         -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" \
+         > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        postgresql-client-14 \
+        postgresql-client-15 \
+        postgresql-client-16 \
+        postgresql-client-17 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install AWS CLI v2

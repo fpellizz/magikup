@@ -64,6 +64,7 @@ def _call_timescaledb_procedure(
     port: int,
     username: str,
     password: str,
+    sslmode: Optional[str] = None,
 ) -> None:
     """Execute a TimescaleDB restore helper (timescaledb_pre_restore / _post_restore).
     Raises on failure (including when the extension is not installed)."""
@@ -72,6 +73,7 @@ def _call_timescaledb_procedure(
         host=host, port=port, dbname=database,
         user=username, password=password,
         connect_timeout=10,
+        **({"sslmode": sslmode} if sslmode else {}),
     )
     conn.autocommit = True
     try:
@@ -323,6 +325,9 @@ async def run_backup(
     options: Optional[BackupOptions] = None,
     operation_id: Optional[str] = None,
     cancel_event: Optional[asyncio.Event] = None,
+    pg_dump_path: Optional[str] = None,
+    sslmode: Optional[str] = None,
+    pg_version: int = 17,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Run pg_dump and yield progress updates.
@@ -363,10 +368,12 @@ async def run_backup(
     # Get logger if operation_id is provided
     logger = get_logger() if operation_id else None
 
-    # Defense in depth: refuse to exec a tool path outside the allowlist,
-    # even if config.ini was edited out-of-band.
+    # Per-endpoint pg_dump binary (version selectable, e.g. 14-17); falls back to
+    # the global Settings path. Defense in depth: refuse to exec a tool path
+    # outside the allowlist, even if config.ini was edited out-of-band.
+    dump_path = pg_dump_path or settings.pg_dump_path
     try:
-        validate_pg_tool_path(settings.pg_dump_path, 'pg_dump')
+        validate_pg_tool_path(dump_path, 'pg_dump')
     except ValueError as e:
         error_msg = f"Refusing to run backup: {e}"
         if logger and operation_id:
@@ -376,7 +383,7 @@ async def run_backup(
         return
 
     cmd = [
-        settings.pg_dump_path,
+        dump_path,
         '--file', output_file,
         '--host', host,
         '--port', str(port),
@@ -410,7 +417,9 @@ async def run_backup(
     if options.create:
         cmd.append('--create')
     if options.large_objects:
-        cmd.append('--large-objects')
+        # --blobs is accepted by pg_dump 14-17; --large-objects is the newer
+        # (16/17) alias and would be rejected by older clients.
+        cmd.append('--blobs')
     if options.no_owner:
         cmd.append('--no-owner')
     if options.no_privileges:
@@ -436,15 +445,22 @@ async def run_backup(
         '--no-subscriptions',
         '--no-security-labels',
         '--no-toast-compression',
-        '--no-table-access-method',
         '--no-unlogged-table-data',
     ])
+    # --no-table-access-method was added to pg_dump in PostgreSQL 15; older
+    # clients (14) reject it.
+    if pg_version >= 15:
+        cmd.append('--no-table-access-method')
 
     cmd.append(database)
 
     # Use PGPASSWORD environment variable for authentication
     env = os.environ.copy()
     env['PGPASSWORD'] = password
+    # SSL mode for the pg_dump connection (e.g. require/verify-full for managed
+    # Postgres such as Supabase); libpq reads PGSSLMODE.
+    if sslmode:
+        env['PGSSLMODE'] = sslmode
 
     # Build progress message
     if options.schemas:
@@ -580,7 +596,7 @@ async def run_backup(
             }
 
     except FileNotFoundError:
-        error_msg = f"pg_dump not found at {settings.pg_dump_path}"
+        error_msg = f"pg_dump not found at {dump_path}"
 
         if logger and operation_id:
             logger.log_message(operation_id, error_msg)
@@ -702,6 +718,8 @@ async def run_restore(
     options: Optional[RestoreOptions] = None,
     operation_id: Optional[str] = None,
     cancel_event: Optional[asyncio.Event] = None,
+    pg_restore_path: Optional[str] = None,
+    sslmode: Optional[str] = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Run pg_restore and yield progress updates.
@@ -738,10 +756,11 @@ async def run_restore(
     # Get logger if operation_id is provided
     logger = get_logger() if operation_id else None
 
-    # Defense in depth: refuse to exec a tool path outside the allowlist,
-    # even if config.ini was edited out-of-band.
+    # Per-endpoint pg_restore binary (version selectable), falling back to the
+    # global Settings path. Defense in depth: refuse a path outside the allowlist.
+    restore_path = pg_restore_path or settings.pg_restore_path
     try:
-        validate_pg_tool_path(settings.pg_restore_path, 'pg_restore')
+        validate_pg_tool_path(restore_path, 'pg_restore')
     except ValueError as e:
         error_msg = f"Refusing to run restore: {e}"
         if logger and operation_id:
@@ -768,7 +787,7 @@ async def run_restore(
     toc_file_path = None
     if options.exclude_tables:
         try:
-            toc = await _get_backup_toc(settings.pg_restore_path, backup_file)
+            toc = await _get_backup_toc(restore_path, backup_file)
             filtered_toc = _filter_toc_exclude_tables(toc, options.exclude_tables)
             # Write filtered TOC to a temp file
             toc_fd, toc_file_path = tempfile.mkstemp(suffix='.list', prefix='pg_restore_toc_')
@@ -789,7 +808,7 @@ async def run_restore(
             return
 
     cmd = [
-        settings.pg_restore_path,
+        restore_path,
         '--host', host,
         '--port', str(port),
         '--username', username,
@@ -851,6 +870,8 @@ async def run_restore(
     # Use PGPASSWORD environment variable for authentication
     env = os.environ.copy()
     env['PGPASSWORD'] = password
+    if sslmode:
+        env['PGSSLMODE'] = sslmode
 
     # Build progress message
     if options.schemas:
@@ -880,7 +901,7 @@ async def run_restore(
             try:
                 await asyncio.to_thread(
                     _call_timescaledb_procedure,
-                    "timescaledb_pre_restore", database, host, port, username, password,
+                    "timescaledb_pre_restore", database, host, port, username, password, sslmode,
                 )
                 ok_msg = "timescaledb_pre_restore() completed"
                 if logger and operation_id:
@@ -962,7 +983,7 @@ async def run_restore(
             try:
                 await asyncio.to_thread(
                     _call_timescaledb_procedure,
-                    "timescaledb_post_restore", database, host, port, username, password,
+                    "timescaledb_post_restore", database, host, port, username, password, sslmode,
                 )
                 ok_msg = "timescaledb_post_restore() completed"
                 if logger and operation_id:
@@ -1042,7 +1063,7 @@ async def run_restore(
             }
 
     except FileNotFoundError:
-        error_msg = f"pg_restore not found at {settings.pg_restore_path}"
+        error_msg = f"pg_restore not found at {restore_path}"
 
         if logger and operation_id:
             logger.log_message(operation_id, error_msg)
