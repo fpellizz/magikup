@@ -402,6 +402,9 @@
                                         <button class="btn btn-sm btn-outline-warning" onclick="editEndpoint('{{ name }}')" title="Edit Endpoint">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="duplicateEndpoint('{{ name }}')" title="Duplicate Endpoint (same connection, new name/user)">
+                                            <i class="bi bi-files"></i>
+                                        </button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="deleteEndpoint('{{ name }}')" title="Delete Endpoint">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -1897,6 +1900,65 @@
         }
     }
 
+    // Open the endpoint modal in ADD mode, pre-filled from an existing endpoint.
+    // Typical use: same connection, different user — so the name is editable
+    // (suggested as "<name>-copy") and everything else is copied, password included.
+    async function duplicateEndpoint(name) {
+        try {
+            showToast(`Duplicating endpoint ${name}...`, 'info');
+            const data = await apiCall(`/api/endpoints/${name}`);
+
+            // ADD mode (saveEndpoint will POST a brand-new endpoint)
+            endpointEditMode = false;
+            document.getElementById('addEndpointModalLabel').innerHTML = '<i class="bi bi-files me-2"></i>Duplicate Database Endpoint';
+            document.getElementById('endpointModalSaveIcon').className = 'bi bi-plus me-1';
+            document.getElementById('endpointModalSaveText').textContent = 'Add Endpoint';
+
+            // Suggest a new, EDITABLE name; copy every other field
+            document.getElementById('endpointName').value = `${data.name}-copy`;
+            document.getElementById('endpointName').readOnly = false;
+            document.getElementById('endpointHost').value = data.host;
+            document.getElementById('endpointPort').value = data.port;
+            document.getElementById('endpointUsername').value = data.username;
+            document.getElementById('endpointPassword').value = data.password;
+
+            // Reset password visibility
+            const pwInput = document.getElementById('endpointPassword');
+            pwInput.type = 'password';
+            const pwIcon = pwInput.parentElement.querySelector('.password-toggle i');
+            if (pwIcon) pwIcon.className = 'bi bi-eye';
+
+            // SSM toggle
+            document.getElementById('endpointUseSSM').checked = data.use_ssm;
+            toggleSSMOptions();
+            if (data.use_ssm && data.jumphost_alias) {
+                document.getElementById('endpointJumphostAlias').value = data.jumphost_alias;
+            }
+
+            // Read-only toggle
+            document.getElementById('endpointReadOnly').checked = !!data.read_only;
+
+            // Read replica (Aurora)
+            document.getElementById('endpointBackupUseReplica').checked = !!data.backup_use_replica;
+            document.getElementById('endpointReplicaHost').value = data.replica_host || '';
+
+            // PostgreSQL client version + SSL mode
+            document.getElementById('endpointPgVersion').value = data.pg_version || '17';
+            document.getElementById('endpointSslMode').value = data.sslmode || 'prefer';
+
+            detectAuroraReader(true);
+            toggleReplicaHost();
+
+            // Show modal and select the name for a quick rename
+            new bootstrap.Modal(document.getElementById('addEndpointModal')).show();
+            const nameField = document.getElementById('endpointName');
+            nameField.focus();
+            nameField.select();
+        } catch (error) {
+            showToast('Failed to load endpoint details', 'error');
+        }
+    }
+
     async function saveEndpoint() {
         const name = document.getElementById('endpointName').value.trim();
         const host = document.getElementById('endpointHost').value.trim();
@@ -2627,6 +2689,23 @@
     // ========================================
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Persist the active admin tab across full-page reloads. Save operations
+        // call location.reload(); without this the user is always thrown back to
+        // the first "Endpoints" tab instead of staying where they were working.
+        const TAB_KEY = 'magikup.admin.activeTab';
+        document.querySelectorAll('#adminTabs button[data-bs-toggle="tab"]').forEach(function(btn) {
+            btn.addEventListener('shown.bs.tab', function(e) {
+                try { localStorage.setItem(TAB_KEY, e.target.getAttribute('data-bs-target')); } catch (_) {}
+            });
+        });
+        try {
+            const savedTab = localStorage.getItem(TAB_KEY);
+            if (savedTab && savedTab !== '#endpoints-panel') {
+                const trigger = document.querySelector('#adminTabs button[data-bs-target="' + savedTab + '"]');
+                if (trigger) new bootstrap.Tab(trigger).show();
+            }
+        } catch (_) {}
+
         // Reset Endpoint modal when closed (restore to "add" mode)
         const addEndpointModal = document.getElementById('addEndpointModal');
         addEndpointModal.addEventListener('hidden.bs.modal', function() {

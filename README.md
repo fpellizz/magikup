@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:3.7.0 .
-docker push ghcr.io/fpellizz/magikup:3.7.0
+docker build -t ghcr.io/fpellizz/magikup:3.8.0 .
+docker push ghcr.io/fpellizz/magikup:3.8.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,11 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 3.8.0
+
+- **Duplicate endpoint** — a new "duplicate" action on each endpoint clones an existing definition (host, port, SSM/jumphost, read-only, replica, pg client version, sslmode, and password) into the add dialog with an editable, pre-suggested name (`<name>-copy`). Typical use: reuse the same connection with a different user.
+- **Admin tab persistence** — the active Admin tab is now remembered across the page reloads that follow a save. Previously any change bounced the user back to the first "Endpoints" tab; now you stay on the tab you were working in (e.g. Users) to see the result.
 
 ### 3.7.0
 

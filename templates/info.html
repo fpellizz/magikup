@@ -196,15 +196,19 @@
             <div class="card-body py-2">
                 <div class="mb-2">
                     <div class="d-flex align-items-center mb-1">
-                        <span class="badge bg-primary me-2">3.7.0</span>
+                        <span class="badge bg-primary me-2">3.8.0</span>
                         <span class="fw-semibold small">Current</span>
                     </div>
                     <ul class="list-unstyled ms-3 mb-0 small text-body-secondary">
-                        <li><i class="bi bi-check2 text-success me-1"></i>Selectable PostgreSQL client version per endpoint (14–17, default 17) — pg_dump/pg_restore bundled for all four</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>Per-endpoint SSL mode (disable → verify-full, default prefer) applied to connections and backups</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Duplicate endpoint — clone an existing endpoint (same connection, editable new name/user)</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Admin tab persistence — stay on the current tab after a save instead of bouncing back to Endpoints</li>
                     </ul>
                 </div>
                 <hr class="my-2">
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">3.7.0</span>
+                    <span class="small text-body-secondary">Selectable PostgreSQL client version (14–17) + per-endpoint SSL mode</span>
+                </div>
                 <div class="mb-2">
                     <span class="badge bg-secondary me-2">3.6.1</span>
                     <span class="small text-body-secondary">Durable encryption key (persisted on the config volume) + schedule dialog cleanup</span>
