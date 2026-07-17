@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:3.8.0 .
-docker push ghcr.io/fpellizz/magikup:3.8.0
+docker build -t ghcr.io/fpellizz/magikup:3.9.0 .
+docker push ghcr.io/fpellizz/magikup:3.9.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,13 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 3.9.0
+
+- **Backup Files page redesign** — the Files page was rebuilt to the "stat cards + collapsible remote" layout with a violet accent: three stat cards (backup directory, max upload size, total storage used with a volume-fullness bar), a collapsed-by-default "Retrieve from remote storage" card (S3 / filebrowser / link tabs), and a cleaner backup table (type badge, relative + absolute created time, per-row actions). Theme-aware (light/dark).
+- **Backup type** — each backup is now classified as **Manual**, **Scheduled**, or **Imported**: `list_backup_files()` derives the origin from the operation history (scheduled vs manual); files with no matching backup operation (uploaded or pulled from remote) are shown as imported.
+- **Volume usage** — `get_backup_stats()` now reports the hosting volume's capacity/usage (via `shutil.disk_usage`) so the page can show how full the backup volume is.
+- **Restore from Files** — a per-row **Restore** action opens the Restore page with the backup preselected (`/restore?backup=<name>`). The existing "Send to remote storage" and Download/Delete actions are retained.
 
 ### 3.8.0
 

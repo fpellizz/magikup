@@ -5,6 +5,7 @@ Handles pg_dump and pg_restore operations with direct connections.
 
 import os
 import re
+import shutil
 import subprocess
 import asyncio
 import fnmatch
@@ -91,9 +92,33 @@ def get_backup_dir() -> Path:
     return backup_dir
 
 
+def _backup_type_map() -> Dict[str, str]:
+    """Map backup filename -> origin type ('scheduled' | 'manual') from the
+    operation history. Files with no matching backup operation are treated as
+    'imported' by the caller (uploaded or pulled from remote storage)."""
+    types: Dict[str, str] = {}
+    try:
+        history = get_logger().get_operation_history(limit=100000)
+    except Exception:
+        return types
+    # History is newest-first; iterate reversed so the earliest (origin)
+    # operation for a filename wins.
+    for op in reversed(history):
+        if op.get("type") != "backup":
+            continue
+        meta = op.get("metadata") or {}
+        fname = meta.get("filename")
+        if not fname:
+            continue
+        is_scheduled = bool(meta.get("scheduled") or meta.get("schedule"))
+        types[fname] = "scheduled" if is_scheduled else "manual"
+    return types
+
+
 def list_backup_files() -> List[Dict[str, Any]]:
     """List all backup files in the backup directory."""
     backup_dir = get_backup_dir()
+    type_map = _backup_type_map()
     files = []
 
     for file in backup_dir.glob("*.backup"):
@@ -104,6 +129,9 @@ def list_backup_files() -> List[Dict[str, Any]]:
             "size": stat.st_size,
             "size_human": _format_size(stat.st_size),
             "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            # Origin: scheduled/manual from operation history, else imported
+            # (uploaded or pulled from remote storage).
+            "type": type_map.get(file.name, "imported"),
         })
 
     files.sort(key=lambda x: x["modified"], reverse=True)
@@ -132,10 +160,29 @@ def get_backup_stats() -> Dict[str, Any]:
         except OSError:
             pass
 
+    # Capacity of the volume that hosts the backup directory, so the UI can show
+    # how full it is (best-effort; falls back to zeros if the path is unavailable).
+    disk_total = disk_used = disk_free = 0
+    disk_percent = 0
+    try:
+        usage = shutil.disk_usage(backup_dir)
+        disk_total, disk_used, disk_free = usage.total, usage.used, usage.free
+        if disk_total:
+            disk_percent = round(disk_used / disk_total * 100)
+    except OSError:
+        pass
+
     return {
         "count": count,
         "total_size": total_size,
         "total_size_human": _format_size(total_size),
+        "disk_total": disk_total,
+        "disk_total_human": _format_size(disk_total),
+        "disk_used": disk_used,
+        "disk_used_human": _format_size(disk_used),
+        "disk_free": disk_free,
+        "disk_free_human": _format_size(disk_free),
+        "disk_percent": disk_percent,
     }
 
 
