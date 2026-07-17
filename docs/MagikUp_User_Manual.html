@@ -309,7 +309,7 @@
   <h1>Magiku(r)p</h1>
   <div class="subtitle">PostgreSQL Backup &amp; Restore Web Application</div>
   <div class="subtitle" style="font-size:14pt; color:#495057;">Manuale Utente</div>
-  <div class="version">Versione 3.8.0</div>
+  <div class="version">Versione 3.9.0</div>
   <div class="meta">
     MagikUp<br>
     Aprile 2026
@@ -484,10 +484,10 @@ FastAPI (main.py) ── Auth (auth.py) ── Users (users.json)
 <h3>Build e Push dell&rsquo;immagine</h3>
 <pre>
 # Build dell'immagine Docker
-docker build -t ghcr.io/fpellizz/magikup:3.8.0 .
+docker build -t ghcr.io/fpellizz/magikup:3.9.0 .
 
 # Push al registry
-docker push ghcr.io/fpellizz/magikup:3.8.0
+docker push ghcr.io/fpellizz/magikup:3.9.0
 </pre>
 
 <h3>Configurazione Secrets</h3>
@@ -1613,6 +1613,14 @@ La vecchia route <code>/about</code> effettua un redirect automatico a <code>/in
 <h3>Cronologia Versioni</h3>
 <p>La card <strong>Version History</strong> nella pagina Info riporta il changelog dell&rsquo;applicazione. Di seguito il dettaglio della versione corrente:</p>
 
+<h4>Versione 3.9.0</h4>
+<ul>
+  <li><strong>Redesign della pagina Backup Files</strong> &mdash; La pagina File &egrave; stata ricostruita nel layout &laquo;stat cards + remote collassabile&raquo; con accent viola: tre schede in alto (cartella di backup, dimensione massima upload, storage totale usato con barra di riempimento del volume), una card &laquo;Retrieve from remote storage&raquo; collassata di default (tab S3 / filebrowser / link) e una tabella pi&ugrave; pulita (badge del tipo, data relativa + assoluta, azioni per riga). Adattiva al tema chiaro/scuro.</li>
+  <li><strong>Tipo di backup</strong> &mdash; Ogni backup &egrave; ora classificato come <strong>Manual</strong>, <strong>Scheduled</strong> o <strong>Imported</strong>: il tipo &egrave; dedotto dallo storico operazioni (schedulato vs manuale); i file senza operazione corrispondente (caricati o recuperati da remoto) sono mostrati come <em>imported</em>.</li>
+  <li><strong>Uso del volume</strong> &mdash; La barra &laquo;Total storage used&raquo; mostra quanto &egrave; pieno il volume che ospita la cartella di backup.</li>
+  <li><strong>Restore dalla pagina File</strong> &mdash; Una nuova azione <strong>Restore</strong> per riga apre la pagina di ripristino con il backup gi&agrave; selezionato. Restano disponibili Download, &laquo;Invia a storage remoto&raquo; ed Elimina.</li>
+</ul>
+
 <h4>Versione 3.8.0</h4>
 <ul>
   <li><strong>Duplica endpoint</strong> &mdash; Una nuova azione &laquo;duplica&raquo; su ogni endpoint clona una definizione esistente (host, porta, SSM/jumphost, read-only, replica, versione client pg, sslmode e password) nel dialog di aggiunta, con un nome gi&agrave; suggerito e modificabile (<code>&lt;nome&gt;-copy</code>). Caso tipico: riutilizzare la stessa connessione con un utente diverso.</li>
@@ -1958,7 +1966,7 @@ MagikUp Pod ──&gt; SSM Session ──&gt; EC2 Jump Host ──&gt; VPC Netwo
 <!-- ==================== FOOTER ==================== -->
 <div style="margin-top:60px; padding-top:20px; border-top:2px solid #6f42c1; text-align:center; color:#6c757d; font-size:9pt;">
   <p><strong>Magiku(r)p</strong> &mdash; PostgreSQL Backup &amp; Restore Web Application</p>
-  <p>Versione 3.8.0 &mdash; 2026 &mdash; MagikUp</p>
+  <p>Versione 3.9.0 &mdash; 2026 &mdash; MagikUp</p>
   <p><em>Manuale utente</em></p>
 </div>
 

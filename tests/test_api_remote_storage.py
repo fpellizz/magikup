@@ -95,4 +95,4 @@ def test_pages_render(client):
     assert "Remote Storage" in admin.text and "addS3Modal" in admin.text
     files = client.get("/files")
     assert files.status_code == 200
-    assert "Retrieve from Remote Storage" in files.text
+    assert "Retrieve from remote storage" in files.text

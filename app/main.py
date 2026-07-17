@@ -68,7 +68,7 @@ logger.info(f"Context path: '{_context_path}' (empty = root)")
 app = FastAPI(
     title="PostgreSQL Backup/Restore",
     description="Backup and restore PostgreSQL databases via direct or SSM tunnel connections",
-    version="3.8.0",
+    version="3.9.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -624,10 +624,12 @@ async def transfer_page(request: Request, user: dict = Depends(auth.require_oper
 async def files_page(request: Request, user: dict = Depends(auth.require_operator)):
     """Backup files management page."""
     settings = cfg.get_settings()
+    backup_stats = br.get_backup_stats()
 
     return templates.TemplateResponse("files.html", {
         "request": request,
         "settings": settings,
+        "backup_stats": backup_stats,
         "user": user["username"],
         "user_role": user["role"],
     })

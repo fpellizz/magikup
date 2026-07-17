@@ -614,6 +614,22 @@
 
 {% block extra_js %}
 <script>
+    // Preselect a backup file when arrived from the Files page (?backup=<name>).
+    (function preselectBackupFromQuery() {
+        try {
+            const wanted = new URLSearchParams(window.location.search).get('backup');
+            if (!wanted) return;
+            const sel = document.getElementById('backupFile');
+            if (!sel) return;
+            const opt = Array.from(sel.options).find(o =>
+                o.value.endsWith('/' + wanted) || o.value === wanted || o.textContent.includes(wanted));
+            if (opt) {
+                sel.value = opt.value;
+                sel.dispatchEvent(new Event('change'));
+            }
+        } catch (_) {}
+    })();
+
     const endpointSelect = document.getElementById('endpoint');
     const databaseSelect = document.getElementById('database');
     const roleSelect = document.getElementById('role');

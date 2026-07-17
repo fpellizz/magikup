@@ -3,249 +3,167 @@
 {% block title %}Backup Files - PostgreSQL Backup/Restore{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h2><i class="bi bi-folder-open"></i> Backup Files</h2>
-        <hr>
-    </div>
-</div>
+<div class="bf-page">
 
-<!-- Storage Info Banner -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="storage-info-banner">
-            <div class="storage-info-item">
-                <i class="bi bi-folder-fill"></i>
-                <div>
-                    <span class="storage-label">Backup Directory</span>
-                    <span class="storage-value" title="{{ settings.backup_dir }}">{{ settings.backup_dir }}</span>
-                </div>
+    <!-- 1. Stat cards -->
+    <div class="bf-stats">
+        <div class="bf-card bf-stat">
+            <div class="bf-eyebrow"><i class="bi bi-folder2"></i> Backup directory</div>
+            <div class="bf-stat-value bf-mono" title="{{ settings.backup_dir }}">{{ settings.backup_dir }}</div>
+        </div>
+        <div class="bf-card bf-stat">
+            <div class="bf-eyebrow"><i class="bi bi-upload"></i> Max upload size</div>
+            <div class="bf-stat-value">{{ settings.max_upload_size_gb }}<span class="bf-unit">GB</span></div>
+        </div>
+        <div class="bf-card bf-stat">
+            <div class="bf-eyebrow"><i class="bi bi-hdd"></i> Total storage used</div>
+            <div class="bf-stat-line">
+                <span class="bf-stat-value" id="totalStorageSize">{{ backup_stats.total_size_human }}</span>
+                <span class="bf-muted bf-small" id="storagePercentLabel">{{ backup_stats.disk_percent }}%</span>
             </div>
-            <div class="storage-info-item">
-                <i class="bi bi-cloud-upload-fill"></i>
-                <div>
-                    <span class="storage-label">Max Upload Size</span>
-                    <span class="storage-value">{{ settings.max_upload_size_gb }} GB</span>
-                </div>
-            </div>
-            <div class="storage-info-item" id="storageStatsInfo">
-                <i class="bi bi-hdd-fill"></i>
-                <div>
-                    <span class="storage-label">Total Storage Used</span>
-                    <span class="storage-value" id="totalStorageSize">Loading...</span>
-                </div>
-            </div>
+            <div class="bf-progress"><div class="bf-progress-fill" id="storageBar" style="width: {{ backup_stats.disk_percent }}%"></div></div>
+            <div class="bf-muted bf-small" id="storageCapacityLabel">of {{ backup_stats.disk_total_human }} volume</div>
         </div>
     </div>
-</div>
 
-<!-- Remote transfer progress (one bar per in-flight push/pull) -->
-<div class="row mb-4" id="transferProgressRow" style="display: none;">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-arrow-left-right"></i> Remote transfers
+    <!-- 2. Collapsible "Retrieve from remote storage" -->
+    <div class="bf-card bf-remote">
+        <button type="button" class="bf-remote-header" id="remoteToggle" onclick="toggleRemote()" aria-expanded="false" aria-controls="remoteBody">
+            <span class="bf-remote-tile"><i class="bi bi-cloud-download"></i></span>
+            <span class="bf-remote-text">
+                <span class="bf-remote-title">Retrieve from remote storage</span>
+                <span class="bf-remote-sub">Pull a backup from S3, the filebrowser, or a WebDAV / HTTP link</span>
+            </span>
+            <i class="bi bi-chevron-down bf-chevron" id="remoteChevron"></i>
+        </button>
+        <div class="bf-remote-body" id="remoteBody" hidden>
+            <div class="bf-segmented" id="retrieveTabs" role="tablist">
+                <button class="bf-seg nav-link active" data-bs-toggle="pill" data-bs-target="#retrieveS3Pane" type="button" role="tab">
+                    <i class="bi bi-box"></i> From S3 bucket
+                </button>
+                <button class="bf-seg nav-link" data-bs-toggle="pill" data-bs-target="#retrieveFbPane" type="button" role="tab">
+                    <i class="bi bi-folder2"></i> From filebrowser
+                </button>
+                <button class="bf-seg nav-link" data-bs-toggle="pill" data-bs-target="#retrieveLinkPane" type="button" role="tab">
+                    <i class="bi bi-link-45deg"></i> From link (WebDAV / HTTP)
+                </button>
             </div>
-            <div class="card-body" id="transferProgressBody"></div>
-        </div>
-    </div>
-</div>
-
-<!-- Retrieve from Remote Storage -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-cloud-download"></i> Retrieve from Remote Storage
-            </div>
-            <div class="card-body">
-                <ul class="nav nav-pills mb-3" id="retrieveTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#retrieveS3Pane" type="button" role="tab">
-                            <i class="bi bi-bucket"></i> From S3 bucket
+            <div class="tab-content bf-remote-panes">
+                <!-- From S3 -->
+                <div class="tab-pane fade show active" id="retrieveS3Pane" role="tabpanel">
+                    <div class="bf-field-row">
+                        <div class="bf-field-grow">
+                            <label class="bf-label" for="retrieveS3Select">S3 bucket</label>
+                            <select class="form-select" id="retrieveS3Select">
+                                <option value="">No S3 buckets configured</option>
+                            </select>
+                        </div>
+                        <button class="bf-btn bf-btn-outline" onclick="browseS3()" id="browseS3Btn">
+                            <i class="bi bi-search"></i> Browse
                         </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#retrieveFbPane" type="button" role="tab">
-                            <i class="bi bi-hdd-stack"></i> From filebrowser
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#retrieveLinkPane" type="button" role="tab">
-                            <i class="bi bi-link-45deg"></i> From link (WebDAV / HTTP)
-                        </button>
-                    </li>
-                </ul>
-                <div class="tab-content">
-                    <!-- From S3 -->
-                    <div class="tab-pane fade show active" id="retrieveS3Pane" role="tabpanel">
-                        <div class="row g-2 align-items-end">
-                            <div class="col-md-7">
-                                <label class="form-label" for="retrieveS3Select">S3 bucket</label>
-                                <select class="form-select" id="retrieveS3Select">
-                                    <option value="">No S3 buckets configured</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <button class="btn btn-outline-primary w-100" onclick="browseS3()" id="browseS3Btn">
-                                    <i class="bi bi-search me-1"></i> Browse
-                                </button>
-                            </div>
-                        </div>
-                        <div id="s3ObjectsContainer" class="mt-3"></div>
                     </div>
-                    <!-- From filebrowser -->
-                    <div class="tab-pane fade" id="retrieveFbPane" role="tabpanel">
-                        <div class="row g-2 align-items-end">
-                            <div class="col-md-7">
-                                <label class="form-label" for="retrieveFbSelect">filebrowser instance</label>
-                                <select class="form-select" id="retrieveFbSelect">
-                                    <option value="">No filebrowser configured</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <button class="btn btn-outline-primary w-100" onclick="browseFileBrowser()" id="browseFbBtn">
-                                    <i class="bi bi-search me-1"></i> Browse
-                                </button>
-                            </div>
+                    <div id="s3ObjectsContainer" class="bf-objects"></div>
+                </div>
+                <!-- From filebrowser -->
+                <div class="tab-pane fade" id="retrieveFbPane" role="tabpanel">
+                    <div class="bf-field-row">
+                        <div class="bf-field-grow">
+                            <label class="bf-label" for="retrieveFbSelect">filebrowser instance</label>
+                            <select class="form-select" id="retrieveFbSelect">
+                                <option value="">No filebrowser configured</option>
+                            </select>
                         </div>
-                        <div id="fbObjectsContainer" class="mt-3"></div>
+                        <button class="bf-btn bf-btn-outline" onclick="browseFileBrowser()" id="browseFbBtn">
+                            <i class="bi bi-search"></i> Browse
+                        </button>
                     </div>
-
-                    <!-- From link -->
-                    <div class="tab-pane fade" id="retrieveLinkPane" role="tabpanel">
-                        <div class="row g-2 align-items-end">
-                            <div class="col-md-6">
-                                <label class="form-label" for="retrieveLinkUrl">Backup URL</label>
-                                <input type="url" class="form-control" id="retrieveLinkUrl"
-                                       placeholder="https://host/path/db_20260101_120000.backup">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label" for="retrieveLinkShare">Credentials <span class="text-muted">(optional)</span></label>
-                                <select class="form-select" id="retrieveLinkShare">
-                                    <option value="">Auto / none</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <button class="btn btn-outline-primary w-100" onclick="pullFromLink()" id="pullLinkBtn">
-                                    <i class="bi bi-download me-1"></i> Download
-                                </button>
-                            </div>
+                    <div id="fbObjectsContainer" class="bf-objects"></div>
+                </div>
+                <!-- From link -->
+                <div class="tab-pane fade" id="retrieveLinkPane" role="tabpanel">
+                    <div class="bf-field-row">
+                        <div class="bf-field-grow">
+                            <label class="bf-label" for="retrieveLinkUrl">WebDAV / HTTP URL</label>
+                            <input type="url" class="form-control" id="retrieveLinkUrl"
+                                   placeholder="https://host/path/db_20260101_120000.backup">
                         </div>
-                        <div class="form-text mt-2">
-                            Downloads the file into the local backup directory. If the link matches a configured
-                            file share, its credentials are used automatically; otherwise pick one above.
+                        <div class="bf-field-cred">
+                            <label class="bf-label" for="retrieveLinkShare">Credentials <span class="bf-muted">(optional)</span></label>
+                            <select class="form-select" id="retrieveLinkShare">
+                                <option value="">Auto / none</option>
+                            </select>
                         </div>
+                        <button class="bf-btn bf-btn-primary" onclick="pullFromLink()" id="pullLinkBtn">
+                            <i class="bi bi-download"></i> Retrieve
+                        </button>
+                    </div>
+                    <div class="bf-hint">
+                        Downloads the file into the local backup directory. If the link matches a configured
+                        file share, its credentials are used automatically; otherwise pick one above.
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Backup Files Card -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-archive"></i> Backup Files</span>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-success" onclick="document.getElementById('uploadFileInput').click()">
-                        <i class="bi bi-upload"></i> Upload Backup
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="loadBackups()" id="refreshBtn">
-                        <i class="bi bi-arrow-repeat"></i> Refresh
-                    </button>
-                </div>
+    <!-- Remote transfer progress (one bar per in-flight push/pull) -->
+    <div class="bf-card bf-transfers" id="transferProgressRow" style="display: none;">
+        <div class="bf-transfers-head"><i class="bi bi-arrow-left-right"></i> Remote transfers</div>
+        <div class="bf-transfers-body" id="transferProgressBody"></div>
+    </div>
+
+    <!-- 3. Backup files table -->
+    <div class="bf-card bf-table-card">
+        <div class="bf-table-head">
+            <span class="bf-table-title">Backup files</span>
+            <span class="bf-count-pill" id="filesCountBadge">0</span>
+            <div class="bf-search">
+                <i class="bi bi-search"></i>
+                <input type="text" id="backupSearch" placeholder="Search backups…" onkeyup="filterBackups()" autocomplete="off">
             </div>
-            <div class="card-body">
+            <button class="bf-btn bf-btn-primary bf-upload-btn" onclick="document.getElementById('uploadFileInput').click()">
+                <i class="bi bi-upload"></i> Upload backup
+            </button>
+        </div>
 
-                    <!-- Upload Progress -->
-                    <div id="uploadProgress" style="display: none;" class="upload-progress-container mb-4">
-                        <div class="upload-progress-header">
-                            <div class="upload-progress-icon">
-                                <i class="bi bi-cloud-arrow-up"></i>
-                            </div>
-                            <div class="upload-progress-info">
-                                <span id="uploadStatus" class="upload-status">Uploading...</span>
-                                <span id="uploadPercent" class="upload-percent">0%</span>
-                            </div>
-                        </div>
-                        <div class="progress">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated"
-                                 id="uploadProgressBar"
-                                 role="progressbar"
-                                 style="width: 0%"></div>
-                        </div>
-                    </div>
-
-                    <!-- Hidden file input -->
-                    <input type="file" id="uploadFileInput" accept=".backup" style="display: none;" onchange="handleFileUpload(this.files[0])">
-
-                    <!-- Search/Filter -->
-                    <div class="files-toolbar mb-4">
-                        <div class="search-wrapper">
-                            <i class="bi bi-search search-icon"></i>
-                            <input type="text"
-                                   class="form-control search-input"
-                                   id="backupSearch"
-                                   placeholder="Search backups by name..."
-                                   onkeyup="filterBackups()">
-                        </div>
-                        <div class="files-count-badge" id="filesCountBadge" style="display: none;">
-                            <i class="bi bi-file-earmark-zip"></i>
-                            <span id="filesCountText">0 files</span>
-                        </div>
-                    </div>
-
-                    <!-- Backup Files Table -->
-                    <div class="table-responsive files-table-container">
-                        <table class="table table-hover" id="backupsTableContainer">
-                            <thead>
-                                <tr>
-                                    <th onclick="sortBackups('name')">
-                                        <span class="th-content">
-                                            Filename
-                                            <i class="bi bi-arrow-down-up sort-icon"></i>
-                                        </span>
-                                    </th>
-                                    <th onclick="sortBackups('size')" class="text-end" style="width: 120px;">
-                                        <span class="th-content">
-                                            Size
-                                            <i class="bi bi-arrow-down-up sort-icon"></i>
-                                        </span>
-                                    </th>
-                                    <th onclick="sortBackups('modified')" style="width: 180px;">
-                                        <span class="th-content">
-                                            Modified
-                                            <i class="bi bi-arrow-down-up sort-icon"></i>
-                                        </span>
-                                    </th>
-                                    <th class="text-end" style="width: 130px;">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="backupsTable">
-                                <tr>
-                                    <td colspan="4">
-                                        <div class="files-loading">
-                                            <span class="spinner-border spinner-border-sm me-2"></span>
-                                            Loading backup files...
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Stats -->
-                    <div class="files-stats mt-3">
-                        <span id="backupStats"><i class="bi bi-info-circle"></i> Loading...</span>
-                    </div>
-                </div>
+        <!-- Upload progress -->
+        <div id="uploadProgress" style="display: none;" class="bf-upload-progress">
+            <div class="bf-upload-progress-head">
+                <span id="uploadStatus" class="bf-upload-status">Uploading…</span>
+                <span id="uploadPercent" class="bf-upload-percent">0%</span>
             </div>
+            <div class="bf-progress"><div class="bf-progress-fill" id="uploadProgressBar" style="width: 0%"></div></div>
+        </div>
+
+        <!-- Hidden file input -->
+        <input type="file" id="uploadFileInput" accept=".backup" style="display: none;" onchange="handleFileUpload(this.files[0])">
+
+        <div class="bf-table-wrap">
+            <table class="bf-table" id="backupsTableContainer">
+                <thead>
+                    <tr>
+                        <th class="bf-th-sort" onclick="sortBackups('name')">Backup <i class="bi bi-arrow-down-up bf-sort-i"></i></th>
+                        <th style="width: 130px;">Type</th>
+                        <th class="bf-th-sort text-end" style="width: 110px;" onclick="sortBackups('size')">Size <i class="bi bi-arrow-down-up bf-sort-i"></i></th>
+                        <th class="bf-th-sort" style="width: 190px;" onclick="sortBackups('modified')">Created <i class="bi bi-arrow-down-up bf-sort-i"></i></th>
+                        <th style="width: 150px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="backupsTable">
+                    <tr>
+                        <td colspan="5">
+                            <div class="bf-loading">
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                Loading backup files…
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
 <!-- Send to Remote Storage Modal -->
 <div class="modal fade" id="pushModal" tabindex="-1" aria-labelledby="pushModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -279,319 +197,225 @@
 
 {% block extra_css %}
 <style>
-    /* Storage Info Banner */
-    .storage-info-banner {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1.5rem;
-        padding: 1.25rem 1.5rem;
-        background: var(--accent-gradient);
-        border-radius: 12px;
-        color: white;
-    }
-
-    .storage-info-item {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    .storage-info-item > i {
-        font-size: 1.5rem;
-        opacity: 0.9;
-    }
-
-    .storage-info-item > div {
+    /* ===== Backup Files redesign — "stat cards + collapsible remote", violet accent ===== */
+    .bf-page {
+        --bf-brand: #8b5cf6;
+        --bf-brand-fg: #7c3aed;
+        --bf-card: #ffffff;
+        --bf-fg: #111827;
+        --bf-border: #e5e7eb;
+        --bf-muted: #f3f4f6;
+        --bf-muted-fg: #6b7280;
+        --bf-pane: #fafafa;
+        --bf-pane-accent: #f3f4f6;
+        --bf-destructive: #dc2626;
+        --bf-radius: 0.625rem;
+        --bf-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
         display: flex;
         flex-direction: column;
+        gap: 16px;
+        max-width: 1180px;
+        margin: 0 auto;
+    }
+    [data-bs-theme="dark"] .bf-page {
+        --bf-brand: #a78bfa;
+        --bf-brand-fg: #a78bfa;
+        --bf-card: #171717;
+        --bf-fg: #f5f5f5;
+        --bf-border: rgba(255, 255, 255, 0.12);
+        --bf-muted: #262626;
+        --bf-muted-fg: #a3a3a3;
+        --bf-pane: #1f1f1f;
+        --bf-pane-accent: #2a2a2a;
+        --bf-destructive: #f87171;
     }
 
-    .storage-label {
-        font-size: 0.75rem;
-        opacity: 0.85;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+    .bf-card {
+        background: var(--bf-card);
+        border: 1px solid var(--bf-border);
+        border-radius: var(--bf-radius);
+        box-shadow: 0 1px 2px rgb(0 0 0 / .05);
     }
+    .bf-muted { color: var(--bf-muted-fg); }
+    .bf-small { font-size: 12px; }
+    .bf-mono { font-family: var(--bf-mono); }
 
-    .storage-value {
-        font-weight: 600;
-        font-size: 0.95rem;
-        max-width: 200px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+    /* --- Stat cards --- */
+    .bf-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
     }
-
-    /* Files Toolbar */
-    .files-toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        flex-wrap: wrap;
+    .bf-stat { padding: 18px 20px; }
+    .bf-eyebrow {
+        display: flex; align-items: center; gap: 7px;
+        font-size: 12px; font-weight: 600; letter-spacing: .04em;
+        text-transform: uppercase; color: var(--bf-muted-fg);
+        margin-bottom: 10px;
     }
-
-    .search-wrapper {
-        position: relative;
-        flex: 1;
-        max-width: 400px;
+    .bf-eyebrow i { font-size: 14px; }
+    .bf-stat-value {
+        font-size: 22px; font-weight: 600; color: var(--bf-fg);
+        line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    .bf-stat.bf-mono .bf-stat-value, .bf-stat-value.bf-mono { font-family: var(--bf-mono); font-size: 20px; }
+    .bf-unit { font-size: 15px; font-weight: 500; color: var(--bf-muted-fg); margin-left: 4px; }
+    .bf-stat-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .bf-progress { height: 7px; border-radius: 999px; background: var(--bf-muted); overflow: hidden; margin-top: 10px; }
+    .bf-progress-fill { height: 100%; background: var(--bf-brand); border-radius: 999px; transition: width .3s ease; }
+    .bf-stat .bf-small { margin-top: 6px; }
 
-    .search-icon {
-        position: absolute;
-        left: 1rem;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-muted);
-        pointer-events: none;
+    /* --- Collapsible remote --- */
+    .bf-remote { overflow: hidden; }
+    .bf-remote-header {
+        display: flex; align-items: center; gap: 14px; width: 100%;
+        padding: 16px 20px; background: transparent; border: 0; text-align: left; cursor: pointer;
+        color: var(--bf-fg);
     }
-
-    .search-input {
-        padding-left: 2.75rem !important;
+    .bf-remote-tile {
+        width: 34px; height: 34px; border-radius: 9px; background: var(--bf-muted);
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        color: var(--bf-brand-fg); font-size: 17px;
     }
+    .bf-remote-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+    .bf-remote-title { font-size: 15px; font-weight: 600; }
+    .bf-remote-sub { font-size: 13px; color: var(--bf-muted-fg); }
+    .bf-chevron { color: var(--bf-muted-fg); transition: transform .15s ease; }
+    .bf-remote-header[aria-expanded="true"] .bf-chevron { transform: rotate(180deg); }
+    .bf-remote-body { padding: 0 20px 20px; }
 
-    .files-count-badge {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        background: var(--bg-tertiary);
-        border-radius: 20px;
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-        font-weight: 500;
+    /* Segmented control */
+    .bf-segmented {
+        display: inline-flex; gap: 2px; padding: 4px; background: var(--bf-muted);
+        border-radius: var(--bf-radius); width: fit-content; max-width: 100%; flex-wrap: wrap;
     }
-
-    .files-count-badge i {
-        color: var(--accent-primary);
+    .bf-seg {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 6px 12px; border: 0; background: transparent; border-radius: calc(var(--bf-radius) - 2px);
+        font-size: 13px; font-weight: 500; color: var(--bf-muted-fg); cursor: pointer;
     }
-
-    /* Upload Progress */
-    .upload-progress-container {
-        background: var(--bg-tertiary);
-        border-radius: 12px;
-        padding: 1.25rem;
-        border: 1px solid var(--border-color);
+    .bf-seg.active {
+        background: var(--bf-card); color: var(--bf-fg);
+        box-shadow: 0 1px 2px rgb(0 0 0 / .1);
     }
+    .bf-remote-panes { margin-top: 16px; }
+    .bf-field-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .bf-field-grow { flex: 1; min-width: 220px; }
+    .bf-field-cred { width: 200px; }
+    .bf-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--bf-fg); }
+    .bf-hint { font-size: 13px; color: var(--bf-muted-fg); margin-top: 10px; }
+    .bf-objects { margin-top: 16px; }
 
-    .upload-progress-header {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        margin-bottom: 1rem;
+    /* Buttons */
+    .bf-btn {
+        display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+        padding: 8px 14px; border-radius: calc(var(--bf-radius) - 2px);
+        font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent;
+        transition: background .15s ease, border-color .15s ease, opacity .15s ease;
     }
+    .bf-btn-primary { background: var(--bf-brand-fg); color: #fff; }
+    .bf-btn-primary:hover { opacity: .92; color: #fff; }
+    .bf-btn-outline { background: var(--bf-card); border-color: var(--bf-border); color: var(--bf-fg); }
+    .bf-btn-outline:hover { background: var(--bf-pane-accent); }
+    .bf-btn:disabled { opacity: .5; cursor: not-allowed; }
 
-    .upload-progress-icon {
-        width: 48px;
-        height: 48px;
-        background: var(--accent-gradient);
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 1.25rem;
-        animation: pulse 2s infinite;
+    /* --- Transfers card --- */
+    .bf-transfers-head { padding: 14px 20px; border-bottom: 1px solid var(--bf-border); font-weight: 600; font-size: 14px; }
+    .bf-transfers-head i { color: var(--bf-brand-fg); margin-right: 6px; }
+    .bf-transfers-body { padding: 16px 20px; }
+    .bf-transfers-body .progress { height: 8px; background: var(--bf-muted); }
+
+    /* --- Table card --- */
+    .bf-table-head {
+        display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+        border-bottom: 1px solid var(--bf-border); flex-wrap: wrap;
     }
-
-    .upload-progress-info {
-        flex: 1;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    .bf-table-title { font-size: 16px; font-weight: 600; color: var(--bf-fg); }
+    .bf-count-pill {
+        background: var(--bf-muted); color: var(--bf-muted-fg); font-size: 12px; font-weight: 600;
+        padding: 2px 9px; border-radius: 999px;
     }
-
-    .upload-status {
-        font-weight: 500;
-        color: var(--text-primary);
+    .bf-search { position: relative; width: 260px; max-width: 100%; }
+    .bf-search i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--bf-muted-fg); font-size: 14px; pointer-events: none; }
+    .bf-search input {
+        width: 100%; padding: 8px 12px 8px 32px; font-size: 13px;
+        border: 1px solid var(--bf-border); border-radius: calc(var(--bf-radius) - 2px);
+        background: var(--bf-card); color: var(--bf-fg);
     }
+    .bf-search input:focus { outline: none; border-color: var(--bf-brand); box-shadow: 0 0 0 3px color-mix(in oklab, var(--bf-brand) 20%, transparent); }
+    .bf-upload-btn { margin-left: auto; }
 
-    .upload-percent {
-        font-weight: 700;
-        font-size: 1.25rem;
-        color: var(--accent-primary);
+    .bf-table-wrap { overflow-x: auto; }
+    .bf-table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--bf-fg); }
+    .bf-table thead th {
+        background: var(--bf-pane); text-align: left; padding: 10px 20px;
+        font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+        color: var(--bf-muted-fg); white-space: nowrap;
     }
+    .bf-th-sort { cursor: pointer; user-select: none; }
+    .bf-sort-i { font-size: 10px; opacity: .4; margin-left: 2px; }
+    .bf-th-sort:hover .bf-sort-i { opacity: .8; }
+    .bf-table tbody td { padding: 11px 20px; border-top: 1px solid var(--bf-border); vertical-align: middle; }
+    .bf-row:hover { background: var(--bf-pane-accent); }
 
-    /* Files Table */
-    .files-table-container {
-        border-radius: 10px;
-        overflow: hidden;
-        border: 1px solid var(--border-color);
+    .bf-file { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .bf-file-tile {
+        width: 32px; height: 32px; border-radius: 8px; background: var(--bf-muted);
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        color: var(--bf-brand-fg); font-size: 15px;
     }
+    .bf-file-name { font-family: var(--bf-mono); font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px; }
 
-    .files-table-container .table {
-        margin-bottom: 0;
+    .bf-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 500; text-transform: capitalize; }
+    .bf-badge-manual { background: var(--bf-muted); color: var(--bf-muted-fg); }
+    .bf-badge-scheduled { background: color-mix(in oklab, var(--bf-brand) 16%, transparent); color: var(--bf-brand-fg); }
+    .bf-badge-imported { background: color-mix(in oklab, #0284c7 16%, transparent); color: #0369a1; }
+    [data-bs-theme="dark"] .bf-badge-imported { color: #7dd3fc; }
+
+    .bf-size { font-family: var(--bf-mono); font-size: 13px; }
+    .bf-created-rel { font-size: 13px; }
+    .bf-created-abs { font-family: var(--bf-mono); font-size: 11.5px; color: var(--bf-muted-fg); }
+
+    .bf-actions { display: flex; gap: 4px; justify-content: flex-end; }
+    .bf-act {
+        width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+        border: 1px solid var(--bf-border); border-radius: calc(var(--bf-radius) - 2px);
+        background: var(--bf-card); color: var(--bf-fg); cursor: pointer; font-size: 14px;
+        transition: background .12s ease;
     }
+    .bf-act:hover { background: var(--bf-pane-accent); }
+    .bf-act-download { color: var(--bf-brand-fg); }
+    .bf-act-delete { color: var(--bf-destructive); }
+    .bf-act-delete:hover { background: color-mix(in oklab, var(--bf-destructive) 10%, transparent); }
 
-    .files-table-container thead th {
-        cursor: pointer;
-        user-select: none;
-        transition: background-color 0.2s ease;
-    }
+    /* Upload progress */
+    .bf-upload-progress { padding: 16px 20px; border-bottom: 1px solid var(--bf-border); }
+    .bf-upload-progress-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; }
+    .bf-upload-status { font-weight: 500; }
+    .bf-upload-percent { font-weight: 700; color: var(--bf-brand-fg); }
 
-    .files-table-container thead th:hover {
-        background-color: var(--bg-secondary) !important;
-    }
+    /* Loading / empty */
+    .bf-loading, .bf-empty { text-align: center; padding: 2.5rem 1rem; color: var(--bf-muted-fg); }
+    .bf-empty i { font-size: 2.75rem; opacity: .3; display: block; margin-bottom: .75rem; }
+    .bf-empty h6 { color: var(--bf-fg); font-weight: 600; margin-bottom: .35rem; }
+    .bf-empty p { font-size: .9rem; margin-bottom: 1.1rem; }
 
-    .th-content {
-        display: flex;
-        align-items: center;
-        gap: 0.375rem;
-    }
+    /* Objects sub-tables (browse remote) reuse table look */
+    .bf-objects table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .bf-objects th { background: var(--bf-pane); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; color: var(--bf-muted-fg); padding: 8px 12px; text-align: left; }
+    .bf-objects td { padding: 8px 12px; border-top: 1px solid var(--bf-border); }
 
-    .sort-icon {
-        font-size: 0.7rem;
-        opacity: 0.4;
-        transition: opacity 0.2s ease;
-    }
-
-    thead th:hover .sort-icon {
-        opacity: 0.8;
-    }
-
-    /* File Row */
-    .file-row {
-        transition: all 0.2s ease;
-    }
-
-    .file-row:hover {
-        background-color: var(--bg-tertiary) !important;
-    }
-
-    .file-info {
-        display: flex;
-        align-items: center;
-        gap: 0.875rem;
-    }
-
-    .file-icon {
-        width: 40px;
-        height: 40px;
-        background: rgba(99, 102, 241, 0.1);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--accent-primary);
-        font-size: 1.1rem;
-        flex-shrink: 0;
-    }
-
-    .file-details {
-        min-width: 0;
-    }
-
-    .file-name {
-        font-weight: 500;
-        color: var(--text-primary);
-        display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        max-width: 350px;
-    }
-
-    .file-size {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        background: var(--bg-tertiary);
-        padding: 0.25rem 0.625rem;
-        border-radius: 6px;
-    }
-
-    .file-date {
-        font-size: 0.85rem;
-        color: var(--text-muted);
-    }
-
-    .file-date i {
-        opacity: 0.7;
-    }
-
-    .file-actions {
-        display: flex;
-        gap: 0.375rem;
-        justify-content: flex-end;
-    }
-
-    .file-actions .btn {
-        padding: 0.375rem 0.625rem;
-    }
-
-    /* Files Stats */
-    .files-stats {
-        padding: 0.75rem 1rem;
-        background: var(--bg-tertiary);
-        border-radius: 8px;
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-    }
-
-    .files-stats i {
-        margin-right: 0.375rem;
-    }
-
-    /* Empty State */
-    .files-empty-state {
-        text-align: center;
-        padding: 3rem 2rem;
-        color: var(--text-muted);
-    }
-
-    .files-empty-state i {
-        font-size: 3.5rem;
-        margin-bottom: 1rem;
-        opacity: 0.3;
-        display: block;
-    }
-
-    .files-empty-state h6 {
-        color: var(--text-primary);
-        margin-bottom: 0.5rem;
-        font-weight: 600;
-    }
-
-    .files-empty-state p {
-        margin-bottom: 1.5rem;
-        font-size: 0.9rem;
-    }
-
-    /* Loading State */
-    .files-loading {
-        text-align: center;
-        padding: 2rem;
-        color: var(--text-muted);
-    }
-
-    /* Responsive */
     @media (max-width: 768px) {
-        .storage-info-banner {
-            flex-direction: column;
-            gap: 1rem;
+        .bf-stats { grid-template-columns: 1fr; }
+        .bf-file-name { max-width: 180px; }
+        .bf-search { width: 100%; order: 3; }
+        .bf-upload-btn { margin-left: 0; }
+        @media (prefers-reduced-motion: reduce) {
+            .bf-chevron, .bf-progress-fill, .bf-btn, .bf-act { transition: none; }
         }
-
-        .files-toolbar {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .search-wrapper {
-            max-width: 100%;
-        }
-
-        .file-name {
-            max-width: 180px;
-        }
-
-        .file-info {
-            gap: 0.5rem;
-        }
-
-        .file-icon {
-            width: 36px;
-            height: 36px;
-        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .bf-chevron, .bf-progress-fill, .bf-btn, .bf-act { transition: none; }
     }
 </style>
 {% endblock %}
@@ -602,6 +426,14 @@
     let allBackups = [];
     let currentSort = { field: 'modified', ascending: false };
 
+    function toggleRemote() {
+        const body = document.getElementById('remoteBody');
+        const btn = document.getElementById('remoteToggle');
+        const open = body.hasAttribute('hidden');
+        if (open) { body.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+        else { body.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
+    }
+
     async function loadBackups() {
         const backups = await apiCall('/api/backups');
         allBackups = backups;
@@ -609,176 +441,135 @@
         updateBackupStats();
     }
 
+    const TYPE_LABEL = { manual: 'Manual', scheduled: 'Scheduled', imported: 'Imported' };
+
     function displayBackups(backups) {
         const tbody = document.getElementById('backupsTable');
-        const filesCountBadge = document.getElementById('filesCountBadge');
-        const filesCountText = document.getElementById('filesCountText');
+        const countPill = document.getElementById('filesCountBadge');
+        countPill.textContent = allBackups.length;
 
         if (backups.length === 0) {
+            const noneAtAll = allBackups.length === 0;
             tbody.innerHTML = `
-                <tr>
-                    <td colspan="4">
-                        <div class="files-empty-state">
-                            <i class="bi bi-inbox"></i>
-                            <h6>No backup files found</h6>
-                            <p>Upload a backup file to get started</p>
-                            <button class="btn btn-primary btn-sm" onclick="document.getElementById('uploadFileInput').click()">
-                                <i class="bi bi-upload me-1"></i> Upload Backup
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-            filesCountBadge.style.display = 'none';
+                <tr><td colspan="5">
+                    <div class="bf-empty">
+                        <i class="bi bi-inbox"></i>
+                        <h6>${noneAtAll ? 'No backup files found' : 'No backups match your search'}</h6>
+                        <p>${noneAtAll ? 'Upload a backup file to get started' : 'Try a different search term'}</p>
+                        ${noneAtAll ? `<button class="bf-btn bf-btn-primary" style="margin:0 auto;" onclick="document.getElementById('uploadFileInput').click()"><i class="bi bi-upload"></i> Upload backup</button>` : ''}
+                    </div>
+                </td></tr>`;
             return;
         }
 
-        // Show files count badge
-        filesCountBadge.style.display = 'flex';
-        filesCountText.textContent = `${backups.length} file${backups.length !== 1 ? 's' : ''}`;
-
-        tbody.innerHTML = backups.map(backup => `
-            <tr class="file-row">
+        tbody.innerHTML = backups.map(backup => {
+            const type = backup.type || 'imported';
+            const created = createdCell(backup.modified);
+            return `
+            <tr class="bf-row">
                 <td>
-                    <div class="file-info">
-                        <div class="file-icon">
-                            <i class="bi bi-file-earmark-zip-fill"></i>
-                        </div>
-                        <div class="file-details">
-                            <span class="file-name" title="${backup.name}">${backup.name}</span>
-                        </div>
+                    <div class="bf-file">
+                        <span class="bf-file-tile"><i class="bi bi-file-earmark"></i></span>
+                        <span class="bf-file-name" title="${backup.name}">${backup.name}</span>
                     </div>
                 </td>
-                <td class="text-end">
-                    <span class="file-size">${backup.size_human}</span>
+                <td><span class="bf-badge bf-badge-${type}">${TYPE_LABEL[type] || 'Imported'}</span></td>
+                <td class="text-end"><span class="bf-size">${backup.size_human}</span></td>
+                <td>
+                    <div class="bf-created-rel">${created.rel}</div>
+                    <div class="bf-created-abs">${created.abs}</div>
                 </td>
                 <td>
-                    <span class="file-date">
-                        <i class="bi bi-clock me-1"></i>${formatDateTime(backup.modified)}
-                    </span>
-                </td>
-                <td class="text-end">
-                    <div class="file-actions">
-                        <button class="btn btn-sm btn-outline-primary"
-                                onclick="downloadBackup('${backup.name}')"
-                                title="Download">
-                            <i class="bi bi-download"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-success"
-                                onclick="openPushModal('${backup.name}')"
-                                title="Send to remote storage">
-                            <i class="bi bi-cloud-upload"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger"
-                                onclick="deleteBackup('${backup.name}')"
-                                title="Delete">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                    <div class="bf-actions">
+                        <button class="bf-act bf-act-download" onclick="downloadBackup('${jsAttr(backup.name)}')" title="Download"><i class="bi bi-download"></i></button>
+                        <button class="bf-act" onclick="restoreBackup('${jsAttr(backup.name)}')" title="Restore"><i class="bi bi-arrow-counterclockwise"></i></button>
+                        <button class="bf-act" onclick="openPushModal('${jsAttr(backup.name)}')" title="Send to remote storage"><i class="bi bi-cloud-upload"></i></button>
+                        <button class="bf-act bf-act-delete" onclick="deleteBackup('${jsAttr(backup.name)}')" title="Delete"><i class="bi bi-trash"></i></button>
                     </div>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
     }
 
+    function jsAttr(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
     function formatDateTime(isoString) {
-        // Format: 2024-01-27 15:30:45
         return isoString.substring(0, 19).replace('T', ' ');
     }
 
+    // Relative + absolute created cell
+    function createdCell(iso) {
+        const abs = (iso || '').substring(0, 16).replace('T', ' ');
+        let rel = '';
+        try {
+            const then = new Date(iso);
+            const now = new Date();
+            const diffMs = now - then;
+            const min = Math.floor(diffMs / 60000);
+            const hr = Math.floor(min / 60);
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const startOfThen = new Date(then.getFullYear(), then.getMonth(), then.getDate());
+            const dayDiff = Math.round((startOfToday - startOfThen) / 86400000);
+            const hhmm = then.toTimeString().substring(0, 5);
+            if (min < 1) rel = 'Just now';
+            else if (min < 60) rel = `${min} minute${min !== 1 ? 's' : ''} ago`;
+            else if (dayDiff === 0) rel = hr < 6 ? `${hr} hour${hr !== 1 ? 's' : ''} ago` : `Today, ${hhmm}`;
+            else if (dayDiff === 1) rel = 'Yesterday';
+            else if (dayDiff < 30) rel = `${dayDiff} days ago`;
+            else rel = abs.substring(0, 10);
+        } catch (_) { rel = abs.substring(0, 10); }
+        return { rel, abs };
+    }
+
     function updateBackupStats() {
-        const statsEl = document.getElementById('backupStats');
         const totalStorageEl = document.getElementById('totalStorageSize');
-
-        if (allBackups.length === 0) {
-            statsEl.innerHTML = '<i class="bi bi-info-circle"></i> No backups found';
-            totalStorageEl.textContent = '0 B';
-            return;
-        }
-
         const totalSize = allBackups.reduce((sum, b) => sum + b.size, 0);
-        const totalSizeHuman = formatSize(totalSize);
-
-        statsEl.innerHTML = `<i class="bi bi-check-circle text-success"></i> ${allBackups.length} backup file${allBackups.length !== 1 ? 's' : ''} • Total size: <strong>${totalSizeHuman}</strong>`;
-        totalStorageEl.textContent = totalSizeHuman;
+        totalStorageEl.textContent = formatSize(totalSize);
     }
 
     function formatSize(bytes) {
         const units = ['B', 'KB', 'MB', 'GB', 'TB'];
         let size = bytes;
         let unitIndex = 0;
-
-        while (size >= 1024 && unitIndex < units.length - 1) {
-            size /= 1024;
-            unitIndex++;
-        }
-
+        while (size >= 1024 && unitIndex < units.length - 1) { size /= 1024; unitIndex++; }
         return `${size.toFixed(1)} ${units[unitIndex]}`;
     }
 
     function filterBackups() {
         const searchTerm = document.getElementById('backupSearch').value.toLowerCase();
-
-        if (!searchTerm) {
-            displayBackups(allBackups);
-            return;
-        }
-
-        const filtered = allBackups.filter(b =>
-            b.name.toLowerCase().includes(searchTerm)
-        );
-
-        displayBackups(filtered);
+        if (!searchTerm) { displayBackups(allBackups); return; }
+        displayBackups(allBackups.filter(b => b.name.toLowerCase().includes(searchTerm)));
     }
 
     function sortBackups(field) {
-        // Toggle sort direction if clicking same field
-        if (currentSort.field === field) {
-            currentSort.ascending = !currentSort.ascending;
-        } else {
-            currentSort.field = field;
-            currentSort.ascending = field === 'name'; // name ascending by default, others descending
-        }
-
+        if (currentSort.field === field) { currentSort.ascending = !currentSort.ascending; }
+        else { currentSort.field = field; currentSort.ascending = field === 'name'; }
         const sorted = [...allBackups].sort((a, b) => {
             let valA, valB;
-
-            if (field === 'size') {
-                valA = a.size;
-                valB = b.size;
-            } else if (field === 'modified') {
-                valA = new Date(a.modified);
-                valB = new Date(b.modified);
-            } else {
-                valA = a.name.toLowerCase();
-                valB = b.name.toLowerCase();
-            }
-
+            if (field === 'size') { valA = a.size; valB = b.size; }
+            else if (field === 'modified') { valA = new Date(a.modified); valB = new Date(b.modified); }
+            else { valA = a.name.toLowerCase(); valB = b.name.toLowerCase(); }
             if (valA < valB) return currentSort.ascending ? -1 : 1;
             if (valA > valB) return currentSort.ascending ? 1 : -1;
             return 0;
         });
+        // keep sort applied to the current (possibly filtered) view
+        allBackups = sorted;
+        filterBackups();
+    }
 
-        displayBackups(sorted);
+    function restoreBackup(filename) {
+        window.location = BASE_PATH + '/restore?backup=' + encodeURIComponent(filename);
     }
 
     async function downloadBackup(filename) {
         try {
             showToast(`Downloading ${filename}...`, 'info');
-
-            // Create a temporary link and click it
             const url = BASE_PATH + `/api/backups/${encodeURIComponent(filename)}/download`;
             const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            // Show toast after a delay
-            setTimeout(() => {
-                showToast('Download started', 'success');
-            }, 500);
-
+            link.href = url; link.download = filename;
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            setTimeout(() => { showToast('Download started', 'success'); }, 500);
         } catch (error) {
             showToast('Failed to download backup', 'error');
         }
@@ -786,23 +577,11 @@
 
     async function handleFileUpload(file) {
         if (!file) return;
-
-        // Validate file extension
-        if (!file.name.endsWith('.backup')) {
-            showToast('Only .backup files are allowed', 'error');
-            return;
-        }
-
-        // Check file size
+        if (!file.name.endsWith('.backup')) { showToast('Only .backup files are allowed', 'error'); return; }
         const maxSizeGB = {{ settings.max_upload_size_gb }};
         const maxBytes = maxSizeGB * 1024 * 1024 * 1024;
+        if (file.size > maxBytes) { showToast(`File is too large. Maximum size is ${maxSizeGB}GB`, 'error'); return; }
 
-        if (file.size > maxBytes) {
-            showToast(`File is too large. Maximum size is ${maxSizeGB}GB`, 'error');
-            return;
-        }
-
-        // Show progress UI
         const progressDiv = document.getElementById('uploadProgress');
         const progressBar = document.getElementById('uploadProgressBar');
         const statusText = document.getElementById('uploadStatus');
@@ -810,50 +589,38 @@
 
         progressDiv.style.display = 'block';
         progressBar.style.width = '0%';
-        statusText.textContent = `Uploading ${file.name}...`;
+        statusText.textContent = `Uploading ${file.name}…`;
         percentText.textContent = '0%';
 
-        // Create FormData
         const formData = new FormData();
         formData.append('file', file);
-
-        // Use XMLHttpRequest for progress tracking
         const xhr = new XMLHttpRequest();
-
-        // Progress handler
         xhr.upload.addEventListener('progress', (e) => {
             if (e.lengthComputable) {
-                const percentComplete = Math.round((e.loaded / e.total) * 100);
-                progressBar.style.width = percentComplete + '%';
-                percentText.textContent = percentComplete + '%';
+                const pct = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = pct + '%';
+                percentText.textContent = pct + '%';
             }
         });
-
-        // Success handler
         xhr.addEventListener('load', () => {
             if (xhr.status === 200) {
                 const result = JSON.parse(xhr.responseText);
                 showToast(`Uploaded ${result.filename} (${result.size_human})`, 'success');
                 progressDiv.style.display = 'none';
-                loadBackups(); // Reload the list
+                loadBackups();
             } else {
-                const error = JSON.parse(xhr.responseText);
-                showToast(`Upload failed: ${error.detail || 'Unknown error'}`, 'error');
+                let detail = 'Unknown error';
+                try { detail = JSON.parse(xhr.responseText).detail || detail; } catch (_) {}
+                showToast(`Upload failed: ${detail}`, 'error');
                 progressDiv.style.display = 'none';
             }
-
-            // Reset file input
             document.getElementById('uploadFileInput').value = '';
         });
-
-        // Error handler
         xhr.addEventListener('error', () => {
             showToast('Upload failed: Network error', 'error');
             progressDiv.style.display = 'none';
             document.getElementById('uploadFileInput').value = '';
         });
-
-        // Send request
         xhr.open('POST', BASE_PATH + '/api/backups/upload');
         xhr.send(formData);
     }
@@ -861,12 +628,8 @@
     async function deleteBackup(filename) {
         if (confirm(`Delete backup "${filename}"?\n\nThis action cannot be undone.`)) {
             const result = await apiCall(`/api/backups/${encodeURIComponent(filename)}`, 'DELETE');
-            if (result.success) {
-                showToast('Backup deleted', 'success');
-                loadBackups();
-            } else {
-                showToast(result.error || 'Failed to delete backup', 'error');
-            }
+            if (result.success) { showToast('Backup deleted', 'success'); loadBackups(); }
+            else { showToast(result.error || 'Failed to delete backup', 'error'); }
         }
     }
 
@@ -878,56 +641,35 @@
     let fbObjects = [];
     let currentPushFile = null;
 
-    function isErr(res) {
-        return !res || res.detail !== undefined || res.success === false;
-    }
+    function isErr(res) { return !res || res.detail !== undefined || res.success === false; }
 
     async function loadRemoteTargets() {
-        try {
-            remoteTargets = await apiCall('/api/storage/targets');
-        } catch (e) {
-            remoteTargets = { s3: [], fileshare: [], filebrowser: [] };
-        }
+        try { remoteTargets = await apiCall('/api/storage/targets'); }
+        catch (e) { remoteTargets = { s3: [], fileshare: [], filebrowser: [] }; }
         const s3List = remoteTargets.s3 || [];
         const fsList = remoteTargets.fileshare || [];
         const fbList = remoteTargets.filebrowser || [];
 
-        // S3 browse select
         const s3Sel = document.getElementById('retrieveS3Select');
         s3Sel.innerHTML = s3List.length
             ? s3List.map(s => `<option value="${s.name}">${s.name} (${s.bucket})</option>`).join('')
             : '<option value="">No S3 buckets configured</option>';
         document.getElementById('browseS3Btn').disabled = !s3List.length;
 
-        // filebrowser browse select
         const fbSel = document.getElementById('retrieveFbSelect');
         fbSel.innerHTML = fbList.length
             ? fbList.map(s => `<option value="${s.name}">${s.name}</option>`).join('')
             : '<option value="">No filebrowser configured</option>';
         document.getElementById('browseFbBtn').disabled = !fbList.length;
 
-        // Link credentials select
         document.getElementById('retrieveLinkShare').innerHTML =
             '<option value="">Auto / none</option>' +
             fsList.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
 
-        // Push destination select (optgroups)
         let opts = '';
-        if (s3List.length) {
-            opts += '<optgroup label="S3 buckets">' +
-                s3List.map(s => `<option value="s3:${s.name}">${s.name} (${s.bucket})</option>`).join('') +
-                '</optgroup>';
-        }
-        if (fsList.length) {
-            opts += '<optgroup label="File shares">' +
-                fsList.map(s => `<option value="fileshare:${s.name}">${s.name}</option>`).join('') +
-                '</optgroup>';
-        }
-        if (fbList.length) {
-            opts += '<optgroup label="filebrowser">' +
-                fbList.map(s => `<option value="filebrowser:${s.name}">${s.name}</option>`).join('') +
-                '</optgroup>';
-        }
+        if (s3List.length) opts += '<optgroup label="S3 buckets">' + s3List.map(s => `<option value="s3:${s.name}">${s.name} (${s.bucket})</option>`).join('') + '</optgroup>';
+        if (fsList.length) opts += '<optgroup label="File shares">' + fsList.map(s => `<option value="fileshare:${s.name}">${s.name}</option>`).join('') + '</optgroup>';
+        if (fbList.length) opts += '<optgroup label="filebrowser">' + fbList.map(s => `<option value="filebrowser:${s.name}">${s.name}</option>`).join('') + '</optgroup>';
         document.getElementById('pushTarget').innerHTML = opts || '<option value="">No remote storage configured</option>';
     }
 
@@ -937,40 +679,31 @@
         if (!name) { showToast('No S3 bucket selected', 'error'); return; }
         const btn = document.getElementById('browseS3Btn');
         btn.disabled = true;
-        container.innerHTML = '<div class="files-loading"><span class="spinner-border spinner-border-sm me-2"></span>Listing objects...</div>';
+        container.innerHTML = '<div class="bf-loading"><span class="spinner-border spinner-border-sm me-2"></span>Listing objects…</div>';
         try {
             const res = await apiCall(`/api/storage/s3/${encodeURIComponent(name)}/objects`);
             if (isErr(res)) { container.innerHTML = ''; showToast(res.detail || res.error || 'Failed to list objects', 'error'); return; }
             s3Objects = res.objects || [];
-            if (!s3Objects.length) {
-                container.innerHTML = '<div class="text-muted">No .backup objects found in this bucket.</div>';
-                return;
-            }
-            container.innerHTML = `
-                <div class="table-responsive"><table class="table table-sm table-hover mb-0">
-                    <thead><tr><th>Object</th><th class="text-end">Size</th><th>Modified</th><th class="text-end">Action</th></tr></thead>
-                    <tbody>` + s3Objects.map((o, i) => `
-                        <tr>
-                            <td><span class="file-name" title="${o.name}">${o.name}</span></td>
-                            <td class="text-end"><span class="file-size">${o.size_human}</span></td>
-                            <td><span class="file-date">${o.modified ? formatDateTime(o.modified) : ''}</span></td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" onclick="pullS3ByIndex('${name.replace(/'/g, "\\'")}', ${i})" title="Download to local">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                            </td>
-                        </tr>`).join('') + `</tbody></table></div>`;
-        } catch (e) {
-            container.innerHTML = '';
-            showToast('Failed to browse S3 bucket', 'error');
-        } finally {
-            btn.disabled = false;
-        }
+            if (!s3Objects.length) { container.innerHTML = '<div class="bf-muted">No .backup objects found in this bucket.</div>'; return; }
+            container.innerHTML = objectsTable(s3Objects, 'pullS3ByIndex', name);
+        } catch (e) { container.innerHTML = ''; showToast('Failed to browse S3 bucket', 'error'); }
+        finally { btn.disabled = false; }
+    }
+
+    function objectsTable(objs, fn, name) {
+        return `<div class="table-responsive"><table>
+            <thead><tr><th>Object</th><th class="text-end">Size</th><th>Modified</th><th class="text-end">Action</th></tr></thead>
+            <tbody>` + objs.map((o, i) => `
+                <tr>
+                    <td><span class="bf-file-name" title="${o.name}">${o.name}</span></td>
+                    <td class="text-end"><span class="bf-size">${o.size_human}</span></td>
+                    <td><span class="bf-created-abs">${o.modified ? formatDateTime(o.modified) : ''}</span></td>
+                    <td class="text-end"><button class="bf-act bf-act-download" onclick="${fn}('${jsAttr(name)}', ${i})" title="Download to local"><i class="bi bi-download"></i></button></td>
+                </tr>`).join('') + `</tbody></table></div>`;
     }
 
     async function pullS3ByIndex(name, i) {
-        const obj = s3Objects[i];
-        if (!obj) return;
+        const obj = s3Objects[i]; if (!obj) return;
         showToast(`Downloading ${obj.name}...`, 'info');
         startOperationsPolling();
         try {
@@ -978,9 +711,7 @@
             if (isErr(res)) { showToast(res.detail || res.error || 'Download failed', 'error'); return; }
             showToast(`Downloaded ${res.filename} (${res.size_human})`, 'success');
             loadBackups();
-        } catch (e) {
-            showToast('Download failed', 'error');
-        }
+        } catch (e) { showToast('Download failed', 'error'); }
     }
 
     async function browseFileBrowser() {
@@ -989,40 +720,19 @@
         if (!name) { showToast('No filebrowser instance selected', 'error'); return; }
         const btn = document.getElementById('browseFbBtn');
         btn.disabled = true;
-        container.innerHTML = '<div class="files-loading"><span class="spinner-border spinner-border-sm me-2"></span>Listing files...</div>';
+        container.innerHTML = '<div class="bf-loading"><span class="spinner-border spinner-border-sm me-2"></span>Listing files…</div>';
         try {
             const res = await apiCall(`/api/storage/filebrowser/${encodeURIComponent(name)}/objects`);
             if (isErr(res)) { container.innerHTML = ''; showToast(res.detail || res.error || 'Failed to list files', 'error'); return; }
             fbObjects = res.objects || [];
-            if (!fbObjects.length) {
-                container.innerHTML = '<div class="text-muted">No .backup files found in this instance.</div>';
-                return;
-            }
-            container.innerHTML = `
-                <div class="table-responsive"><table class="table table-sm table-hover mb-0">
-                    <thead><tr><th>File</th><th class="text-end">Size</th><th>Modified</th><th class="text-end">Action</th></tr></thead>
-                    <tbody>` + fbObjects.map((o, i) => `
-                        <tr>
-                            <td><span class="file-name" title="${o.name}">${o.name}</span></td>
-                            <td class="text-end"><span class="file-size">${o.size_human}</span></td>
-                            <td><span class="file-date">${o.modified ? formatDateTime(o.modified) : ''}</span></td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" onclick="pullFbByIndex('${name.replace(/'/g, "\\'")}', ${i})" title="Download to local">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                            </td>
-                        </tr>`).join('') + `</tbody></table></div>`;
-        } catch (e) {
-            container.innerHTML = '';
-            showToast('Failed to browse filebrowser', 'error');
-        } finally {
-            btn.disabled = false;
-        }
+            if (!fbObjects.length) { container.innerHTML = '<div class="bf-muted">No .backup files found in this instance.</div>'; return; }
+            container.innerHTML = objectsTable(fbObjects, 'pullFbByIndex', name);
+        } catch (e) { container.innerHTML = ''; showToast('Failed to browse filebrowser', 'error'); }
+        finally { btn.disabled = false; }
     }
 
     async function pullFbByIndex(name, i) {
-        const obj = fbObjects[i];
-        if (!obj) return;
+        const obj = fbObjects[i]; if (!obj) return;
         showToast(`Downloading ${obj.name}...`, 'info');
         startOperationsPolling();
         try {
@@ -1030,9 +740,7 @@
             if (isErr(res)) { showToast(res.detail || res.error || 'Download failed', 'error'); return; }
             showToast(`Downloaded ${res.filename} (${res.size_human})`, 'success');
             loadBackups();
-        } catch (e) {
-            showToast('Download failed', 'error');
-        }
+        } catch (e) { showToast('Download failed', 'error'); }
     }
 
     async function pullFromLink() {
@@ -1049,11 +757,8 @@
             showToast(`Downloaded ${res.filename} (${res.size_human})`, 'success');
             document.getElementById('retrieveLinkUrl').value = '';
             loadBackups();
-        } catch (e) {
-            showToast('Download failed', 'error');
-        } finally {
-            btn.disabled = false;
-        }
+        } catch (e) { showToast('Download failed', 'error'); }
+        finally { btn.disabled = false; }
     }
 
     function openPushModal(filename) {
@@ -1078,11 +783,8 @@
             if (isErr(res)) { showToast(res.detail || res.error || 'Send failed', 'error'); return; }
             showToast(res.message || 'Sent to remote storage', 'success');
             bootstrap.Modal.getInstance(document.getElementById('pushModal')).hide();
-        } catch (e) {
-            showToast('Send failed', 'error');
-        } finally {
-            btn.disabled = false;
-        }
+        } catch (e) { showToast('Send failed', 'error'); }
+        finally { btn.disabled = false; }
     }
 
     // ---- Live progress bars for remote transfers ----
@@ -1098,22 +800,12 @@
 
     async function pollOperations() {
         let ops = [];
-        try {
-            const res = await apiCall('/api/storage/operations');
-            ops = (res && res.operations) || [];
-        } catch (e) { /* transient; keep polling */ }
+        try { const res = await apiCall('/api/storage/operations'); ops = (res && res.operations) || []; }
+        catch (e) { /* transient */ }
         renderOperations(ops);
-        if (ops.length) {
-            sawOperations = true;
-        } else if (sawOperations && operationsPollTimer) {
-            // all done — refresh the local list (pulls may have landed) and stop
-            clearInterval(operationsPollTimer);
-            operationsPollTimer = null;
-            loadBackups();
-        } else if (operationsPollTimer) {
-            clearInterval(operationsPollTimer);
-            operationsPollTimer = null;
-        }
+        if (ops.length) { sawOperations = true; }
+        else if (sawOperations && operationsPollTimer) { clearInterval(operationsPollTimer); operationsPollTimer = null; loadBackups(); }
+        else if (operationsPollTimer) { clearInterval(operationsPollTimer); operationsPollTimer = null; }
     }
 
     function renderOperations(ops) {
@@ -1132,31 +824,25 @@
             if (op.status === 'running') barClass += ' progress-bar-striped progress-bar-animated';
             if (op.status === 'error') { barClass += ' bg-danger'; width = 100; }
             if (op.status === 'done') { barClass += ' bg-success'; width = 100; label = '100%'; }
-            const sizeInfo = op.total ? `${formatSize(op.done)} / ${formatSize(op.total)}`
-                                      : (op.done ? formatSize(op.done) : '');
+            const sizeInfo = op.total ? `${formatSize(op.done)} / ${formatSize(op.total)}` : (op.done ? formatSize(op.done) : '');
             const right = op.status === 'error'
                 ? `<span class="text-danger small">${op.error || 'failed'}</span>`
-                : `<span class="text-muted small">${label ? label + ' · ' : ''}${sizeInfo}</span>`;
+                : `<span class="bf-muted bf-small">${label ? label + ' · ' : ''}${sizeInfo}</span>`;
             return `
-            <div class="transfer-op mb-3">
+            <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="text-truncate me-2">
-                        <i class="bi ${icon} me-1"></i> ${dir} <strong>${op.label}</strong> ${prep} <code>${op.kind}:${op.target}</code>
-                    </span>
+                    <span class="text-truncate me-2"><i class="bi ${icon} me-1"></i> ${dir} <strong>${op.label}</strong> ${prep} <code>${op.kind}:${op.target}</code></span>
                     ${right}
                 </div>
-                <div class="progress" style="height: 8px;">
-                    <div class="${barClass}" role="progressbar" style="width: ${width}%"></div>
-                </div>
+                <div class="progress" style="height: 8px;"><div class="${barClass}" role="progressbar" style="width: ${width}%"></div></div>
             </div>`;
         }).join('');
     }
 
-    // Auto-load backups when page loads
     document.addEventListener('DOMContentLoaded', function() {
         loadBackups();
         loadRemoteTargets();
-        startOperationsPolling();   // catch any transfer already in flight
+        startOperationsPolling();
     });
 </script>
 {% endblock %}
