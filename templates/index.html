@@ -244,7 +244,7 @@
         background: var(--accent-gradient);
         color: white;
         padding: 0.5rem 1rem;
-        border-radius: 10px;
+        border-radius: 999px;
         font-size: 0.85rem;
     }
 
@@ -255,6 +255,7 @@
 
     .storage-value {
         font-weight: 700;
+        font-family: var(--font-mono);
     }
 
     .storage-label {
@@ -276,7 +277,8 @@
         padding: 1rem 1rem;
         background: var(--bg-card);
         border: 1px solid var(--border-color);
-        border-radius: 12px;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
         text-decoration: none;
         color: var(--text-primary);
         transition: all 0.2s ease;
@@ -292,7 +294,7 @@
     .action-icon {
         width: 44px;
         height: 44px;
-        border-radius: 10px;
+        border-radius: calc(var(--radius) - 2px);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -301,23 +303,23 @@
     }
 
     .action-icon.backup {
-        background: rgba(99, 102, 241, 0.15);
-        color: #6366f1;
+        background: var(--accent-soft);
+        color: var(--accent-primary);
     }
 
     .action-icon.restore {
-        background: rgba(16, 185, 129, 0.15);
-        color: #10b981;
+        background: color-mix(in oklab, var(--success) 15%, transparent);
+        color: var(--success);
     }
 
     .action-icon.transfer {
-        background: rgba(245, 158, 11, 0.15);
-        color: #f59e0b;
+        background: color-mix(in oklab, var(--warning) 15%, transparent);
+        color: var(--warning);
     }
 
     .action-icon.files {
-        background: rgba(59, 130, 246, 0.15);
-        color: #3b82f6;
+        background: color-mix(in oklab, var(--info) 15%, transparent);
+        color: var(--info);
     }
 
     .action-content {
@@ -350,6 +352,8 @@
     /* Endpoints Card */
     .endpoints-card {
         border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
     }
 
     .endpoints-list {
@@ -388,7 +392,7 @@
 
     .status-dot.active {
         background: var(--success);
-        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 20%, transparent);
     }
 
     .endpoint-info {
@@ -423,6 +427,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        font-family: var(--font-mono);
     }
 
     .endpoint-host i,
@@ -485,9 +490,9 @@
 
     /* Operations History */
     .operations-card {
-        border: none;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
         overflow: hidden;
     }
 
@@ -495,11 +500,11 @@
         background-color: var(--bg-secondary);
         color: var(--text-secondary);
         font-weight: 600;
-        font-size: 0.7rem;
+        font-size: 12px;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.04em;
         padding: 0.625rem 0.75rem;
-        border-bottom: 2px solid var(--border-color);
+        border-bottom: 1px solid var(--border-color);
     }
 
     .operations-table tbody td {
@@ -513,6 +518,11 @@
         border-bottom: none;
     }
 
+    /* Timestamps are data → monospace */
+    .operations-table tbody td:nth-child(3) small {
+        font-family: var(--font-mono);
+    }
+
     .operations-table tbody tr:hover {
         background-color: var(--bg-tertiary) !important;
     }
@@ -521,56 +531,57 @@
         display: inline-flex;
         align-items: center;
         gap: 0.25rem;
-        padding: 0.2rem 0.5rem;
-        border-radius: 6px;
-        font-size: 0.7rem;
-        font-weight: 600;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 500;
         text-transform: uppercase;
+        letter-spacing: 0.04em;
     }
 
     .operation-type-backup {
-        background: rgba(59, 130, 246, 0.15);
-        color: #3b82f6;
+        background: color-mix(in oklab, var(--info) 15%, transparent);
+        color: var(--info);
     }
 
     .operation-type-restore {
-        background: rgba(16, 185, 129, 0.15);
-        color: #10b981;
+        background: color-mix(in oklab, var(--success) 15%, transparent);
+        color: var(--success);
     }
 
     .operation-type-transfer {
-        background: rgba(139, 92, 246, 0.15);
-        color: #8b5cf6;
+        background: var(--accent-soft);
+        color: var(--accent-primary);
     }
 
     .operation-status-badge {
         display: inline-flex;
         align-items: center;
         gap: 0.25rem;
-        padding: 0.2rem 0.5rem;
-        border-radius: 6px;
-        font-size: 0.7rem;
-        font-weight: 600;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 500;
     }
 
     .operation-status-completed {
-        background: rgba(16, 185, 129, 0.15);
-        color: #10b981;
+        background: color-mix(in oklab, var(--success) 15%, transparent);
+        color: var(--success);
     }
 
     .operation-status-failed {
-        background: rgba(239, 68, 68, 0.15);
-        color: #ef4444;
+        background: color-mix(in oklab, var(--danger) 15%, transparent);
+        color: var(--danger);
     }
 
     .operation-status-cancelled {
-        background: rgba(156, 163, 175, 0.15);
-        color: #9ca3af;
+        background: color-mix(in oklab, var(--text-muted) 18%, transparent);
+        color: var(--text-muted);
     }
 
     .operation-status-running {
-        background: rgba(251, 191, 36, 0.15);
-        color: #fbbf24;
+        background: color-mix(in oklab, var(--warning) 15%, transparent);
+        color: var(--warning);
     }
 
     .operation-status-running .spinner-border {
