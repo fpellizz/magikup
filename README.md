@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:3.9.0 .
-docker push ghcr.io/fpellizz/magikup:3.9.0
+docker build -t ghcr.io/fpellizz/magikup:4.0.0 .
+docker push ghcr.io/fpellizz/magikup:4.0.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,10 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 4.0.0
+
+- **App-wide design system** — the entire UI is realigned to the Backup Files page as the reference: a single **violet** accent, neutral surfaces, `0.625rem` card radius with a soft shadow, a solid dark navbar with a violet active-link underline, monospace for data (sizes, paths, ids, timestamps), and consistent buttons, cards, tables, form controls, badges, and segmented controls. Design tokens are centralized in `static/style.css` (light + dark) so every page inherits the same look; each page's local styles were migrated off the old indigo/navy palette onto the shared tokens. Purely presentational — no functional changes.
 
 ### 3.9.0
 

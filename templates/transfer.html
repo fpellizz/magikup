@@ -15,7 +15,7 @@
     <!-- Source Section -->
     <div class="col-md-6">
         <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
+            <div class="card-header">
                 <i class="bi bi-box-arrow-right"></i> Source
             </div>
             <div class="card-body">
@@ -35,7 +35,7 @@
                         {% endfor %}
                     </select>
                     <div id="sourceSSMInfo" class="mt-2" style="display: none;">
-                        <span class="badge bg-info text-dark">
+                        <span class="badge bg-primary">
                             <i class="bi bi-shield-lock"></i> SSM Tunnel
                             <span class="ms-1" id="sourceJumphostAlias"></span>
                         </span>
@@ -293,7 +293,7 @@
     <!-- Destination Section -->
     <div class="col-md-6">
         <div class="card mb-4">
-            <div class="card-header bg-success text-white">
+            <div class="card-header">
                 <i class="bi bi-box-arrow-in-right"></i> Destination
             </div>
             <div class="card-body">
@@ -313,7 +313,7 @@
                         {% endfor %}
                     </select>
                     <div id="destSSMInfo" class="mt-2" style="display: none;">
-                        <span class="badge bg-info text-dark">
+                        <span class="badge bg-primary">
                             <i class="bi bi-shield-lock"></i> SSM Tunnel
                             <span class="ms-1" id="destJumphostAlias"></span>
                         </span>
@@ -582,7 +582,7 @@
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-terminal"></i> Transfer Progress</span>
-                    <button type="button" class="btn btn-warning" id="transferBtn" onclick="startTransfer()">
+                    <button type="button" class="btn btn-primary" id="transferBtn" onclick="startTransfer()">
                         <i class="bi bi-play"></i> Start Transfer
                     </button>
                 </div>
@@ -604,7 +604,7 @@
 
                 <div id="progressContainer" style="display: none;">
                     <div class="progress mb-3">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
                              id="progressBar" role="progressbar" style="width: 100%"></div>
                     </div>
                 </div>
@@ -616,29 +616,6 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-.phase-step {
-    padding: 10px 20px;
-    border-radius: 5px;
-    background-color: #e9ecef;
-    color: #6c757d;
-}
-.phase-step.active {
-    background-color: #0d6efd;
-    color: white;
-}
-.phase-step.completed {
-    background-color: #198754;
-    color: white;
-}
-.phase-arrow {
-    padding: 0 15px;
-    color: #6c757d;
-}
-</style>
 {% endblock %}
 
 {% block extra_js %}

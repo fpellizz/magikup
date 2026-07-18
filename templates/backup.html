@@ -3,6 +3,7 @@
 {% block title %}Backup - PostgreSQL Backup/Restore{% endblock %}
 
 {% block content %}
+<div class="backup-page">
 <div class="row">
     <div class="col-12">
         <h2><i class="bi bi-download"></i> Backup Database</h2>
@@ -330,6 +331,31 @@
         </div>
     </div>
 </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Backup page — align to the Files design system (centered width + rhythm,
+       violet accent, monospace for data). All component styling (cards, buttons,
+       forms, badges, toggles, schema chips, advanced params, output console,
+       progress, alerts) is inherited from the global tokens/classes. */
+    .backup-page {
+        max-width: 1180px;
+        margin: 0 auto;
+    }
+    /* The generated backup filename is a path/data field → monospace like the Files table */
+    #backupFilename {
+        font-family: var(--font-mono);
+        font-size: 13px;
+    }
+    /* SSM tunnel indicator reads as a soft rounded pill */
+    #ssmInfoBadge .badge {
+        border-radius: 999px;
+        font-weight: 500;
+        padding: 2px 9px;
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}

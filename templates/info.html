@@ -13,9 +13,17 @@
         transform: rotate(15deg) scale(1.1);
     }
     .tech-badge {
-        font-size: 0.85rem;
-        padding: 0.35em 0.65em;
+        display: inline-flex;
+        align-items: center;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        font-weight: 500;
+        padding: 5px 11px;
+        border-radius: 999px;
     }
+    .tech-badge i { color: var(--accent-primary); }
     .doc-link-card {
         transition: transform 0.15s ease, box-shadow 0.15s ease;
         text-decoration: none;
@@ -23,7 +31,7 @@
     }
     .doc-link-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        box-shadow: var(--shadow-lg);
     }
     /* Easter egg: Magikarp Splash */
     .splash-overlay {
@@ -45,7 +53,7 @@
     }
     .splash-fish img {
         max-height: 300px;
-        border-radius: 12px;
+        border-radius: var(--radius);
         box-shadow: 0 0 40px rgba(255,215,0,0.3);
     }
     .splash-text {
@@ -103,7 +111,7 @@
 <div class="row g-3 mb-3">
     <!-- Logo & Version -->
     <div class="col-md-3">
-        <div class="card shadow-sm h-100">
+        <div class="card h-100">
             <div class="card-body text-center d-flex flex-column align-items-center justify-content-center py-4">
                 <img src="{{ base_path }}/static/magikarp.png" alt="Magiku(r)p" class="info-logo mb-2" id="infoLogo">
                 <h4 class="fw-bold mb-1">Magiku(r)p</h4>
@@ -115,7 +123,7 @@
 
     <!-- Author & Project -->
     <div class="col-md-5">
-        <div class="card shadow-sm h-100">
+        <div class="card h-100">
             <div class="card-header py-2">
                 <i class="bi bi-person-circle me-1"></i> Author & Project
             </div>
@@ -146,7 +154,7 @@
 
     <!-- Documentation -->
     <div class="col-md-4">
-        <div class="card shadow-sm h-100">
+        <div class="card h-100">
             <div class="card-header py-2">
                 <i class="bi bi-book me-1"></i> Documentation
             </div>
@@ -189,23 +197,27 @@
 <!-- Row 2: Version History (full width) -->
 <div class="row g-3 mb-3">
     <div class="col-12">
-        <div class="card shadow-sm h-100">
+        <div class="card h-100">
             <div class="card-header py-2">
                 <i class="bi bi-clock-history me-1"></i> Version History
             </div>
             <div class="card-body py-2">
                 <div class="mb-2">
                     <div class="d-flex align-items-center mb-1">
-                        <span class="badge bg-primary me-2">3.9.0</span>
+                        <span class="badge bg-primary me-2">4.0.0</span>
                         <span class="fw-semibold small">Current</span>
                     </div>
                     <ul class="list-unstyled ms-3 mb-0 small text-body-secondary">
-                        <li><i class="bi bi-check2 text-success me-1"></i>Backup Files page redesign (stat cards + collapsible remote, violet accent, light/dark)</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>Backup type badges (Manual / Scheduled / Imported) + volume-usage bar</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>Restore action from the Files page (opens Restore with the backup preselected)</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>App-wide design system aligned to the Files page: single violet accent, neutral surfaces, unified cards/buttons/tables/forms/badges</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Solid dark navbar with violet active-link underline; monospace for data; centralized tokens (light/dark)</li>
+                        <li><i class="bi bi-check2 text-success me-1"></i>Purely presentational — no functional changes</li>
                     </ul>
                 </div>
                 <hr class="my-2">
+                <div class="mb-2">
+                    <span class="badge bg-secondary me-2">3.9.0</span>
+                    <span class="small text-body-secondary">Backup Files page redesign + backup type badges + volume-usage bar + Restore from Files</span>
+                </div>
                 <div class="mb-2">
                     <span class="badge bg-secondary me-2">3.8.0</span>
                     <span class="small text-body-secondary">Duplicate endpoint + admin tab persistence</span>
@@ -262,20 +274,20 @@
 <!-- Row 3: Built With -->
 <div class="row g-3 mb-3">
     <div class="col-12">
-        <div class="card shadow-sm">
+        <div class="card">
             <div class="card-header py-2">
                 <i class="bi bi-cpu me-1"></i> Built With
             </div>
             <div class="card-body py-3">
                 <div class="d-flex flex-wrap gap-2">
-                    <span class="badge bg-success tech-badge"><i class="bi bi-filetype-py me-1"></i>Python</span>
-                    <span class="badge bg-info tech-badge"><i class="bi bi-lightning me-1"></i>FastAPI</span>
-                    <span class="badge bg-secondary tech-badge"><i class="bi bi-database me-1"></i>PostgreSQL</span>
-                    <span class="badge bg-primary tech-badge"><i class="bi bi-bootstrap me-1"></i>Bootstrap 5</span>
-                    <span class="badge bg-warning text-dark tech-badge"><i class="bi bi-filetype-html me-1"></i>Jinja2</span>
-                    <span class="badge bg-danger tech-badge"><i class="bi bi-hdd-stack me-1"></i>psycopg2</span>
-                    <span class="badge bg-dark tech-badge"><i class="bi bi-cloud me-1"></i>AWS SSM</span>
-                    <span class="badge bg-secondary tech-badge"><i class="bi bi-pencil-square me-1"></i>Ace Editor</span>
+                    <span class="tech-badge"><i class="bi bi-filetype-py me-1"></i>Python</span>
+                    <span class="tech-badge"><i class="bi bi-lightning me-1"></i>FastAPI</span>
+                    <span class="tech-badge"><i class="bi bi-database me-1"></i>PostgreSQL</span>
+                    <span class="tech-badge"><i class="bi bi-bootstrap me-1"></i>Bootstrap 5</span>
+                    <span class="tech-badge"><i class="bi bi-filetype-html me-1"></i>Jinja2</span>
+                    <span class="tech-badge"><i class="bi bi-hdd-stack me-1"></i>psycopg2</span>
+                    <span class="tech-badge"><i class="bi bi-cloud me-1"></i>AWS SSM</span>
+                    <span class="tech-badge"><i class="bi bi-pencil-square me-1"></i>Ace Editor</span>
                 </div>
             </div>
         </div>

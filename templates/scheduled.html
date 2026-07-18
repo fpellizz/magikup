@@ -354,21 +354,29 @@
 
 {% block extra_css %}
 <style>
-    /* Summary banner (shared visual language with Files) */
+    /* Summary banner — neutral stat cards, matching the Files page stat row */
     .storage-info-banner {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1.5rem;
-        padding: 1.25rem 1.5rem;
-        background: var(--accent-gradient);
-        border-radius: 12px;
-        color: white;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
     }
-    .storage-info-item { display: flex; align-items: center; gap: 0.75rem; }
-    .storage-info-item > i { font-size: 1.5rem; opacity: 0.9; }
-    .storage-info-item > div { display: flex; flex-direction: column; }
-    .storage-label { font-size: 0.75rem; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.5px; }
-    .storage-value { font-weight: 600; font-size: 0.95rem; }
+    .storage-info-item {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        padding: 18px 20px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
+    }
+    .storage-info-item > i { font-size: 1.5rem; color: var(--accent-primary); }
+    .storage-info-item > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .storage-label {
+        font-size: 12px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.04em; color: var(--text-secondary);
+    }
+    .storage-value { font-weight: 600; font-size: 1.05rem; color: var(--text-primary); }
 
     .sched-note {
         display: flex;
@@ -376,13 +384,13 @@
         gap: 0.5rem;
         padding: 0.625rem 1rem;
         background: var(--bg-tertiary);
-        border-radius: 8px;
+        border-radius: var(--radius);
         font-size: 0.85rem;
         color: var(--text-secondary);
     }
     .sched-note i { color: var(--accent-primary); }
 
-    .sched-table-container { border-radius: 10px; overflow: hidden; border: 1px solid var(--border-color); }
+    .sched-table-container { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border-color); }
     .sched-table-container .table { margin-bottom: 0; }
 
     .sched-loading, .sched-empty-state { text-align: center; padding: 2rem; color: var(--text-muted); }
@@ -395,12 +403,12 @@
     .sched-subtle { font-size: 0.8rem; color: var(--text-muted); }
 
     .cron-code {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: var(--font-mono);
         font-size: 0.8rem;
         background: var(--bg-tertiary);
         color: var(--text-secondary);
         padding: 0.15rem 0.5rem;
-        border-radius: 6px;
+        border-radius: calc(var(--radius) - 2px);
     }
 
     /* Status badges */
@@ -409,7 +417,7 @@
         align-items: center;
         gap: 0.35rem;
         padding: 0.25rem 0.6rem;
-        border-radius: 20px;
+        border-radius: 999px;
         font-size: 0.78rem;
         font-weight: 600;
         white-space: nowrap;
@@ -426,7 +434,7 @@
         align-items: center;
         gap: 0.35rem;
         padding: 0.2rem 0.55rem;
-        border-radius: 8px;
+        border-radius: calc(var(--radius) - 2px);
         background: var(--bg-tertiary);
         color: var(--text-secondary);
         font-size: 0.8rem;
@@ -459,17 +467,17 @@
     .cron-builder {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
-        border-radius: 10px;
+        border-radius: var(--radius);
         padding: 1rem 1.25rem;
     }
     .cron-mode-group { flex-wrap: wrap; }
     .cron-dow-group { flex-wrap: wrap; gap: 0.25rem; }
-    .cron-code-input { font-family: 'JetBrains Mono', monospace; }
+    .cron-code-input { font-family: var(--font-mono); }
 
     .cron-preview {
         background: var(--bg-card);
         border: 1px solid var(--border-color);
-        border-radius: 8px;
+        border-radius: var(--radius);
         padding: 0.85rem 1rem;
     }
     .cron-human { font-weight: 600; color: var(--text-primary); }
@@ -479,25 +487,25 @@
     .cron-valid-warn { color: var(--warning); }
     .cron-next-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .cron-next-list li {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: var(--font-mono);
         font-size: 0.76rem;
         background: var(--bg-tertiary);
         color: var(--text-secondary);
         padding: 0.15rem 0.5rem;
-        border-radius: 6px;
+        border-radius: calc(var(--radius) - 2px);
     }
 
     .sched-advanced-panel {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
-        border-radius: 10px;
+        border-radius: var(--radius);
         padding: 1rem 1.25rem;
     }
     .advanced-section-title {
         font-size: 0.8rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.04em;
         color: var(--text-secondary);
         margin-bottom: 0.75rem;
     }
@@ -506,14 +514,14 @@
     .sched-dest-block {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
-        border-radius: 10px;
+        border-radius: var(--radius);
         padding: 1rem 1.25rem;
     }
-    .ssm-toggle-wrapper { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--bg-tertiary); border-radius: 8px; }
+    .ssm-toggle-wrapper { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--bg-tertiary); border-radius: calc(var(--radius) - 2px); }
     .ssm-toggle-wrapper .form-check-label { font-weight: 500; cursor: pointer; }
 
     @media (max-width: 768px) {
-        .storage-info-banner { flex-direction: column; gap: 1rem; }
+        .storage-info-banner { grid-template-columns: 1fr; }
     }
 </style>
 {% endblock %}

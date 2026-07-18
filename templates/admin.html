@@ -9,18 +9,21 @@
        ============================================ */
 
     .admin-tabs {
-        border-bottom: 2px solid var(--border-color);
+        border-bottom: 1px solid var(--border-color);
         margin-bottom: 1.5rem;
+        gap: 0.25rem;
+        flex-wrap: wrap;
     }
 
     .admin-tabs .nav-link {
         border: none;
-        border-radius: 8px 8px 0 0;
+        border-radius: calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0 0;
         padding: 0.75rem 1.25rem;
         color: var(--text-secondary);
         font-weight: 500;
-        transition: all 0.2s ease;
-        margin-right: 0.25rem;
+        margin-bottom: -1px;
+        box-shadow: inset 0 -2px 0 transparent;
+        transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
     }
 
     .admin-tabs .nav-link:hover {
@@ -29,8 +32,9 @@
     }
 
     .admin-tabs .nav-link.active {
-        background: var(--accent-primary);
-        color: white;
+        background: transparent;
+        color: var(--accent-primary);
+        box-shadow: inset 0 -2px 0 var(--accent-primary);
     }
 
     .admin-tabs .nav-link i {
@@ -50,7 +54,7 @@
     /* Config Cards */
     .config-card {
         border: 1px solid var(--border-color);
-        border-radius: 12px;
+        border-radius: var(--radius);
         overflow: hidden;
     }
 
@@ -71,10 +75,10 @@
 
     .form-section-title {
         font-weight: 600;
-        font-size: 0.9rem;
+        font-size: 12px;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: var(--text-muted);
+        letter-spacing: 0.04em;
+        color: var(--text-secondary);
         margin-bottom: 1rem;
         display: flex;
         align-items: center;
@@ -87,7 +91,7 @@
 
     /* Endpoints Table */
     .endpoints-table-container {
-        border-radius: 10px;
+        border-radius: var(--radius);
         overflow: hidden;
         border: 1px solid var(--border-color);
     }
@@ -110,15 +114,15 @@
     }
 
     .endpoint-host-cell {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: var(--font-mono);
         font-size: 0.85rem;
     }
 
     .endpoint-port {
         background: var(--bg-tertiary);
         padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        font-family: 'JetBrains Mono', monospace;
+        border-radius: calc(var(--radius) - 2px);
+        font-family: var(--font-mono);
         font-size: 0.8rem;
     }
 
@@ -130,10 +134,10 @@
 
     /* SSM Badge */
     .badge-ssm {
-        font-size: 0.75rem;
+        font-size: 11px;
         font-weight: 500;
-        padding: 0.3rem 0.6rem;
-        border-radius: 6px;
+        padding: 2px 9px;
+        border-radius: 999px;
     }
 
     /* Empty State */
@@ -167,14 +171,14 @@
         gap: 1rem;
         padding: 1rem;
         background: var(--bg-tertiary);
-        border-radius: 8px;
+        border-radius: var(--radius);
         margin-bottom: 1rem;
-        border-left: 4px solid var(--warning, #f59e0b);
+        border-left: 4px solid var(--warning);
     }
 
     .security-info-box i {
         font-size: 1.5rem;
-        color: var(--warning, #f59e0b);
+        color: var(--warning);
         flex-shrink: 0;
     }
 
@@ -187,24 +191,25 @@
     .security-info-box code {
         background: var(--bg-secondary);
         padding: 0.125rem 0.375rem;
-        border-radius: 4px;
+        border-radius: calc(var(--radius) - 4px);
         font-size: 0.8rem;
+        font-family: var(--font-mono);
     }
 
     /* Security Card */
     .security-card {
-        border-color: var(--warning, #f59e0b) !important;
+        border-color: var(--warning) !important;
         overflow: hidden;
     }
 
     .security-card .card-header {
-        background: linear-gradient(135deg, var(--warning, #f59e0b) 0%, #f97316 100%) !important;
-        color: white;
-        border-bottom: none;
+        background: color-mix(in oklab, var(--warning) 14%, transparent);
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
     }
 
     .security-card .card-header i {
-        color: white !important;
+        color: var(--warning) !important;
     }
 
     /* Import/Export Card */
@@ -229,7 +234,7 @@
         gap: 0.75rem;
         padding: 0.75rem 1rem;
         background: var(--bg-tertiary);
-        border-radius: 8px;
+        border-radius: var(--radius);
         margin-bottom: 1rem;
     }
 
@@ -262,7 +267,7 @@
 
     .modal-body .form-control,
     .modal-body .form-select {
-        border-radius: 8px;
+        border-radius: calc(var(--radius) - 2px);
     }
 
     /* Responsive adjustments */

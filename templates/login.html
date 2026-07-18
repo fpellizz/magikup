@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#667eea" id="theme-color-meta">
+    <meta name="theme-color" content="#7c3aed" id="theme-color-meta">
     <title>Login - Magiku(r)p</title>
 
     <!-- Bootstrap 5 CSS -->
@@ -19,36 +19,49 @@
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             const theme = stored || (prefersDark ? 'dark' : 'light');
             document.documentElement.setAttribute('data-bs-theme', theme);
-            const themeColor = theme === 'dark' ? '#0f172a' : '#667eea';
+            const themeColor = theme === 'dark' ? '#0a0a0a' : '#7c3aed';
             document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
         })();
     </script>
 
     <style>
         :root {
+            /* Design tokens (mirrors static/style.css — Files page design system) */
+            --accent-primary: #7c3aed;
+            --accent-primary-hover: #6d28d9;
+            --accent-gradient: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+            --accent-soft: color-mix(in oklab, #8b5cf6 16%, transparent);
+            --radius: 0.625rem;
+            --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
             /* Light theme */
-            --login-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --login-gradient: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
             --card-bg: rgba(255, 255, 255, 0.95);
-            --card-text: #333;
-            --card-text-secondary: #666;
-            --card-text-muted: #999;
+            --card-text: #111827;
+            --card-text-secondary: #6b7280;
+            --card-text-muted: #9ca3af;
             --input-bg: #ffffff;
-            --input-border: #e0e0e0;
-            --input-border-focus: #667eea;
-            --particle-color: rgba(255, 255, 255, 0.1);
+            --input-border: #e5e7eb;
+            --input-border-focus: var(--accent-primary);
+            --particle-color: rgba(255, 255, 255, 0.12);
         }
 
         [data-bs-theme="dark"] {
+            --accent-primary: #a78bfa;
+            --accent-primary-hover: #8b5cf6;
+            --accent-gradient: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+            --accent-soft: color-mix(in oklab, #a78bfa 22%, transparent);
+
             /* Dark theme */
-            --login-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            --card-bg: rgba(30, 41, 59, 0.95);
-            --card-text: #f1f5f9;
-            --card-text-secondary: #94a3b8;
-            --card-text-muted: #64748b;
-            --input-bg: #334155;
-            --input-border: #475569;
-            --input-border-focus: #818cf8;
-            --particle-color: rgba(99, 102, 241, 0.15);
+            --login-gradient: linear-gradient(135deg, #0a0a0a 0%, #171717 100%);
+            --card-bg: rgba(23, 23, 23, 0.95);
+            --card-text: #f5f5f5;
+            --card-text-secondary: #a3a3a3;
+            --card-text-muted: #737373;
+            --input-bg: #262626;
+            --input-border: rgba(255, 255, 255, 0.12);
+            --input-border-focus: var(--accent-primary);
+            --particle-color: rgba(167, 139, 250, 0.15);
         }
 
         * {
@@ -80,7 +93,7 @@
         .theme-toggle-btn {
             width: 44px;
             height: 44px;
-            border-radius: 12px;
+            border-radius: calc(var(--radius) - 2px);
             background: rgba(255, 255, 255, 0.2);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.3);
@@ -187,7 +200,7 @@
         .login-card {
             background: var(--card-bg);
             backdrop-filter: blur(20px);
-            border-radius: 24px;
+            border-radius: calc(var(--radius) + 6px);
             padding: 48px 40px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -218,23 +231,23 @@
             width: 80px;
             height: 80px;
             margin: 0 auto 24px;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            border-radius: 20px;
+            background: var(--accent-gradient);
+            border-radius: calc(var(--radius) + 6px);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 10px 40px rgba(99, 102, 241, 0.4);
+            box-shadow: 0 10px 40px rgba(124, 58, 237, 0.35);
             animation: pulse 3s ease-in-out infinite;
         }
 
         @keyframes pulse {
             0%, 100% {
                 transform: scale(1);
-                box-shadow: 0 10px 40px rgba(99, 102, 241, 0.4);
+                box-shadow: 0 10px 40px rgba(124, 58, 237, 0.35);
             }
             50% {
                 transform: scale(1.02);
-                box-shadow: 0 15px 50px rgba(99, 102, 241, 0.5);
+                box-shadow: 0 15px 50px rgba(124, 58, 237, 0.45);
             }
         }
 
@@ -273,7 +286,7 @@
             height: 52px;
             background: var(--input-bg);
             border: 2px solid var(--input-border);
-            border-radius: 12px;
+            border-radius: calc(var(--radius) - 2px);
             padding: 12px 20px 12px 48px;
             font-size: 15px;
             color: var(--card-text);
@@ -287,7 +300,7 @@
         .form-control:focus {
             background: var(--input-bg);
             border-color: var(--input-border-focus);
-            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+            box-shadow: 0 0 0 3px var(--accent-soft);
             color: var(--card-text);
         }
 
@@ -332,21 +345,21 @@
         .btn-login {
             width: 100%;
             height: 52px;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            background: var(--accent-primary);
             border: none;
-            border-radius: 12px;
+            border-radius: calc(var(--radius) - 2px);
             color: white;
             font-size: 16px;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / .05));
             margin-top: 8px;
         }
 
         .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
+            background: var(--accent-primary-hover);
+            transform: translateY(-1px);
         }
 
         .btn-login:active {
@@ -379,23 +392,23 @@
         }
 
         .form-check-input:checked {
-            background-color: #6366f1;
-            border-color: #6366f1;
+            background-color: var(--accent-primary);
+            border-color: var(--accent-primary);
         }
 
         .forgot-password {
-            color: #6366f1;
+            color: var(--accent-primary);
             text-decoration: none;
             font-weight: 500;
             transition: color 0.3s;
         }
 
         .forgot-password:hover {
-            color: #8b5cf6;
+            color: var(--accent-primary-hover);
         }
 
         .alert {
-            border-radius: 12px;
+            border-radius: calc(var(--radius) - 2px);
             margin-bottom: 24px;
             animation: shake 0.5s ease-in-out;
             border: none;
@@ -425,14 +438,24 @@
         }
 
         [data-bs-theme="dark"] .version-info {
-            color: rgba(148, 163, 184, 0.7);
+            color: rgba(163, 163, 163, 0.85);
+        }
+
+        .app-version {
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
+
+        /* On the lighter violet accent used in dark mode, dark text reads better */
+        [data-bs-theme="dark"] .btn-login {
+            color: #0a0a0a;
         }
 
         /* Mobile responsive */
         @media (max-width: 576px) {
             .login-card {
                 padding: 36px 24px;
-                border-radius: 20px;
+                border-radius: var(--radius);
             }
 
             .login-title {
@@ -442,7 +465,7 @@
             .login-icon {
                 width: 70px;
                 height: 70px;
-                border-radius: 16px;
+                border-radius: var(--radius);
             }
 
             .login-icon i {
@@ -565,7 +588,7 @@
         <!-- Version Info -->
         <div class="version-info">
             <i class="bi bi-shield-check me-1"></i>
-            Magiku(r)p v3.9.0
+            Magiku(r)p <span class="app-version">v4.0.0</span>
         </div>
     </div>
 
@@ -611,7 +634,7 @@
         function updateThemeColor(theme) {
             const meta = document.getElementById('theme-color-meta');
             if (meta) {
-                meta.setAttribute('content', theme === 'dark' ? '#0f172a' : '#667eea');
+                meta.setAttribute('content', theme === 'dark' ? '#0a0a0a' : '#7c3aed');
             }
         }
 
