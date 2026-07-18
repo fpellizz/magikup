@@ -25,43 +25,47 @@
     </script>
 
     <style>
+        /* ==== v4.1.0 tokens (inline — this page is standalone, no style.css) ==== */
         :root {
-            /* Design tokens (mirrors static/style.css — Files page design system) */
-            --accent-primary: #7c3aed;
-            --accent-primary-hover: #6d28d9;
-            --accent-gradient: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
-            --accent-soft: color-mix(in oklab, #8b5cf6 16%, transparent);
+            --primary: #7c3aed;
+            --primary-hover: #6d28d9;
+            --primary-foreground: #ffffff;
+            --ring: #7c3aed;
+            --accent-soft: rgba(124, 58, 237, .12);
+
+            --background: #ffffff;
+            --foreground: #18181b;
+            --card: #ffffff;
+            --pane: #fafafa;
+            --muted: #f4f4f5;
+            --muted-foreground: #71717a;
+            --border: #e4e4e7;
+            --input: #e4e4e7;
+            --danger: #dc2626;
+            --danger-bg: rgba(220, 38, 38, .12);
+
             --radius: 0.625rem;
             --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-
-            /* Light theme */
-            --login-gradient: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
-            --card-bg: rgba(255, 255, 255, 0.95);
-            --card-text: #111827;
-            --card-text-secondary: #6b7280;
-            --card-text-muted: #9ca3af;
-            --input-bg: #ffffff;
-            --input-border: #e5e7eb;
-            --input-border-focus: var(--accent-primary);
-            --particle-color: rgba(255, 255, 255, 0.12);
+            --shadow-sm: 0 1px 2px rgb(0 0 0 / .05);
         }
 
         [data-bs-theme="dark"] {
-            --accent-primary: #a78bfa;
-            --accent-primary-hover: #8b5cf6;
-            --accent-gradient: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
-            --accent-soft: color-mix(in oklab, #a78bfa 22%, transparent);
+            --primary: #8b5cf6;
+            --primary-hover: #a78bfa;
+            --primary-foreground: #ffffff;
+            --ring: #8b5cf6;
+            --accent-soft: rgba(139, 92, 246, .20);
 
-            /* Dark theme */
-            --login-gradient: linear-gradient(135deg, #0a0a0a 0%, #171717 100%);
-            --card-bg: rgba(23, 23, 23, 0.95);
-            --card-text: #f5f5f5;
-            --card-text-secondary: #a3a3a3;
-            --card-text-muted: #737373;
-            --input-bg: #262626;
-            --input-border: rgba(255, 255, 255, 0.12);
-            --input-border-focus: var(--accent-primary);
-            --particle-color: rgba(167, 139, 250, 0.15);
+            --background: #0a0a0a;
+            --foreground: #f5f5f5;
+            --card: #171717;
+            --pane: #1c1c1c;
+            --muted: #262626;
+            --muted-foreground: #a1a1aa;
+            --border: rgba(255, 255, 255, .10);
+            --input: rgba(255, 255, 255, .14);
+            --danger: #f87171;
+            --danger-bg: rgba(248, 113, 113, .16);
         }
 
         * {
@@ -75,411 +79,386 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--login-gradient);
+            background: var(--pane);
+            color: var(--foreground);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            position: relative;
-            overflow: hidden;
-            transition: background 0.3s ease;
+            padding: 24px;
         }
 
         /* Theme Toggle */
         .theme-toggle-container {
             position: fixed;
-            top: 20px;
-            right: 20px;
+            top: 18px;
+            right: 18px;
             z-index: 100;
         }
 
         .theme-toggle-btn {
-            width: 44px;
-            height: 44px;
+            width: 40px;
+            height: 40px;
             border-radius: calc(var(--radius) - 2px);
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: white;
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--muted-foreground);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s ease;
+            transition: background .16s ease, color .16s ease;
         }
 
         .theme-toggle-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: scale(1.05);
+            background: var(--accent-soft);
+            color: var(--primary);
         }
 
         .theme-toggle-btn i {
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             transition: transform 0.3s ease;
         }
 
-        .theme-toggle-btn:hover i {
-            transform: rotate(15deg);
-        }
-
-        /* Animated background particles */
-        .bg-animation {
-            position: absolute;
-            top: 0;
-            left: 0;
+        /* ==== Split login frame ==== */
+        .login-frame {
             width: 100%;
-            height: 100%;
+            max-width: 960px;
+            display: flex;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
             overflow: hidden;
-            z-index: 0;
+            box-shadow: 0 8px 30px rgb(0 0 0 / .08);
+            min-height: 560px;
         }
 
-        .particle {
-            position: absolute;
-            background: var(--particle-color);
-            border-radius: 50%;
-            animation: float 20s infinite;
-        }
-
-        .particle:nth-child(1) {
-            width: 80px;
-            height: 80px;
-            left: 10%;
-            animation-delay: 0s;
-        }
-
-        .particle:nth-child(2) {
-            width: 120px;
-            height: 120px;
-            left: 70%;
-            animation-delay: 4s;
-        }
-
-        .particle:nth-child(3) {
-            width: 100px;
-            height: 100px;
-            left: 40%;
-            animation-delay: 8s;
-        }
-
-        .particle:nth-child(4) {
-            width: 60px;
-            height: 60px;
-            left: 80%;
-            animation-delay: 2s;
-        }
-
-        .particle:nth-child(5) {
-            width: 90px;
-            height: 90px;
-            left: 25%;
-            animation-delay: 6s;
-        }
-
-        @keyframes float {
-            0%, 100% {
-                transform: translateY(100vh) rotate(0deg);
-                opacity: 0;
-            }
-            10% {
-                opacity: 0.6;
-            }
-            90% {
-                opacity: 0.6;
-            }
-            100% {
-                transform: translateY(-100px) rotate(360deg);
-                opacity: 0;
-            }
-        }
-
-        .login-container {
+        /* Left dark brand panel */
+        .brand-panel {
+            width: 46%;
+            flex-shrink: 0;
+            background: #101114;
+            color: #fff;
+            padding: 48px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
             position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 450px;
-            padding: 20px;
+            overflow: hidden;
         }
 
-        .login-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            border-radius: calc(var(--radius) + 6px);
-            padding: 48px 40px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        /* The ONE allowed subtle gradient: brand-panel glow */
+        .brand-panel::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(600px 300px at 20% 10%, rgba(139, 92, 246, .28), transparent 60%);
+            pointer-events: none;
         }
 
-        [data-bs-theme="dark"] .login-card {
-            border: 1px solid rgba(255, 255, 255, 0.05);
+        .brand-lockup {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(40px) scale(0.95);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
+        .brand-tile {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 11px;
+            /* the one allowed small gradient */
+            background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+            flex-shrink: 0;
         }
 
-        .login-header {
-            text-align: center;
-            margin-bottom: 40px;
+        .brand-tile img {
+            width: 26px;
+            height: 26px;
+            object-fit: contain;
         }
 
-        .login-icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 24px;
-            background: var(--accent-gradient);
-            border-radius: calc(var(--radius) + 6px);
+        .brand-wordmark {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .brand-copy {
+            position: relative;
+        }
+
+        .brand-headline {
+            font-size: 26px;
+            font-weight: 600;
+            line-height: 1.25;
+            letter-spacing: -0.01em;
+            margin-bottom: 14px;
+            max-width: 360px;
+        }
+
+        .brand-sub {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, .6);
+            max-width: 380px;
+        }
+
+        .brand-version {
+            position: relative;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: rgba(255, 255, 255, .4);
+        }
+
+        /* Right form panel */
+        .form-panel {
+            flex: 1;
+            background: var(--card);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 10px 40px rgba(124, 58, 237, 0.35);
-            animation: pulse 3s ease-in-out infinite;
+            padding: 48px;
         }
 
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-                box-shadow: 0 10px 40px rgba(124, 58, 237, 0.35);
-            }
-            50% {
-                transform: scale(1.02);
-                box-shadow: 0 15px 50px rgba(124, 58, 237, 0.45);
-            }
-        }
-
-        .login-icon i {
-            font-size: 40px;
-            color: white;
+        .form-inner {
+            width: 100%;
+            max-width: 360px;
         }
 
         .login-title {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--card-text);
-            margin-bottom: 8px;
-            letter-spacing: -0.02em;
+            margin: 0 0 6px;
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--foreground);
         }
 
         .login-subtitle {
-            font-size: 15px;
-            color: var(--card-text-secondary);
-        }
-
-        .form-group {
-            margin-bottom: 24px;
-            position: relative;
+            margin: 0 0 28px;
+            font-size: 14px;
+            color: var(--muted-foreground);
         }
 
         .form-label {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--card-text-secondary);
-            margin-bottom: 8px;
             display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--foreground);
+            margin-bottom: 7px;
+        }
+
+        .field {
+            position: relative;
+            margin-bottom: 18px;
         }
 
         .form-control {
-            height: 52px;
-            background: var(--input-bg);
-            border: 2px solid var(--input-border);
+            width: 100%;
+            height: 42px;
+            background: var(--background);
+            border: 1px solid var(--input);
             border-radius: calc(var(--radius) - 2px);
-            padding: 12px 20px 12px 48px;
-            font-size: 15px;
-            color: var(--card-text);
-            transition: all 0.3s ease;
+            padding: 0 12px 0 38px;
+            font-size: 14px;
+            color: var(--foreground);
+            transition: border-color .16s ease, box-shadow .16s ease;
         }
 
         .form-control::placeholder {
-            color: var(--card-text-muted);
+            color: var(--muted-foreground);
         }
 
         .form-control:focus {
-            background: var(--input-bg);
-            border-color: var(--input-border-focus);
+            outline: none;
+            background: var(--background);
+            border-color: var(--ring);
             box-shadow: 0 0 0 3px var(--accent-soft);
-            color: var(--card-text);
+            color: var(--foreground);
+        }
+
+        /* password field needs room for the toggle on the right */
+        #password {
+            padding-right: 40px;
         }
 
         .input-icon {
             position: absolute;
-            left: 16px;
+            left: 13px;
             top: 50%;
             transform: translateY(-50%);
-            color: var(--card-text-muted);
-            font-size: 18px;
+            color: var(--muted-foreground);
+            font-size: 15px;
             pointer-events: none;
-            transition: color 0.3s ease;
+            transition: color .16s ease;
         }
 
-        .form-control:focus ~ .input-icon,
-        .input-group:focus-within .input-icon {
-            color: var(--input-border-focus);
-        }
-
-        .input-group {
-            position: relative;
+        .form-control:focus ~ .input-icon {
+            color: var(--primary);
         }
 
         .password-toggle {
             position: absolute;
-            right: 14px;
+            right: 10px;
             top: 50%;
             transform: translateY(-50%);
             background: none;
             border: none;
-            color: var(--card-text-muted);
+            color: var(--muted-foreground);
             cursor: pointer;
-            font-size: 18px;
-            transition: color 0.3s;
+            font-size: 15px;
             padding: 4px;
+            line-height: 0;
+            border-radius: 6px;
+            transition: color .16s ease;
         }
 
         .password-toggle:hover {
-            color: var(--input-border-focus);
+            color: var(--primary);
         }
 
-        .btn-login {
-            width: 100%;
-            height: 52px;
-            background: var(--accent-primary);
-            border: none;
-            border-radius: calc(var(--radius) - 2px);
-            color: white;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / .05));
-            margin-top: 8px;
+        .password-toggle:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--accent-soft);
         }
 
-        .btn-login:hover {
-            background: var(--accent-primary-hover);
-            transform: translateY(-1px);
-        }
-
-        .btn-login:active {
-            transform: translateY(0);
-        }
-
-        .btn-login:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-login .spinner-border {
-            width: 20px;
-            height: 20px;
-            border-width: 2px;
-        }
-
+        /* Remember me */
         .remember-forgot {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             margin-bottom: 24px;
-            font-size: 14px;
         }
 
-        .form-check-label {
-            color: var(--card-text-secondary);
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            min-height: auto;
+        }
+
+        .form-check .form-check-input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            float: none;
+            background-color: var(--background);
+            border: 1px solid var(--input);
             cursor: pointer;
+        }
+
+        .form-check .form-check-input:focus {
+            box-shadow: 0 0 0 3px var(--accent-soft);
+            border-color: var(--ring);
         }
 
         .form-check-input:checked {
-            background-color: var(--accent-primary);
-            border-color: var(--accent-primary);
+            background-color: var(--primary);
+            border-color: var(--primary);
         }
 
-        .forgot-password {
-            color: var(--accent-primary);
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.3s;
+        .form-check-label {
+            font-size: 13.5px;
+            color: var(--muted-foreground);
+            cursor: pointer;
         }
 
-        .forgot-password:hover {
-            color: var(--accent-primary-hover);
-        }
-
-        .alert {
-            border-radius: calc(var(--radius) - 2px);
-            margin-bottom: 24px;
-            animation: shake 0.5s ease-in-out;
+        /* Sign in button — SOLID violet, no gradient */
+        .btn-login {
+            width: 100%;
+            height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: var(--primary);
             border: none;
-            padding: 14px 18px;
+            border-radius: calc(var(--radius) - 2px);
+            color: var(--primary-foreground);
+            font-size: 14.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: filter .16s ease;
+        }
+
+        .btn-login:hover {
+            filter: brightness(.94);
+        }
+
+        .btn-login:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+
+        .btn-login:disabled {
+            opacity: .75;
+            cursor: not-allowed;
+        }
+
+        .btn-login .spinner-border {
+            width: 17px;
+            height: 17px;
+            border-width: 2px;
+        }
+
+        /* Error alert */
+        .alert {
+            border: 1px solid transparent;
+            border-radius: calc(var(--radius) - 2px);
+            margin-bottom: 22px;
+            padding: 12px 14px;
+            font-size: 13.5px;
+            display: flex;
+            align-items: center;
         }
 
         .alert-danger {
-            background: rgba(239, 68, 68, 0.15);
-            color: #ef4444;
+            background: var(--danger-bg);
+            color: var(--danger);
+            border-color: color-mix(in srgb, var(--danger) 30%, transparent);
         }
 
-        [data-bs-theme="dark"] .alert-danger {
-            background: rgba(239, 68, 68, 0.2);
-        }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-            20%, 40%, 60%, 80% { transform: translateX(4px); }
-        }
-
-        .version-info {
-            text-align: center;
-            margin-top: 32px;
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 13px;
-        }
-
-        [data-bs-theme="dark"] .version-info {
-            color: rgba(163, 163, 163, 0.85);
-        }
-
-        .app-version {
-            font-family: var(--font-mono);
-            font-size: 12px;
-        }
-
-        /* On the lighter violet accent used in dark mode, dark text reads better */
-        [data-bs-theme="dark"] .btn-login {
-            color: #0a0a0a;
-        }
-
-        /* Mobile responsive */
-        @media (max-width: 576px) {
-            .login-card {
-                padding: 36px 24px;
-                border-radius: var(--radius);
+        /* Mobile: collapse brand panel into a slim top strip */
+        @media (max-width: 720px) {
+            body {
+                padding: 0;
+                align-items: stretch;
             }
 
-            .login-title {
-                font-size: 24px;
+            .login-frame {
+                flex-direction: column;
+                max-width: 480px;
+                margin: 0 auto;
+                min-height: 100vh;
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
             }
 
-            .login-icon {
-                width: 70px;
-                height: 70px;
-                border-radius: var(--radius);
+            .brand-panel {
+                width: 100%;
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                padding: 20px 24px;
             }
 
-            .login-icon i {
-                font-size: 32px;
+            .brand-copy,
+            .brand-version {
+                display: none;
             }
 
-            .theme-toggle-container {
-                top: 12px;
-                right: 12px;
+            .form-panel {
+                padding: 32px 24px 48px;
+                align-items: flex-start;
             }
 
-            .theme-toggle-btn {
-                width: 40px;
-                height: 40px;
+            .form-inner {
+                max-width: 100%;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                transition: none !important;
             }
         }
     </style>
@@ -492,63 +471,62 @@
         </button>
     </div>
 
-    <!-- Animated background -->
-    <div class="bg-animation">
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-    </div>
+    <!-- Split login frame -->
+    <div class="login-frame">
+        <!-- Left: dark brand panel -->
+        <div class="brand-panel">
+            <div class="brand-lockup">
+                <span class="brand-tile">
+                    <img src="{{ base_path }}/static/magikarp.png" alt="">
+                </span>
+                <span class="brand-wordmark">MagikUp</span>
+            </div>
+            <div class="brand-copy">
+                <div class="brand-headline">PostgreSQL backup, restore &amp; transfer &mdash; in one place.</div>
+                <p class="brand-sub">Direct or SSM-tunnelled connections, scheduled backups, remote storage and a full SQL query editor.</p>
+            </div>
+            <div class="brand-version">v4.1.0</div>
+        </div>
 
-    <!-- Login Container -->
-    <div class="login-container">
-        <div class="login-card">
-            <!-- Header -->
-            <div class="login-header">
-                <div class="login-icon" style="background: transparent; box-shadow: none;">
-                    <img src="{{ base_path }}/static/magikarp.png" alt="Magiku(r)p" style="width: 80px; height: 80px; object-fit: contain;">
+        <!-- Right: form -->
+        <div class="form-panel">
+            <div class="form-inner">
+                <h1 class="login-title">Sign in</h1>
+                <p class="login-subtitle">Enter your credentials to continue.</p>
+
+                <!-- Error Alert -->
+                {% if error %}
+                <div class="alert alert-danger" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    {{ error }}
                 </div>
-                <h1 class="login-title">Welcome Back</h1>
-                <p class="login-subtitle">Magiku(r)p</p>
-            </div>
+                {% endif %}
 
-            <!-- Error Alert -->
-            {% if error %}
-            <div class="alert alert-danger" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                {{ error }}
-            </div>
-            {% endif %}
-
-            <!-- Login Form -->
-            <form method="POST" action="{{ base_path }}/login" id="loginForm">
-                <!-- Username -->
-                <div class="form-group">
+                <!-- Login Form -->
+                <form method="POST" action="{{ base_path }}/login" id="loginForm">
+                    <!-- Username -->
                     <label for="username" class="form-label">Username</label>
-                    <div class="input-group">
+                    <div class="field">
                         <input type="text"
                                class="form-control"
                                id="username"
                                name="username"
-                               placeholder="Enter your username"
+                               placeholder="admin"
                                required
                                autofocus>
-                        <i class="bi bi-person-fill input-icon"></i>
+                        <i class="bi bi-person input-icon"></i>
                     </div>
-                </div>
 
-                <!-- Password -->
-                <div class="form-group">
+                    <!-- Password -->
                     <label for="password" class="form-label">Password</label>
-                    <div class="input-group">
+                    <div class="field">
                         <input type="password"
                                class="form-control"
                                id="password"
                                name="password"
                                placeholder="Enter your password"
                                required>
-                        <i class="bi bi-lock-fill input-icon"></i>
+                        <i class="bi bi-lock input-icon"></i>
                         <button type="button"
                                 class="password-toggle"
                                 id="passwordToggle"
@@ -557,38 +535,32 @@
                             <i class="bi bi-eye-fill" id="toggleIcon"></i>
                         </button>
                     </div>
-                </div>
 
-                <!-- Remember Me -->
-                <div class="remember-forgot">
-                    <div class="form-check">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               id="rememberMe"
-                               name="remember_me">
-                        <label class="form-check-label" for="rememberMe">
-                            Remember me
-                        </label>
+                    <!-- Remember Me -->
+                    <div class="remember-forgot">
+                        <div class="form-check">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="rememberMe"
+                                   name="remember_me">
+                            <label class="form-check-label" for="rememberMe">
+                                Remember me
+                            </label>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Login Button -->
-                <button type="submit" class="btn btn-login" id="loginBtn">
-                    <span id="btnText">
-                        <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
-                    </span>
-                    <span id="btnSpinner" style="display: none;">
-                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                        Signing in...
-                    </span>
-                </button>
-            </form>
-        </div>
-
-        <!-- Version Info -->
-        <div class="version-info">
-            <i class="bi bi-shield-check me-1"></i>
-            Magiku(r)p <span class="app-version">v4.0.0</span>
+                    <!-- Login Button -->
+                    <button type="submit" class="btn btn-login" id="loginBtn">
+                        <span id="btnText">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                        </span>
+                        <span id="btnSpinner" style="display: none;">
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            Signing in...
+                        </span>
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 

@@ -5,34 +5,146 @@
 {% block extra_css %}
 <style>
     .info-logo {
-        width: 100px;
-        height: 100px;
-        transition: transform 0.3s ease;
+        width: 96px;
+        height: 96px;
+        transition: transform 0.2s ease;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .info-logo { transition: none; }
     }
     .info-logo:hover {
-        transform: rotate(15deg) scale(1.1);
+        transform: rotate(10deg) scale(1.08);
     }
+
+    /* Key/value rows in the Author & Project card */
+    .kv-table td { padding: 6px 0; vertical-align: middle; border: 0; }
+    .kv-table .kv-key {
+        width: 118px;
+        color: var(--muted-foreground);
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .kv-table .kv-key i { color: var(--brand-fg); }
+    .kv-table .kv-val { color: var(--foreground); font-size: 13.5px; }
+
+    /* Tech stack pills */
     .tech-badge {
         display: inline-flex;
         align-items: center;
-        background: var(--bg-tertiary);
-        border: 1px solid var(--border-color);
-        color: var(--text-secondary);
-        font-size: 0.8rem;
+        gap: 6px;
+        background: var(--muted);
+        border: 1px solid var(--border);
+        color: var(--foreground);
+        font-size: 12.5px;
         font-weight: 500;
-        padding: 5px 11px;
+        padding: 5px 12px;
         border-radius: 999px;
     }
-    .tech-badge i { color: var(--accent-primary); }
+    .tech-badge i { color: var(--brand-fg); }
+
+    /* Documentation link cards — flat, violet hover border */
     .doc-link-card {
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        transition: border-color 0.15s ease, background 0.15s ease;
         text-decoration: none;
         color: inherit;
+        background: var(--card);
     }
     .doc-link-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-lg);
+        border-color: var(--primary) !important;
+        background: var(--accent);
     }
+    @media (prefers-reduced-motion: reduce) {
+        .doc-link-card { transition: none; }
+    }
+
+    /* Version history timeline */
+    .version-timeline {
+        position: relative;
+        margin: 4px 0 0 0;
+        padding-left: 26px;
+    }
+    .version-timeline::before {
+        content: "";
+        position: absolute;
+        left: 6px;
+        top: 6px;
+        bottom: 6px;
+        width: 2px;
+        background: var(--border);
+    }
+    .tl-item {
+        position: relative;
+        padding-bottom: 18px;
+    }
+    .tl-item:last-child { padding-bottom: 0; }
+    .tl-item::before {
+        content: "";
+        position: absolute;
+        left: -23px;
+        top: 5px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--muted-foreground);
+        border: 2px solid var(--card);
+        box-shadow: 0 0 0 2px var(--border);
+    }
+    .tl-item.tl-current::before {
+        background: var(--brand);
+        box-shadow: 0 0 0 3px var(--sidebar-accent);
+    }
+    .tl-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+    .tl-version {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: var(--muted);
+        color: var(--muted-foreground);
+    }
+    .tl-item.tl-current .tl-version {
+        background: var(--sidebar-accent);
+        color: var(--brand-fg);
+    }
+    .tl-current-tag {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--brand-fg);
+    }
+    .tl-desc {
+        font-size: 13px;
+        color: var(--muted-foreground);
+        line-height: 1.5;
+    }
+    .tl-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .tl-list li {
+        font-size: 13px;
+        color: var(--muted-foreground);
+        line-height: 1.5;
+        margin-bottom: 3px;
+        padding-left: 20px;
+        position: relative;
+    }
+    .tl-list li i {
+        position: absolute;
+        left: 0;
+        top: 3px;
+        color: var(--success);
+    }
+
     /* Easter egg: Magikarp Splash */
     .splash-overlay {
         display: none;
@@ -96,6 +208,9 @@
         0% { opacity: 1; transform: translateY(0) scale(1); }
         100% { opacity: 0; transform: translateY(200px) scale(0.5); }
     }
+    @media (prefers-reduced-motion: reduce) {
+        .splash-fish, .splash-text, .drop { animation: none; }
+    }
 </style>
 {% endblock %}
 
@@ -113,10 +228,10 @@
     <div class="col-md-3">
         <div class="card h-100">
             <div class="card-body text-center d-flex flex-column align-items-center justify-content-center py-4">
-                <img src="{{ base_path }}/static/magikarp.png" alt="Magiku(r)p" class="info-logo mb-2" id="infoLogo">
+                <img src="{{ base_path }}/static/magikarp.png" alt="Magiku(r)p" class="info-logo mb-3" id="infoLogo">
                 <h4 class="fw-bold mb-1">Magiku(r)p</h4>
-                <p class="text-body-secondary small mb-2">PostgreSQL Backup, Restore & Transfer Tool</p>
-                <span class="badge bg-primary fs-6">v{{ version }}</span>
+                <p class="text-body-secondary small mb-3">PostgreSQL Backup, Restore &amp; Transfer Tool</p>
+                <span class="badge bg-primary mono" style="font-size: 0.9rem;">v{{ version }}</span>
             </div>
         </div>
     </div>
@@ -125,26 +240,26 @@
     <div class="col-md-5">
         <div class="card h-100">
             <div class="card-header py-2">
-                <i class="bi bi-person-circle me-1"></i> Author & Project
+                <i class="bi bi-person-circle me-1"></i> Author &amp; Project
             </div>
             <div class="card-body py-2">
-                <table class="table table-borderless table-sm mb-0">
+                <table class="kv-table w-100 mb-0">
                     <tbody>
                         <tr>
-                            <td class="text-body-secondary" style="width:110px;"><i class="bi bi-person me-1"></i> Author</td>
-                            <td class="fw-semibold">Fabio "Fax" Pellizzaro</td>
+                            <td class="kv-key"><i class="bi bi-person me-1"></i> Author</td>
+                            <td class="kv-val fw-semibold">Fabio "Fax" Pellizzaro</td>
                         </tr>
                         <tr>
-                            <td class="text-body-secondary"><i class="bi bi-envelope me-1"></i> Contact</td>
-                            <td><a href="mailto:fax.pel@gmail.com">fax.pel@gmail.com</a></td>
+                            <td class="kv-key"><i class="bi bi-envelope me-1"></i> Contact</td>
+                            <td class="kv-val"><a href="mailto:fax.pel@gmail.com" class="mono">fax.pel@gmail.com</a></td>
                         </tr>
                         <tr>
-                            <td class="text-body-secondary"><i class="bi bi-git me-1"></i> Repository</td>
-                            <td><a href="https://github.com/fpellizz/magikup" target="_blank" rel="noopener">github.com/fpellizz/magikup <i class="bi bi-box-arrow-up-right small"></i></a></td>
+                            <td class="kv-key"><i class="bi bi-git me-1"></i> Repository</td>
+                            <td class="kv-val"><a href="https://github.com/fpellizz/magikup" target="_blank" rel="noopener" class="mono">github.com/fpellizz/magikup <i class="bi bi-box-arrow-up-right small"></i></a></td>
                         </tr>
                         <tr>
-                            <td class="text-body-secondary"><i class="bi bi-file-earmark-text me-1"></i> License</td>
-                            <td>MIT</td>
+                            <td class="kv-key"><i class="bi bi-file-earmark-text me-1"></i> License</td>
+                            <td class="kv-val"><span class="badge-chip-mono badge-soft">MIT</span></td>
                         </tr>
                     </tbody>
                 </table>
@@ -162,7 +277,7 @@
                 {% if has_html_manual %}
                 <a href="{{ base_path }}/docs/manual" target="_blank" rel="noopener" class="doc-link-card card border">
                     <div class="card-body py-2 px-3 d-flex align-items-center">
-                        <i class="bi bi-filetype-html fs-4 text-info me-3"></i>
+                        <i class="bi bi-filetype-html fs-4 me-3" style="color: var(--info);"></i>
                         <div>
                             <div class="fw-semibold">User Manual (HTML)</div>
                             <small class="text-body-secondary">Opens in a new tab</small>
@@ -174,7 +289,7 @@
                 {% if has_pdf_manual %}
                 <a href="{{ base_path }}/docs/manual.pdf" class="doc-link-card card border">
                     <div class="card-body py-2 px-3 d-flex align-items-center">
-                        <i class="bi bi-filetype-pdf fs-4 text-danger me-3"></i>
+                        <i class="bi bi-filetype-pdf fs-4 me-3" style="color: var(--danger);"></i>
                         <div>
                             <div class="fw-semibold">User Manual (PDF)</div>
                             <small class="text-body-secondary">Download</small>
@@ -184,9 +299,9 @@
                 </a>
                 {% endif %}
                 {% if not has_html_manual and not has_pdf_manual %}
-                <div class="text-center text-body-secondary py-3">
-                    <i class="bi bi-journal-x fs-3 d-block mb-2" style="opacity: 0.4;"></i>
-                    <small>No documentation files found</small>
+                <div class="empty-state py-3">
+                    <div class="empty-state-icon"><i class="bi bi-journal-x"></i></div>
+                    <div class="empty-state-text">No documentation files found</div>
                 </div>
                 {% endif %}
             </div>
@@ -201,70 +316,75 @@
             <div class="card-header py-2">
                 <i class="bi bi-clock-history me-1"></i> Version History
             </div>
-            <div class="card-body py-2">
-                <div class="mb-2">
-                    <div class="d-flex align-items-center mb-1">
-                        <span class="badge bg-primary me-2">4.0.0</span>
-                        <span class="fw-semibold small">Current</span>
+            <div class="card-body py-3">
+                <div class="version-timeline">
+                    <div class="tl-item tl-current">
+                        <div class="tl-head">
+                            <span class="tl-version">4.1.0</span>
+                            <span class="tl-current-tag">Current</span>
+                        </div>
+                        <ul class="tl-list">
+                            <li><i class="bi bi-check2"></i>UI redesign: solid dark navbar with violet active underline, one button/badge hierarchy (no green primaries, soft tinted badges)</li>
+                            <li><i class="bi bi-check2"></i>Two-column login; dashboard stat cards; Backup/Restore/Transfer with mono flag pills + empty-state Output panel</li>
+                            <li><i class="bi bi-check2"></i>Redesigned Query editor + Admin tables (connection/role badges); gradient washes removed. Purely presentational</li>
+                        </ul>
                     </div>
-                    <ul class="list-unstyled ms-3 mb-0 small text-body-secondary">
-                        <li><i class="bi bi-check2 text-success me-1"></i>App-wide design system aligned to the Files page: single violet accent, neutral surfaces, unified cards/buttons/tables/forms/badges</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>Solid dark navbar with violet active-link underline; monospace for data; centralized tokens (light/dark)</li>
-                        <li><i class="bi bi-check2 text-success me-1"></i>Purely presentational — no functional changes</li>
-                    </ul>
-                </div>
-                <hr class="my-2">
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.9.0</span>
-                    <span class="small text-body-secondary">Backup Files page redesign + backup type badges + volume-usage bar + Restore from Files</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.8.0</span>
-                    <span class="small text-body-secondary">Duplicate endpoint + admin tab persistence</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.7.0</span>
-                    <span class="small text-body-secondary">Selectable PostgreSQL client version (14–17) + per-endpoint SSL mode</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.6.1</span>
-                    <span class="small text-body-secondary">Durable encryption key (persisted on the config volume) + schedule dialog cleanup</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.6.0</span>
-                    <span class="small text-body-secondary">Scheduled backups: cron builder, in-process scheduler, remote destinations with delete-after-verified-copy</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.5.0</span>
-                    <span class="small text-body-secondary">Remote backup storage (S3 / WebDAV / filebrowser) with live progress bars</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.4.0</span>
-                    <span class="small text-body-secondary">Backup lock-wait timeout + backup from a read replica (Aurora reader endpoint)</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.3.0</span>
-                    <span class="small text-body-secondary">Read-only endpoints, per-user endpoint scoping, security hardening</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.2.0</span>
-                    <span class="small text-body-secondary">TimescaleDB-aware restore (pre/post procedures + --disable-triggers)</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.1.0</span>
-                    <span class="small text-body-secondary">Context Path / Reverse Proxy support (ROOT_PATH env var, Admin UI Network section)</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">3.0.0</span>
-                    <span class="small text-body-secondary">Query Editor, Object Browser, Autocommit, Dark/Light theme</span>
-                </div>
-                <div class="mb-2">
-                    <span class="badge bg-secondary me-2">2.0.0</span>
-                    <span class="small text-body-secondary">Transfer page, Advanced backup/restore parameters</span>
-                </div>
-                <div>
-                    <span class="badge bg-secondary me-2">1.0.0</span>
-                    <span class="small text-body-secondary">Initial release: Backup, Restore, File manager, Dashboard</span>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">4.0.0</span></div>
+                        <div class="tl-desc">App-wide design system aligned to the Files page (violet accent, neutral surfaces, unified components)</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.9.0</span></div>
+                        <div class="tl-desc">Backup Files page redesign + backup type badges + volume-usage bar + Restore from Files</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.8.0</span></div>
+                        <div class="tl-desc">Duplicate endpoint + admin tab persistence</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.7.0</span></div>
+                        <div class="tl-desc">Selectable PostgreSQL client version (14–17) + per-endpoint SSL mode</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.6.1</span></div>
+                        <div class="tl-desc">Durable encryption key (persisted on the config volume) + schedule dialog cleanup</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.6.0</span></div>
+                        <div class="tl-desc">Scheduled backups: cron builder, in-process scheduler, remote destinations with delete-after-verified-copy</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.5.0</span></div>
+                        <div class="tl-desc">Remote backup storage (S3 / WebDAV / filebrowser) with live progress bars</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.4.0</span></div>
+                        <div class="tl-desc">Backup lock-wait timeout + backup from a read replica (Aurora reader endpoint)</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.3.0</span></div>
+                        <div class="tl-desc">Read-only endpoints, per-user endpoint scoping, security hardening</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.2.0</span></div>
+                        <div class="tl-desc">TimescaleDB-aware restore (pre/post procedures + --disable-triggers)</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.1.0</span></div>
+                        <div class="tl-desc">Context Path / Reverse Proxy support (ROOT_PATH env var, Admin UI Network section)</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">3.0.0</span></div>
+                        <div class="tl-desc">Query Editor, Object Browser, Autocommit, Dark/Light theme</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">2.0.0</span></div>
+                        <div class="tl-desc">Transfer page, Advanced backup/restore parameters</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">1.0.0</span></div>
+                        <div class="tl-desc">Initial release: Backup, Restore, File manager, Dashboard</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -280,14 +400,14 @@
             </div>
             <div class="card-body py-3">
                 <div class="d-flex flex-wrap gap-2">
-                    <span class="tech-badge"><i class="bi bi-filetype-py me-1"></i>Python</span>
-                    <span class="tech-badge"><i class="bi bi-lightning me-1"></i>FastAPI</span>
-                    <span class="tech-badge"><i class="bi bi-database me-1"></i>PostgreSQL</span>
-                    <span class="tech-badge"><i class="bi bi-bootstrap me-1"></i>Bootstrap 5</span>
-                    <span class="tech-badge"><i class="bi bi-filetype-html me-1"></i>Jinja2</span>
-                    <span class="tech-badge"><i class="bi bi-hdd-stack me-1"></i>psycopg2</span>
-                    <span class="tech-badge"><i class="bi bi-cloud me-1"></i>AWS SSM</span>
-                    <span class="tech-badge"><i class="bi bi-pencil-square me-1"></i>Ace Editor</span>
+                    <span class="tech-badge"><i class="bi bi-filetype-py"></i>Python</span>
+                    <span class="tech-badge"><i class="bi bi-lightning"></i>FastAPI</span>
+                    <span class="tech-badge"><i class="bi bi-database"></i>PostgreSQL</span>
+                    <span class="tech-badge"><i class="bi bi-bootstrap"></i>Bootstrap 5</span>
+                    <span class="tech-badge"><i class="bi bi-filetype-html"></i>Jinja2</span>
+                    <span class="tech-badge"><i class="bi bi-hdd-stack"></i>psycopg2</span>
+                    <span class="tech-badge"><i class="bi bi-cloud"></i>AWS SSM</span>
+                    <span class="tech-badge"><i class="bi bi-pencil-square"></i>Ace Editor</span>
                 </div>
             </div>
         </div>
@@ -295,7 +415,7 @@
 </div>
 
 <p class="text-center text-body-secondary small mb-4">
-    <i class="bi bi-heart-fill text-danger"></i> Made with love and a lot of <code>pg_dump</code>
+    <i class="bi bi-heart-fill" style="color: var(--danger);"></i> Made with love and a lot of <code>pg_dump</code>
 </p>
 
 <!-- Easter Egg: Konami Code -->

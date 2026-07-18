@@ -5,63 +5,39 @@
 {% block extra_css %}
 <style>
     /* ============================================
-       Admin Page Styles
+       Admin Page Styles (v4.1.0)
+       Reuses foundation helpers: .nav-subtabs, .icon-btn,
+       .badge-soft + semantic modifiers, .empty-state, .mono.
+       Only page-specific styling below.
        ============================================ */
 
-    .admin-tabs {
-        border-bottom: 1px solid var(--border-color);
-        margin-bottom: 1.5rem;
-        gap: 0.25rem;
-        flex-wrap: wrap;
-    }
-
-    .admin-tabs .nav-link {
-        border: none;
-        border-radius: calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0 0;
-        padding: 0.75rem 1.25rem;
-        color: var(--text-secondary);
-        font-weight: 500;
-        margin-bottom: -1px;
-        box-shadow: inset 0 -2px 0 transparent;
-        transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .admin-tabs .nav-link:hover {
-        color: var(--text-primary);
-        background: var(--bg-tertiary);
-    }
-
-    .admin-tabs .nav-link.active {
-        background: transparent;
-        color: var(--accent-primary);
-        box-shadow: inset 0 -2px 0 var(--accent-primary);
-    }
-
-    .admin-tabs .nav-link i {
-        margin-right: 0.5rem;
-    }
+    /* Sub-tab row: use foundation .nav-subtabs (defined in style.css).
+       Keep Bootstrap tab hooks (.nav-link + data-bs-toggle). */
 
     /* Tab Content */
     .tab-pane {
-        animation: fadeIn 0.3s ease;
+        animation: fadeIn 0.25s ease;
     }
 
     @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
+        from { opacity: 0; transform: translateY(6px); }
         to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Config Cards */
+    @media (prefers-reduced-motion: reduce) {
+        .tab-pane { animation: none; }
+    }
+
+    /* Config Cards (flat, on top of Bootstrap .card) */
     .config-card {
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius);
         overflow: hidden;
     }
 
     .config-card .card-header {
-        background: var(--bg-secondary);
-        border-bottom: 1px solid var(--border-color);
-        padding: 1rem 1.25rem;
+        background: var(--card);
+        padding: 0.9rem 1.15rem;
+        font-size: 15px;
+        font-weight: 600;
     }
 
     .config-card .card-body {
@@ -78,7 +54,7 @@
         font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 0.04em;
-        color: var(--text-secondary);
+        color: var(--muted-foreground);
         margin-bottom: 1rem;
         display: flex;
         align-items: center;
@@ -86,156 +62,108 @@
     }
 
     .form-section-title i {
-        color: var(--accent-primary);
+        color: var(--brand-fg);
     }
 
-    /* Endpoints Table */
+    /* Table wrapper */
     .endpoints-table-container {
         border-radius: var(--radius);
-        overflow: hidden;
-        border: 1px solid var(--border-color);
+        overflow: auto;
+        border: 1px solid var(--border);
     }
 
     .endpoints-table-container .table {
         margin-bottom: 0;
     }
 
-    .endpoint-row {
-        transition: background-color 0.15s ease;
-    }
-
-    .endpoint-row:hover {
-        background-color: var(--bg-tertiary) !important;
-    }
-
     .endpoint-name {
         font-weight: 600;
-        color: var(--text-primary);
+        color: var(--foreground);
     }
 
     .endpoint-host-cell {
         font-family: var(--font-mono);
         font-size: 0.85rem;
+        color: var(--muted-foreground);
     }
 
-    .endpoint-port {
-        background: var(--bg-tertiary);
-        padding: 0.25rem 0.5rem;
-        border-radius: calc(var(--radius) - 2px);
-        font-family: var(--font-mono);
-        font-size: 0.8rem;
+    /* Connection / badge cell */
+    .conn-cell {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        align-items: center;
     }
 
+    /* Uniform action button row */
     .endpoint-actions {
         display: flex;
-        gap: 0.375rem;
+        gap: 0.25rem;
         justify-content: flex-end;
     }
 
-    /* SSM Badge */
-    .badge-ssm {
-        font-size: 11px;
-        font-weight: 500;
-        padding: 2px 9px;
-        border-radius: 999px;
-    }
-
-    /* Empty State */
-    .empty-state {
-        text-align: center;
-        padding: 2.5rem;
-        color: var(--text-muted);
-    }
-
-    .empty-state i {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        opacity: 0.3;
-        display: block;
-    }
-
-    .empty-state h6 {
-        color: var(--text-primary);
-        margin-bottom: 0.5rem;
-    }
-
-    .empty-state p {
-        margin-bottom: 1rem;
-        font-size: 0.9rem;
-    }
-
-    /* Security Info Box */
+    /* Info / callout box (no colored left-border accent) */
     .security-info-box {
         display: flex;
         align-items: flex-start;
-        gap: 1rem;
-        padding: 1rem;
-        background: var(--bg-tertiary);
+        gap: 0.85rem;
+        padding: 0.9rem 1rem;
+        background: var(--info-bg);
+        border: 1px solid color-mix(in oklab, var(--info) 22%, transparent);
         border-radius: var(--radius);
         margin-bottom: 1rem;
-        border-left: 4px solid var(--warning);
     }
 
     .security-info-box i {
-        font-size: 1.5rem;
-        color: var(--warning);
+        font-size: 1.25rem;
+        color: var(--info);
         flex-shrink: 0;
     }
 
     .security-info-box p {
         margin: 0;
         font-size: 0.9rem;
-        color: var(--text-secondary);
+        color: var(--foreground);
+    }
+
+    .security-info-box.warning {
+        background: var(--warning-bg);
+        border-color: color-mix(in oklab, var(--warning) 26%, transparent);
+    }
+
+    .security-info-box.warning i {
+        color: var(--warning);
     }
 
     .security-info-box code {
-        background: var(--bg-secondary);
+        background: var(--muted);
         padding: 0.125rem 0.375rem;
         border-radius: calc(var(--radius) - 4px);
         font-size: 0.8rem;
         font-family: var(--font-mono);
     }
 
-    /* Security Card */
-    .security-card {
-        border-color: var(--warning) !important;
-        overflow: hidden;
-    }
-
-    .security-card .card-header {
-        background: color-mix(in oklab, var(--warning) 14%, transparent);
-        color: var(--text-primary);
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .security-card .card-header i {
-        color: var(--warning) !important;
-    }
-
-    /* Import/Export Card */
-    .import-export-card .card-header {
-        background: var(--bg-secondary);
-    }
-
     /* Password Toggle */
     .password-toggle {
         cursor: pointer;
-        color: var(--text-muted);
+        color: var(--muted-foreground);
     }
 
     .password-toggle:hover {
-        color: var(--text-primary);
+        color: var(--foreground);
     }
 
-    /* SSM Toggle Switch */
+    /* Toggle switch wrapper */
     .ssm-toggle-wrapper {
         display: flex;
         align-items: center;
         gap: 0.75rem;
         padding: 0.75rem 1rem;
-        background: var(--bg-tertiary);
+        background: var(--pane);
+        border: 1px solid var(--border);
         border-radius: var(--radius);
         margin-bottom: 1rem;
+        flex-wrap: wrap;
     }
 
     .ssm-toggle-wrapper .form-check-label {
@@ -244,8 +172,12 @@
     }
 
     .jumphost-select-wrapper {
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
         overflow: hidden;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .jumphost-select-wrapper { transition: none; }
     }
 
     .jumphost-select-wrapper.hidden {
@@ -272,13 +204,9 @@
 
     /* Responsive adjustments */
     @media (max-width: 768px) {
-        .admin-tabs .nav-link {
-            padding: 0.5rem 0.75rem;
-            font-size: 0.85rem;
-        }
-
-        .admin-tabs .nav-link i {
-            margin-right: 0.25rem;
+        .nav-subtabs .nav-link {
+            padding: 0 10px;
+            font-size: 12.5px;
         }
 
         .endpoint-host-cell {
@@ -291,14 +219,13 @@
 {% block content %}
 <div class="row">
     <div class="col-12">
-        <h2><i class="bi bi-gear"></i> Administration</h2>
-        <p class="text-muted">Manage database endpoints, jump hosts, AWS credentials, and application settings.</p>
-        <hr>
+        <h2 class="mb-1">Administration</h2>
+        <p class="text-muted">Manage endpoints, jump hosts, AWS credentials, users and settings.</p>
     </div>
 </div>
 
-<!-- Tab Navigation -->
-<ul class="nav admin-tabs" id="adminTabs" role="tablist">
+<!-- Tab Navigation (underlined sub-tabs) -->
+<ul class="nav nav-subtabs" id="adminTabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="endpoints-tab" data-bs-toggle="tab" data-bs-target="#endpoints-panel" type="button" role="tab">
             <i class="bi bi-database"></i> Endpoints
@@ -363,8 +290,8 @@
                                 <th>Name</th>
                                 <th>Host</th>
                                 <th>Port</th>
-                                <th>Username</th>
-                                <th>SSM</th>
+                                <th>User</th>
+                                <th>Connection</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -375,42 +302,40 @@
                                 <td class="endpoint-host-cell text-truncate" style="max-width: 300px;" title="{{ endpoint.host }}">
                                     {{ endpoint.host }}
                                 </td>
-                                <td><span class="endpoint-port">{{ endpoint.port }}</span></td>
-                                <td>{{ endpoint.username }}</td>
+                                <td><span class="mono">{{ endpoint.port }}</span></td>
+                                <td><span class="mono">{{ endpoint.username }}</span></td>
                                 <td>
-                                    {% if endpoint.use_ssm %}
-                                        <span class="badge bg-info badge-ssm" title="Jump Host: {{ endpoint.jumphost_alias or 'N/A' }}">
-                                            <i class="bi bi-check-circle me-1"></i>SSM
-                                        </span>
-                                    {% else %}
-                                        <span class="badge bg-secondary badge-ssm">
-                                            <i class="bi bi-dash-circle me-1"></i>Direct
-                                        </span>
-                                    {% endif %}
-                                    {% if endpoint.read_only %}
-                                        <span class="badge bg-warning text-dark" title="Read-only: no restore/transfer, query editor read-only">
-                                            <i class="bi bi-lock me-1"></i>Read-only
-                                        </span>
-                                    {% endif %}
-                                    <span class="badge bg-light text-dark border" title="pg_dump/pg_restore client version">
-                                        pg{{ endpoint.pg_version }}
-                                    </span>
-                                    <span class="badge bg-light text-dark border" title="libpq SSL mode">
-                                        <i class="bi bi-shield-lock me-1"></i>{{ endpoint.sslmode }}
-                                    </span>
+                                    <div class="conn-cell">
+                                        {% if endpoint.use_ssm %}
+                                            <span class="badge-soft badge-conn-ssm" title="Jump Host: {{ endpoint.jumphost_alias or 'N/A' }}">
+                                                <i class="bi bi-diagram-3"></i>SSM{% if endpoint.jumphost_alias %} · {{ endpoint.jumphost_alias }}{% endif %}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge-soft badge-conn-direct">
+                                                <i class="bi bi-hdd-network"></i>Direct
+                                            </span>
+                                        {% endif %}
+                                        {% if endpoint.read_only %}
+                                            <span class="badge-soft badge-conn-readonly" title="Read-only: no restore/transfer, query editor read-only">
+                                                <i class="bi bi-lock"></i>Read-only
+                                            </span>
+                                        {% endif %}
+                                        <span class="badge-soft badge-chip-mono" title="pg_dump/pg_restore client version">pg{{ endpoint.pg_version }}</span>
+                                        <span class="badge-soft badge-chip-mono" title="libpq SSL mode">{{ endpoint.sslmode }}</span>
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="endpoint-actions">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="testEndpoint('{{ name }}')" title="Test Connection">
+                                        <button class="icon-btn icon-btn-primary" onclick="testEndpoint('{{ name }}')" title="Test Connection" aria-label="Test connection to {{ name }}">
                                             <i class="bi bi-plug"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-warning" onclick="editEndpoint('{{ name }}')" title="Edit Endpoint">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="duplicateEndpoint('{{ name }}')" title="Duplicate Endpoint (same connection, new name/user)">
+                                        <button class="icon-btn" onclick="duplicateEndpoint('{{ name }}')" title="Duplicate Endpoint (same connection, new name/user)" aria-label="Duplicate endpoint {{ name }}">
                                             <i class="bi bi-files"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteEndpoint('{{ name }}')" title="Delete Endpoint">
+                                        <button class="icon-btn" onclick="editEndpoint('{{ name }}')" title="Edit Endpoint" aria-label="Edit endpoint {{ name }}">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="icon-btn icon-btn-danger" onclick="deleteEndpoint('{{ name }}')" title="Delete Endpoint" aria-label="Delete endpoint {{ name }}">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -420,10 +345,10 @@
                             <tr>
                                 <td colspan="6">
                                     <div class="empty-state">
-                                        <i class="bi bi-database-x"></i>
-                                        <h6>No endpoints configured</h6>
-                                        <p>Add a database endpoint to start managing backups</p>
-                                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addEndpointModal">
+                                        <div class="empty-state-icon"><i class="bi bi-database"></i></div>
+                                        <div class="empty-state-title">No endpoints configured</div>
+                                        <div class="empty-state-text">Add a database endpoint to start managing backups</div>
+                                        <button class="btn btn-primary btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#addEndpointModal">
                                             <i class="bi bi-plus me-1"></i> Add Endpoint
                                         </button>
                                     </div>
@@ -473,18 +398,18 @@
                             <tr class="endpoint-row">
                                 <td><span class="endpoint-name">{{ alias }}</span></td>
                                 <td class="endpoint-host-cell">
-                                    <code>{{ jumphost.instance_id }}</code>
+                                    <span class="mono">{{ jumphost.instance_id }}</span>
                                 </td>
                                 <td>
                                     {% if jumphost.aws_account_alias %}
-                                        <span class="badge bg-info">{{ jumphost.aws_account_alias }}</span>
+                                        <span class="badge-soft badge-conn-ssm">{{ jumphost.aws_account_alias }}</span>
                                     {% else %}
                                         <span class="text-muted">N/A</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     <div class="endpoint-actions">
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteJumphost('{{ alias }}')" title="Delete Jump Host">
+                                        <button class="icon-btn icon-btn-danger" onclick="deleteJumphost('{{ alias }}')" title="Delete Jump Host" aria-label="Delete jump host {{ alias }}">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -494,10 +419,10 @@
                             <tr>
                                 <td colspan="4">
                                     <div class="empty-state">
-                                        <i class="bi bi-server"></i>
-                                        <h6>No jump hosts configured</h6>
-                                        <p>Add a jump host to enable SSM tunneling for database connections</p>
-                                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addJumphostModal">
+                                        <div class="empty-state-icon"><i class="bi bi-hdd-network"></i></div>
+                                        <div class="empty-state-title">No jump hosts configured</div>
+                                        <div class="empty-state-text">Add a jump host to enable SSM tunneling for database connections</div>
+                                        <button class="btn btn-primary btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#addJumphostModal">
                                             <i class="bi bi-plus me-1"></i> Add Jump Host
                                         </button>
                                     </div>
@@ -538,15 +463,15 @@
                             <tr class="endpoint-row">
                                 <td><span class="endpoint-name">{{ alias }}</span></td>
                                 <td class="endpoint-host-cell">
-                                    <code>{{ account.access_key_id[:8] }}...</code>
+                                    <span class="mono">{{ account.access_key_id[:8] }}...</span>
                                 </td>
-                                <td>{{ account.region }}</td>
+                                <td><span class="mono">{{ account.region }}</span></td>
                                 <td>
                                     <div class="endpoint-actions">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="testAwsAccount('{{ alias }}')" title="Test Connection">
+                                        <button class="icon-btn icon-btn-primary" onclick="testAwsAccount('{{ alias }}')" title="Test Connection" aria-label="Test AWS account {{ alias }}">
                                             <i class="bi bi-plug"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAwsAccount('{{ alias }}')" title="Delete AWS Account">
+                                        <button class="icon-btn icon-btn-danger" onclick="deleteAwsAccount('{{ alias }}')" title="Delete AWS Account" aria-label="Delete AWS account {{ alias }}">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -556,10 +481,10 @@
                             <tr>
                                 <td colspan="4">
                                     <div class="empty-state">
-                                        <i class="bi bi-cloud"></i>
-                                        <h6>No AWS accounts configured</h6>
-                                        <p>Add an AWS account to enable SSM tunneling and other AWS services</p>
-                                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addAwsAccountModal">
+                                        <div class="empty-state-icon"><i class="bi bi-cloud"></i></div>
+                                        <div class="empty-state-title">No AWS accounts configured</div>
+                                        <div class="empty-state-text">Add an AWS account to enable SSM tunneling and other AWS services</div>
+                                        <button class="btn btn-primary btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#addAwsAccountModal">
                                             <i class="bi bi-plus me-1"></i> Add AWS Account
                                         </button>
                                     </div>
@@ -602,25 +527,25 @@
                             <tr class="endpoint-row">
                                 <td><span class="endpoint-name">{{ name }}</span></td>
                                 <td class="endpoint-host-cell">
-                                    <code>{{ store.bucket }}{% if store.prefix %}/{{ store.prefix }}{% endif %}</code>
+                                    <span class="mono">{{ store.bucket }}{% if store.prefix %}/{{ store.prefix }}{% endif %}</span>
                                 </td>
-                                <td>{{ store.endpoint_url or 'AWS S3' }}</td>
+                                <td><span class="mono">{{ store.endpoint_url or 'AWS S3' }}</span></td>
                                 <td>
                                     {% if store.cred_mode == 'aws_account' %}
-                                        <span class="badge bg-secondary">AWS: {{ store.aws_account_alias }}</span>
+                                        <span class="badge-soft badge-conn-direct">AWS: {{ store.aws_account_alias }}</span>
                                     {% else %}
-                                        <span class="badge bg-info">dedicated</span>
+                                        <span class="badge-soft badge-conn-ssm">dedicated</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     <div class="endpoint-actions">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="testS3Store('{{ name }}')" title="Test Connection">
+                                        <button class="icon-btn icon-btn-primary" onclick="testS3Store('{{ name }}')" title="Test Connection" aria-label="Test S3 bucket {{ name }}">
                                             <i class="bi bi-plug"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="editS3Store('{{ name }}')" title="Edit">
+                                        <button class="icon-btn" onclick="editS3Store('{{ name }}')" title="Edit" aria-label="Edit S3 bucket {{ name }}">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteS3Store('{{ name }}')" title="Delete">
+                                        <button class="icon-btn icon-btn-danger" onclick="deleteS3Store('{{ name }}')" title="Delete" aria-label="Delete S3 bucket {{ name }}">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -630,10 +555,10 @@
                             <tr>
                                 <td colspan="5">
                                     <div class="empty-state">
-                                        <i class="bi bi-bucket"></i>
-                                        <h6>No S3 buckets configured</h6>
-                                        <p>Add an S3 (or S3-compatible) bucket to archive and retrieve backup files</p>
-                                        <button class="btn btn-primary btn-sm" onclick="openS3ModalForAdd()" data-bs-toggle="modal" data-bs-target="#addS3Modal">
+                                        <div class="empty-state-icon"><i class="bi bi-bucket"></i></div>
+                                        <div class="empty-state-title">No S3 buckets configured</div>
+                                        <div class="empty-state-text">Add an S3 (or S3-compatible) bucket to archive and retrieve backup files</div>
+                                        <button class="btn btn-primary btn-sm mt-2" onclick="openS3ModalForAdd()" data-bs-toggle="modal" data-bs-target="#addS3Modal">
                                             <i class="bi bi-plus me-1"></i> Add S3 Bucket
                                         </button>
                                     </div>
@@ -669,24 +594,26 @@
                             {% for name, share in fileshares.items() %}
                             <tr class="endpoint-row">
                                 <td><span class="endpoint-name">{{ name }}</span></td>
-                                <td class="endpoint-host-cell"><code>{{ share.base_url }}</code></td>
+                                <td class="endpoint-host-cell"><span class="mono">{{ share.base_url }}</span></td>
                                 <td>
-                                    {% if share.username %}
-                                        <span class="badge bg-info">{{ share.username }}</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">anonymous</span>
-                                    {% endif %}
-                                    {% if not share.verify_ssl %}<span class="badge bg-warning text-dark" title="TLS verification disabled"><i class="bi bi-shield-slash"></i></span>{% endif %}
+                                    <div class="conn-cell">
+                                        {% if share.username %}
+                                            <span class="badge-soft badge-conn-ssm">{{ share.username }}</span>
+                                        {% else %}
+                                            <span class="badge-soft badge-conn-direct">anonymous</span>
+                                        {% endif %}
+                                        {% if not share.verify_ssl %}<span class="badge-soft badge-conn-readonly" title="TLS verification disabled"><i class="bi bi-shield-slash"></i>no-TLS</span>{% endif %}
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="endpoint-actions">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="testFileShare('{{ name }}')" title="Test Connection">
+                                        <button class="icon-btn icon-btn-primary" onclick="testFileShare('{{ name }}')" title="Test Connection" aria-label="Test file share {{ name }}">
                                             <i class="bi bi-plug"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="editFileShare('{{ name }}')" title="Edit">
+                                        <button class="icon-btn" onclick="editFileShare('{{ name }}')" title="Edit" aria-label="Edit file share {{ name }}">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteFileShare('{{ name }}')" title="Delete">
+                                        <button class="icon-btn icon-btn-danger" onclick="deleteFileShare('{{ name }}')" title="Delete" aria-label="Delete file share {{ name }}">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -696,10 +623,10 @@
                             <tr>
                                 <td colspan="4">
                                     <div class="empty-state">
-                                        <i class="bi bi-folder-symlink"></i>
-                                        <h6>No file shares configured</h6>
-                                        <p>Add a WebDAV/HTTP(S) file share to archive and retrieve backup files</p>
-                                        <button class="btn btn-primary btn-sm" onclick="openFileShareModalForAdd()" data-bs-toggle="modal" data-bs-target="#addFileShareModal">
+                                        <div class="empty-state-icon"><i class="bi bi-folder-symlink"></i></div>
+                                        <div class="empty-state-title">No file shares configured</div>
+                                        <div class="empty-state-text">Add a WebDAV/HTTP(S) file share to archive and retrieve backup files</div>
+                                        <button class="btn btn-primary btn-sm mt-2" onclick="openFileShareModalForAdd()" data-bs-toggle="modal" data-bs-target="#addFileShareModal">
                                             <i class="bi bi-plus me-1"></i> Add File Share
                                         </button>
                                     </div>
@@ -736,25 +663,27 @@
                             {% for name, fb in filebrowsers.items() %}
                             <tr class="endpoint-row">
                                 <td><span class="endpoint-name">{{ name }}</span></td>
-                                <td class="endpoint-host-cell"><code>{{ fb.base_url }}</code></td>
-                                <td>{{ fb.root_path or '/' }}</td>
+                                <td class="endpoint-host-cell"><span class="mono">{{ fb.base_url }}</span></td>
+                                <td><span class="mono">{{ fb.root_path or '/' }}</span></td>
                                 <td>
-                                    {% if fb.username %}
-                                        <span class="badge bg-info">{{ fb.username }}</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">no-auth</span>
-                                    {% endif %}
-                                    {% if not fb.verify_ssl %}<span class="badge bg-warning text-dark" title="TLS verification disabled"><i class="bi bi-shield-slash"></i></span>{% endif %}
+                                    <div class="conn-cell">
+                                        {% if fb.username %}
+                                            <span class="badge-soft badge-conn-ssm">{{ fb.username }}</span>
+                                        {% else %}
+                                            <span class="badge-soft badge-conn-direct">no-auth</span>
+                                        {% endif %}
+                                        {% if not fb.verify_ssl %}<span class="badge-soft badge-conn-readonly" title="TLS verification disabled"><i class="bi bi-shield-slash"></i>no-TLS</span>{% endif %}
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="endpoint-actions">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="testFileBrowser('{{ name }}')" title="Test Connection">
+                                        <button class="icon-btn icon-btn-primary" onclick="testFileBrowser('{{ name }}')" title="Test Connection" aria-label="Test filebrowser {{ name }}">
                                             <i class="bi bi-plug"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="editFileBrowser('{{ name }}')" title="Edit">
+                                        <button class="icon-btn" onclick="editFileBrowser('{{ name }}')" title="Edit" aria-label="Edit filebrowser {{ name }}">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteFileBrowser('{{ name }}')" title="Delete">
+                                        <button class="icon-btn icon-btn-danger" onclick="deleteFileBrowser('{{ name }}')" title="Delete" aria-label="Delete filebrowser {{ name }}">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -764,10 +693,10 @@
                             <tr>
                                 <td colspan="5">
                                     <div class="empty-state">
-                                        <i class="bi bi-hdd-stack"></i>
-                                        <h6>No filebrowser instances configured</h6>
-                                        <p>Add a <a href="https://github.com/filebrowser/filebrowser" target="_blank" rel="noopener">filebrowser</a> instance to archive and retrieve backup files</p>
-                                        <button class="btn btn-primary btn-sm" onclick="openFileBrowserModalForAdd()" data-bs-toggle="modal" data-bs-target="#addFileBrowserModal">
+                                        <div class="empty-state-icon"><i class="bi bi-hdd-stack"></i></div>
+                                        <div class="empty-state-title">No filebrowser instances configured</div>
+                                        <div class="empty-state-text">Add a <a href="https://github.com/filebrowser/filebrowser" target="_blank" rel="noopener">filebrowser</a> instance to archive and retrieve backup files</div>
+                                        <button class="btn btn-primary btn-sm mt-2" onclick="openFileBrowserModalForAdd()" data-bs-toggle="modal" data-bs-target="#addFileBrowserModal">
                                             <i class="bi bi-plus me-1"></i> Add filebrowser
                                         </button>
                                     </div>
@@ -938,7 +867,7 @@
                         <p class="text-muted mb-3">
                             Upload a configuration file to replace the current settings. This will overwrite all existing configuration.
                         </p>
-                        <div class="security-info-box">
+                        <div class="security-info-box warning">
                             <i class="bi bi-exclamation-triangle-fill"></i>
                             <div>
                                 <p><strong>Warning:</strong> Importing a configuration file will overwrite all current settings. Make sure to export a backup first.</p>
@@ -989,59 +918,59 @@
                                 <td>
                                     <span class="endpoint-name">{{ username }}</span>
                                     {% if username == user %}
-                                    <span class="badge bg-info ms-1" style="font-size: 0.65rem;">you</span>
+                                    <span class="badge-soft badge-role-admin ms-1" style="font-size: 10.5px; font-weight: 600;">you</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if u.role == 'admin' %}
-                                    <span class="badge bg-danger">Admin</span>
+                                    <span class="badge-soft badge-role-admin"><i class="bi bi-shield-lock"></i>Admin</span>
                                     {% elif u.role == 'operator' %}
-                                    <span class="badge bg-primary">Operator</span>
+                                    <span class="badge-soft badge-role-operator"><i class="bi bi-sliders"></i>Operator</span>
                                     {% else %}
-                                    <span class="badge bg-secondary">Viewer</span>
+                                    <span class="badge-soft badge-role-viewer"><i class="bi bi-eye"></i>Viewer</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if u.locked %}
-                                    <span class="badge bg-warning text-dark"><i class="bi bi-lock-fill me-1"></i>Locked</span>
+                                    <span class="d-inline-flex align-items-center gap-2" style="font-size: 12.5px; color: var(--warning-fg);"><span class="dot" style="background: var(--warning);"></span>Locked</span>
                                     {% elif not u.enabled %}
-                                    <span class="badge bg-secondary"><i class="bi bi-slash-circle me-1"></i>Disabled</span>
+                                    <span class="d-inline-flex align-items-center gap-2" style="font-size: 12.5px; color: var(--muted-foreground);"><span class="dot dot-idle"></span>Disabled</span>
                                     {% else %}
-                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                    <span class="d-inline-flex align-items-center gap-2" style="font-size: 12.5px; color: var(--success-fg);"><span class="dot dot-success"></span>Active</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if u.last_login %}
-                                    <small class="text-muted">{{ u.last_login[:16].replace('T', ' ') }}</small>
+                                    <span class="mono text-muted" style="font-size: 12.5px;">{{ u.last_login[:16].replace('T', ' ') }}</span>
                                     {% else %}
-                                    <small class="text-muted">Never</small>
+                                    <span class="mono text-muted" style="font-size: 12.5px;">Never</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <small class="text-muted">{{ u.created_at[:10] }}</small>
+                                    <span class="mono text-muted" style="font-size: 12.5px;">{{ u.created_at[:10] }}</span>
                                 </td>
                                 <td>
                                     <div class="endpoint-actions">
-                                        <button class="btn btn-sm btn-outline-primary"
+                                        <button class="icon-btn"
                                                 onclick="editUser('{{ username }}', '{{ u.role }}', {{ 'true' if u.enabled else 'false' }}, '{{ u.endpoints | join(',') }}')"
-                                                title="Edit User">
+                                                title="Edit User" aria-label="Edit user {{ username }}">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-warning"
+                                        <button class="icon-btn"
                                                 onclick="resetUserPassword('{{ username }}')"
-                                                title="Reset Password">
+                                                title="Reset Password" aria-label="Reset password for {{ username }}">
                                             <i class="bi bi-key"></i>
                                         </button>
                                         {% if u.locked %}
-                                        <button class="btn btn-sm btn-outline-success"
+                                        <button class="icon-btn icon-btn-primary"
                                                 onclick="unlockUser('{{ username }}')"
-                                                title="Unlock Account">
+                                                title="Unlock Account" aria-label="Unlock account {{ username }}">
                                             <i class="bi bi-unlock"></i>
                                         </button>
                                         {% endif %}
-                                        <button class="btn btn-sm btn-outline-danger"
+                                        <button class="icon-btn icon-btn-danger"
                                                 onclick="deleteUser('{{ username }}')"
-                                                title="Delete User"
+                                                title="Delete User" aria-label="Delete user {{ username }}"
                                                 {% if username == user %}disabled{% endif %}>
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -1052,9 +981,9 @@
                             <tr>
                                 <td colspan="6">
                                     <div class="empty-state">
-                                        <i class="bi bi-people"></i>
-                                        <h6>No users found</h6>
-                                        <p>This shouldn't happen - there should be at least one admin user</p>
+                                        <div class="empty-state-icon"><i class="bi bi-people"></i></div>
+                                        <div class="empty-state-title">No users found</div>
+                                        <div class="empty-state-text">This shouldn't happen - there should be at least one admin user</div>
                                     </div>
                                 </td>
                             </tr>

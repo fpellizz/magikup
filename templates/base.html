@@ -26,9 +26,11 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container-fluid">
-            <a class="navbar-brand d-flex align-items-center" href="{{ base_path }}/">
-                <img src="{{ base_path }}/static/magikarp.png" alt="Magiku(r)p" style="height: 32px; margin-right: 0.5rem;">
-                <span>Magiku(r)p</span>
+            <a class="navbar-brand" href="{{ base_path }}/">
+                <span class="brand-tile" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z"></path><path d="M18 12v.5"></path><path d="M16 17.93a9.77 9.77 0 0 1 0-11.86"></path><path d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33"></path><path d="M10.46 7.26C10.2 5.88 9.17 4.24 8 3h5.8a2 2 0 0 1 1.98 1.67l.23 1.4"></path><path d="m16.01 17.93-.23 1.4A2 2 0 0 1 13.8 21H9.5a5.96 5.96 0 0 0 1.49-3.98"></path></svg>
+                </span>
+                <span>MagikUp</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -37,18 +39,18 @@
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link {% if request.url.path == '/' %}active{% endif %}" href="{{ base_path }}/">
-                            <i class="bi bi-house"></i> Dashboard
+                            <i class="bi bi-grid-1x2"></i> Dashboard
                         </a>
                     </li>
                     {% if user_role != 'viewer' %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.url.path == '/backup' %}active{% endif %}" href="{{ base_path }}/backup">
-                            <i class="bi bi-download"></i> Backup
+                            <i class="bi bi-box-arrow-down"></i> Backup
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.url.path == '/restore' %}active{% endif %}" href="{{ base_path }}/restore">
-                            <i class="bi bi-upload"></i> Restore
+                            <i class="bi bi-box-arrow-up"></i> Restore
                         </a>
                     </li>
                     <li class="nav-item">
@@ -80,7 +82,7 @@
                     {% endif %}
                     {% endif %}
                 </ul>
-                <ul class="navbar-nav">
+                <ul class="navbar-nav align-items-lg-center">
                     <li class="nav-item">
                         <a class="nav-link {% if request.url.path == '/info' %}active{% endif %}" href="{{ base_path }}/info">
                             <i class="bi bi-info-circle"></i> Info
@@ -88,22 +90,23 @@
                     </li>
                     <!-- Theme Toggle -->
                     <li class="nav-item">
-                        <button class="theme-toggle nav-link" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
                             <i class="bi bi-sun-fill" id="theme-icon"></i>
                         </button>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-person-circle"></i> {{ user }}
+                            <span class="nav-avatar" aria-hidden="true">{{ user[0]|upper }}</span>
+                            {{ user }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li>
                                 <a class="dropdown-item disabled" href="#">
                                     <i class="bi bi-shield-check"></i> {{ user }}
                                     {% if user_role == 'admin' %}
-                                    <span class="badge bg-danger ms-1">Admin</span>
+                                    <span class="badge bg-primary ms-1">Admin</span>
                                     {% elif user_role == 'operator' %}
-                                    <span class="badge bg-primary ms-1">Operator</span>
+                                    <span class="badge bg-info ms-1">Operator</span>
                                     {% else %}
                                     <span class="badge bg-secondary ms-1">Viewer</span>
                                     {% endif %}

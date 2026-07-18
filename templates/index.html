@@ -3,156 +3,161 @@
 {% block title %}Dashboard - PostgreSQL Backup/Restore{% endblock %}
 
 {% block content %}
-<!-- Dashboard Header with Storage Info -->
-<div class="row align-items-center mb-4">
-    <div class="col">
-        <h2 class="mb-0"><i class="bi bi-speedometer2"></i> Dashboard</h2>
+<!-- Dashboard header: title + subtitle + actions -->
+<div class="dash-header">
+    <div>
+        <h2 class="dash-title">Dashboard</h2>
+        <p class="dash-subtitle">Overview of endpoints, storage and recent operations.</p>
     </div>
-    <div class="col-auto">
-        <div class="storage-badge">
-            <i class="bi bi-hdd-stack"></i>
-            <span class="storage-value">{{ backup_stats.total_size_human }}</span>
-            <span class="storage-label">{{ backup_stats.count }} file(s)</span>
-        </div>
+    <div class="dash-header-actions">
+        <button type="button" class="btn btn-outline-secondary" onclick="loadOperationsHistory()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        {% if user_role != 'viewer' %}
+        <a href="{{ base_path }}/backup" class="btn btn-primary">
+            <i class="bi bi-box-arrow-down"></i> New backup
+        </a>
+        {% endif %}
     </div>
 </div>
-<hr class="mt-0 mb-4">
 
-<!-- Quick Actions - Full Width Row (hidden for viewers) -->
-{% if user_role != 'viewer' %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h5 class="section-title"><i class="bi bi-lightning-charge"></i> Quick Actions</h5>
-        <div class="quick-actions-grid">
-            <a href="{{ base_path }}/backup" class="action-card-horizontal">
-                <div class="action-icon backup">
-                    <i class="bi bi-download"></i>
-                </div>
-                <div class="action-content">
-                    <h6>Backup Database</h6>
-                    <p>Export a database to a backup file</p>
-                </div>
-                <i class="bi bi-chevron-right action-arrow"></i>
-            </a>
-
-            <a href="{{ base_path }}/restore" class="action-card-horizontal">
-                <div class="action-icon restore">
-                    <i class="bi bi-upload"></i>
-                </div>
-                <div class="action-content">
-                    <h6>Restore Database</h6>
-                    <p>Import a backup file to a database</p>
-                </div>
-                <i class="bi bi-chevron-right action-arrow"></i>
-            </a>
-
-            <a href="{{ base_path }}/transfer" class="action-card-horizontal">
-                <div class="action-icon transfer">
-                    <i class="bi bi-arrow-left-right"></i>
-                </div>
-                <div class="action-content">
-                    <h6>Transfer Database</h6>
-                    <p>Backup and restore in one step</p>
-                </div>
-                <i class="bi bi-chevron-right action-arrow"></i>
-            </a>
-
-            <a href="{{ base_path }}/files" class="action-card-horizontal">
-                <div class="action-icon files">
-                    <i class="bi bi-folder2-open"></i>
-                </div>
-                <div class="action-content">
-                    <h6>Manage Files</h6>
-                    <p>Upload, download and delete backups</p>
-                </div>
-                <i class="bi bi-chevron-right action-arrow"></i>
-            </a>
+<!-- Stat cards -->
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-card-head">
+            <span class="stat-icon"><i class="bi bi-database"></i></span>
+            <span class="stat-label">Endpoints</span>
         </div>
+        <div class="stat-value">{{ endpoints|length }}</div>
+        <div class="stat-sub">{% if endpoints %}Configured and ready{% else %}None configured{% endif %}</div>
     </div>
+
+    <div class="stat-card">
+        <div class="stat-card-head">
+            <span class="stat-icon si-sky"><i class="bi bi-folder2"></i></span>
+            <span class="stat-label">Backups</span>
+        </div>
+        <div class="stat-value">{{ backup_stats.count }} <span class="stat-unit">files</span></div>
+        <div class="stat-sub mono">Total {{ backup_stats.total_size_human }}</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-card-head">
+            <span class="stat-icon si-green"><i class="bi bi-hdd"></i></span>
+            <span class="stat-label">Storage used</span>
+        </div>
+        <div class="stat-value mono">{{ backup_stats.disk_used_human }}</div>
+        <div class="stat-sub"><span class="mono">{{ backup_stats.disk_percent }}%</span> of <span class="mono">{{ backup_stats.disk_total_human }}</span></div>
+        <div class="stat-bar"><span style="width: {{ backup_stats.disk_percent }}%;"></span></div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-card-head">
+            <span class="stat-icon si-amber"><i class="bi bi-clock-history"></i></span>
+            <span class="stat-label">Last operation</span>
+        </div>
+        <div class="stat-value">&mdash;</div>
+        <div class="stat-sub">See recent activity below</div>
+    </div>
+</div>
+
+<!-- Quick Actions (hidden for viewers) -->
+{% if user_role != 'viewer' %}
+<div class="micro-label dash-section-label">Quick actions</div>
+<div class="qa-grid">
+    <a href="{{ base_path }}/backup" class="qa-card">
+        <span class="qa-icon"><i class="bi bi-box-arrow-down"></i></span>
+        <div class="qa-content">
+            <div class="qa-title">Backup</div>
+            <div class="qa-desc">Export a database to a backup file</div>
+        </div>
+        <i class="bi bi-chevron-right qa-arrow"></i>
+    </a>
+
+    <a href="{{ base_path }}/restore" class="qa-card">
+        <span class="qa-icon si-green"><i class="bi bi-box-arrow-up"></i></span>
+        <div class="qa-content">
+            <div class="qa-title">Restore</div>
+            <div class="qa-desc">Import a backup file to a database</div>
+        </div>
+        <i class="bi bi-chevron-right qa-arrow"></i>
+    </a>
+
+    <a href="{{ base_path }}/transfer" class="qa-card">
+        <span class="qa-icon si-amber"><i class="bi bi-arrow-left-right"></i></span>
+        <div class="qa-content">
+            <div class="qa-title">Transfer</div>
+            <div class="qa-desc">Backup and restore in one step</div>
+        </div>
+        <i class="bi bi-chevron-right qa-arrow"></i>
+    </a>
+
+    <a href="{{ base_path }}/files" class="qa-card">
+        <span class="qa-icon si-sky"><i class="bi bi-folder2-open"></i></span>
+        <div class="qa-content">
+            <div class="qa-title">Manage files</div>
+            <div class="qa-desc">Upload, download and delete backups</div>
+        </div>
+        <i class="bi bi-chevron-right qa-arrow"></i>
+    </a>
 </div>
 {% else %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="alert alert-info d-flex align-items-center" role="alert">
-            <i class="bi bi-info-circle me-2"></i>
-            <span>You have <strong>Viewer</strong> access. You can monitor operations and endpoints but cannot run backups, restores, or transfers.</span>
-        </div>
-    </div>
+<div class="alert alert-info d-flex align-items-center mb-4" role="alert">
+    <i class="bi bi-info-circle me-2"></i>
+    <span>You have <strong>Viewer</strong> access. You can monitor operations and endpoints but cannot run backups, restores, or transfers.</span>
 </div>
 {% endif %}
 
 <!-- Main Content: Database Endpoints (Left) + Recent Operations (Right) -->
-<div class="row">
+<div class="dash-columns">
     <!-- Database Endpoints - Left Side -->
-    <div class="col-lg-4 col-md-5 mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="section-title mb-0"><i class="bi bi-database"></i> Database Endpoints</h5>
+    <div class="dash-col">
+        <div class="dash-block-head">
+            <span class="micro-label">Database endpoints</span>
             {% if user_role == 'admin' %}
-            <a href="{{ base_path }}/admin" class="btn btn-sm btn-primary">
-                <i class="bi bi-plus"></i> Add
-            </a>
+            <a href="{{ base_path }}/admin" class="dash-manage-link">Manage <i class="bi bi-arrow-right"></i></a>
             {% endif %}
         </div>
-        <div class="card endpoints-card">
-            <div class="card-body p-0">
-                {% if endpoints %}
-                <div class="endpoints-list">
-                    {% for name, endpoint in endpoints.items() %}
-                    <div class="endpoint-item">
-                        <div class="endpoint-status">
-                            <span class="status-dot active"></span>
-                        </div>
-                        <div class="endpoint-info">
-                            <div class="endpoint-name">{{ name }}</div>
-                            <div class="endpoint-details">
-                                <span class="endpoint-host" title="{{ endpoint.host }}:{{ endpoint.port }}">
-                                    <i class="bi bi-server"></i> {{ endpoint.host }}:{{ endpoint.port }}
-                                </span>
-                                <span class="endpoint-user">
-                                    <i class="bi bi-person"></i> {{ endpoint.username }}
-                                </span>
-                            </div>
-                        </div>
-                        {% if user_role != 'viewer' %}
-                        <div class="endpoint-actions">
-                            <a href="{{ base_path }}/backup" class="btn btn-sm btn-outline-primary" title="Backup">
-                                <i class="bi bi-download"></i>
-                            </a>
-                            <a href="{{ base_path }}/restore" class="btn btn-sm btn-outline-success" title="Restore">
-                                <i class="bi bi-upload"></i>
-                            </a>
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
+        <div class="endpoints-card">
+            {% if endpoints %}
+            {% for name, endpoint in endpoints.items() %}
+            <div class="endpoint-item">
+                <span class="dot dot-success"></span>
+                <div class="endpoint-info">
+                    <div class="endpoint-name">{{ name }}</div>
+                    <div class="endpoint-host mono" title="{{ endpoint.host }}:{{ endpoint.port }}">{{ endpoint.host }}:{{ endpoint.port }}</div>
                 </div>
+                {% if endpoint.read_only %}
+                <span class="badge-soft badge-conn-readonly" title="Read-only">RO</span>
+                {% elif endpoint.use_ssm %}
+                <span class="badge-soft badge-conn-ssm" title="SSM tunnel">SSM</span>
                 {% else %}
-                <div class="empty-state">
-                    <i class="bi bi-database-x"></i>
-                    <h6>No endpoints configured</h6>
-                    <p>Add your first database endpoint to get started</p>
-                    <a href="{{ base_path }}/admin" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Add Endpoint
-                    </a>
-                </div>
+                <span class="badge-soft badge-conn-direct" title="Direct connection">Direct</span>
                 {% endif %}
             </div>
-        </div>
-
-        {% if endpoints %}
-        <div class="endpoints-summary">
-            <span><i class="bi bi-check-circle text-success"></i> {{ endpoints|length }} endpoint(s) ready</span>
-            {% if user_role == 'admin' %}
-            <a href="{{ base_path }}/admin" class="text-decoration-none">Manage <i class="bi bi-arrow-right"></i></a>
+            {% endfor %}
+            <div class="endpoints-footer">
+                <i class="bi bi-check-circle"></i> {{ endpoints|length }} endpoint(s) ready
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <span class="empty-state-icon"><i class="bi bi-database"></i></span>
+                <div>
+                    <div class="empty-state-title">No endpoints configured</div>
+                    <div class="empty-state-text">Add your first database endpoint to get started.</div>
+                </div>
+                <a href="{{ base_path }}/admin" class="btn btn-primary btn-sm">
+                    <i class="bi bi-plus-lg"></i> Add endpoint
+                </a>
+            </div>
             {% endif %}
         </div>
-        {% endif %}
     </div>
 
     <!-- Recent Operations - Right Side -->
-    <div class="col-lg-8 col-md-7 mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="section-title mb-0"><i class="bi bi-clock-history"></i> Recent Operations</h5>
+    <div class="dash-col">
+        <div class="dash-block-head">
+            <span class="micro-label">Recent operations</span>
             <div class="d-flex align-items-center gap-2">
                 <span class="text-muted small" id="operationsRefreshTime"></span>
                 <button class="btn btn-sm btn-outline-danger" onclick="clearOperationsHistory()" title="Clear history" id="clearHistoryBtn" style="display: none;">
@@ -160,31 +165,29 @@
                 </button>
             </div>
         </div>
-        <div class="card operations-card">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover operations-table mb-0">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Endpoint / Database</th>
-                                <th style="width: 100px;">Started</th>
-                                <th style="width: 90px;">Status</th>
-                                <th style="width: 90px;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="operationsTableBody">
-                            <tr>
-                                <td colspan="5">
-                                    <div class="operations-loading">
-                                        <span class="spinner-border spinner-border-sm me-2"></span>
-                                        Loading operations...
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+        <div class="operations-card">
+            <div class="table-responsive">
+                <table class="table table-hover operations-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Endpoint / Database</th>
+                            <th style="width: 100px;">Started</th>
+                            <th style="width: 90px;">Status</th>
+                            <th style="width: 90px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="operationsTableBody">
+                        <tr>
+                            <td colspan="5">
+                                <div class="operations-loading">
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                    Loading operations...
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -223,176 +226,201 @@
 
 {% block extra_css %}
 <style>
-    /* Section Titles */
-    .section-title {
+    /* ---- Header ---- */
+    .dash-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+
+    .dash-title {
+        margin: 0 0 3px;
+        font-size: 22px;
         font-weight: 600;
-        color: var(--text-primary);
-        font-size: 1rem;
-        margin-bottom: 1rem;
+        color: var(--foreground);
     }
 
-    .section-title i {
-        color: var(--accent-primary);
-        margin-right: 0.5rem;
+    .dash-subtitle {
+        margin: 0;
+        font-size: 13.5px;
+        color: var(--muted-foreground);
     }
 
-    /* Storage Badge (header) */
-    .storage-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: var(--accent-gradient);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 999px;
-        font-size: 0.85rem;
-    }
-
-    .storage-badge i {
-        font-size: 1.1rem;
-        opacity: 0.9;
-    }
-
-    .storage-value {
-        font-weight: 700;
-        font-family: var(--font-mono);
-    }
-
-    .storage-label {
-        opacity: 0.8;
-        font-size: 0.75rem;
-    }
-
-    /* Quick Actions Grid - Full Width */
-    .quick-actions-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 0.75rem;
-    }
-
-    .action-card-horizontal {
+    .dash-header-actions {
         display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 1rem 1rem;
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow-sm);
-        text-decoration: none;
-        color: var(--text-primary);
-        transition: all 0.2s ease;
-    }
-
-    .action-card-horizontal:hover {
-        border-color: var(--accent-primary);
-        box-shadow: var(--shadow-md);
-        transform: translateY(-2px);
-        color: var(--text-primary);
-    }
-
-    .action-icon {
-        width: 44px;
-        height: 44px;
-        border-radius: calc(var(--radius) - 2px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.2rem;
+        gap: 10px;
         flex-shrink: 0;
     }
 
-    .action-icon.backup {
-        background: var(--accent-soft);
-        color: var(--accent-primary);
+    /* ---- Stat cards (reuse foundation .stat-card etc; add colored icon tiles) ---- */
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
     }
 
-    .action-icon.restore {
-        background: color-mix(in oklab, var(--success) 15%, transparent);
-        color: var(--success);
+    .stat-icon i {
+        font-size: 16px;
     }
 
-    .action-icon.transfer {
-        background: color-mix(in oklab, var(--warning) 15%, transparent);
-        color: var(--warning);
+    .stat-icon.si-sky {
+        background: color-mix(in oklab, #0284c7 15%, transparent);
+        color: #0369a1;
     }
 
-    .action-icon.files {
-        background: color-mix(in oklab, var(--info) 15%, transparent);
-        color: var(--info);
+    .stat-icon.si-green {
+        background: color-mix(in oklab, #16a34a 15%, transparent);
+        color: #15803d;
     }
 
-    .action-content {
+    .stat-icon.si-amber {
+        background: color-mix(in oklab, #f59e0b 15%, transparent);
+        color: #b45309;
+    }
+
+    /* ---- Section label + quick actions ---- */
+    .dash-section-label {
+        margin-bottom: 11px;
+    }
+
+    .qa-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-bottom: 26px;
+    }
+
+    .qa-card {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        padding: 15px 16px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--card);
+        box-shadow: var(--shadow-sm);
+        text-decoration: none;
+        color: var(--foreground);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .qa-card:hover {
+        border-color: var(--brand);
+        box-shadow: 0 4px 14px rgb(0 0 0 / .08);
+        color: var(--foreground);
+        transform: translateY(-1px);
+    }
+
+    .qa-icon {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        font-size: 20px;
+        background: var(--sidebar-accent);
+        color: var(--brand-fg);
+    }
+
+    .qa-icon.si-sky {
+        background: color-mix(in oklab, #0284c7 15%, transparent);
+        color: #0369a1;
+    }
+
+    .qa-icon.si-green {
+        background: color-mix(in oklab, #16a34a 15%, transparent);
+        color: #15803d;
+    }
+
+    .qa-icon.si-amber {
+        background: color-mix(in oklab, #f59e0b 15%, transparent);
+        color: #b45309;
+    }
+
+    .qa-content {
         flex: 1;
         min-width: 0;
     }
 
-    .action-content h6 {
-        margin: 0;
+    .qa-title {
+        font-size: 14.5px;
         font-weight: 600;
-        font-size: 0.9rem;
     }
 
-    .action-content p {
-        margin: 0;
-        font-size: 0.75rem;
-        color: var(--text-muted);
+    .qa-desc {
+        font-size: 12.5px;
+        color: var(--muted-foreground);
     }
 
-    .action-arrow {
-        color: var(--text-muted);
-        transition: transform 0.2s ease;
+    .qa-arrow {
+        color: var(--muted-foreground);
+        font-size: 14px;
+        transition: transform 0.15s ease, color 0.15s ease;
     }
 
-    .action-card-horizontal:hover .action-arrow {
-        transform: translateX(4px);
-        color: var(--accent-primary);
+    .qa-card:hover .qa-arrow {
+        transform: translateX(3px);
+        color: var(--brand-fg);
     }
 
-    /* Endpoints Card */
-    .endpoints-card {
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow-sm);
+    /* ---- Two-column layout ---- */
+    .dash-columns {
+        display: grid;
+        grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
     }
 
-    .endpoints-list {
+    .dash-col {
+        min-width: 0;
+    }
+
+    .dash-block-head {
         display: flex;
-        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 11px;
+        min-height: 24px;
+    }
+
+    .dash-manage-link {
+        font-size: 12.5px;
+        font-weight: 500;
+        text-decoration: none;
+        color: var(--brand-fg);
+    }
+
+    .dash-manage-link:hover {
+        text-decoration: underline;
+    }
+
+    /* ---- Endpoints card ---- */
+    .endpoints-card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--card);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
     }
 
     .endpoint-item {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        border-bottom: 1px solid var(--border-light);
+        gap: 12px;
+        padding: 13px 15px;
+        border-bottom: 1px solid var(--border);
         transition: background 0.15s ease;
     }
 
-    .endpoint-item:last-child {
-        border-bottom: none;
-    }
-
     .endpoint-item:hover {
-        background: var(--bg-tertiary);
-    }
-
-    .endpoint-status {
-        flex-shrink: 0;
-    }
-
-    .status-dot {
-        display: block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: var(--text-muted);
-    }
-
-    .status-dot.active {
-        background: var(--success);
-        box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 20%, transparent);
+        background: var(--pane-accent);
     }
 
     .endpoint-info {
@@ -401,163 +429,131 @@
     }
 
     .endpoint-name {
+        font-size: 13.5px;
         font-weight: 600;
-        font-size: 0.9rem;
-        color: var(--text-primary);
+        color: var(--foreground);
+        white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .endpoint-details {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-        margin-top: 0.2rem;
-    }
-
-    .endpoint-host,
-    .endpoint-user {
-        font-size: 0.75rem;
-        color: var(--text-muted);
     }
 
     .endpoint-host {
-        max-width: 180px;
+        font-size: 11.5px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
-        font-family: var(--font-mono);
+        margin-top: 2px;
     }
 
-    .endpoint-host i,
-    .endpoint-user i {
-        margin-right: 0.25rem;
-    }
-
-    .endpoint-actions {
-        display: flex;
-        gap: 0.375rem;
+    .endpoint-item .badge-soft {
         flex-shrink: 0;
     }
 
-    .endpoint-actions .btn {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.8rem;
-    }
-
-    /* Empty State */
-    .empty-state {
-        text-align: center;
-        padding: 2rem 1.5rem;
-        color: var(--text-muted);
-    }
-
-    .empty-state i {
-        font-size: 2.5rem;
-        margin-bottom: 0.75rem;
-        opacity: 0.5;
-    }
-
-    .empty-state h6 {
-        color: var(--text-primary);
-        margin-bottom: 0.5rem;
-    }
-
-    .empty-state p {
-        margin-bottom: 1rem;
-        font-size: 0.85rem;
-    }
-
-    /* Endpoints Summary */
-    .endpoints-summary {
+    .endpoints-footer {
+        padding: 11px 15px;
+        font-size: 12.5px;
+        color: var(--muted-foreground);
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        margin-top: 0.5rem;
-        padding: 0 0.25rem;
-        font-size: 0.8rem;
-        color: var(--text-muted);
+        gap: 6px;
     }
 
-    .endpoints-summary a {
-        color: var(--accent-primary);
+    .endpoints-footer i {
+        color: #16a34a;
     }
 
-    .endpoints-summary a:hover {
-        text-decoration: underline !important;
-    }
-
-    /* Operations History */
+    /* ---- Operations card + table ---- */
     .operations-card {
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--border);
         border-radius: var(--radius);
+        background: var(--card);
         box-shadow: var(--shadow-sm);
         overflow: hidden;
     }
 
+    .operations-table {
+        margin: 0;
+    }
+
     .operations-table thead th {
-        background-color: var(--bg-secondary);
-        color: var(--text-secondary);
+        background-color: var(--pane);
+        color: var(--muted-foreground);
         font-weight: 600;
-        font-size: 12px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.04em;
-        padding: 0.625rem 0.75rem;
-        border-bottom: 1px solid var(--border-color);
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
     }
 
     .operations-table tbody td {
-        padding: 0.625rem 0.75rem;
+        padding: 11px 14px;
         vertical-align: middle;
-        border-bottom: 1px solid var(--border-color);
-        font-size: 0.85rem;
+        border-bottom: 1px solid var(--border);
+        border-top: none;
+        font-size: 13px;
     }
 
     .operations-table tbody tr:last-child td {
         border-bottom: none;
     }
 
-    /* Timestamps are data → monospace */
+    /* Timestamps are data -> monospace */
     .operations-table tbody td:nth-child(3) small {
         font-family: var(--font-mono);
+        font-size: 12px;
     }
 
     .operations-table tbody tr:hover {
-        background-color: var(--bg-tertiary) !important;
+        background-color: var(--pane-accent) !important;
     }
 
+    /* Uniform 30x30 square icon action buttons (JS-generated .btn markup) */
+    .operations-table td:last-child .btn {
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 7px;
+        font-size: 14px;
+    }
+
+    /* Operation type badge (built by JS) */
     .operation-type-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.25rem;
+        gap: 0.3rem;
         padding: 2px 9px;
         border-radius: 999px;
         font-size: 11px;
-        font-weight: 500;
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.03em;
     }
 
     .operation-type-backup {
-        background: color-mix(in oklab, var(--info) 15%, transparent);
-        color: var(--info);
+        background: var(--info-bg);
+        color: var(--info-fg);
     }
 
     .operation-type-restore {
-        background: color-mix(in oklab, var(--success) 15%, transparent);
-        color: var(--success);
+        background: var(--success-bg);
+        color: var(--success-fg);
     }
 
     .operation-type-transfer {
-        background: var(--accent-soft);
-        color: var(--accent-primary);
+        background: var(--sidebar-accent);
+        color: var(--brand-fg);
     }
 
+    /* Operation status badge (built by JS) */
     .operation-status-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.25rem;
+        gap: 0.3rem;
         padding: 2px 9px;
         border-radius: 999px;
         font-size: 11px;
@@ -565,23 +561,23 @@
     }
 
     .operation-status-completed {
-        background: color-mix(in oklab, var(--success) 15%, transparent);
-        color: var(--success);
+        background: var(--success-bg);
+        color: var(--success-fg);
     }
 
     .operation-status-failed {
-        background: color-mix(in oklab, var(--danger) 15%, transparent);
-        color: var(--danger);
+        background: var(--danger-bg);
+        color: var(--danger-fg);
     }
 
     .operation-status-cancelled {
-        background: color-mix(in oklab, var(--text-muted) 18%, transparent);
-        color: var(--text-muted);
+        background: var(--muted);
+        color: var(--muted-foreground);
     }
 
     .operation-status-running {
-        background: color-mix(in oklab, var(--warning) 15%, transparent);
-        color: var(--warning);
+        background: var(--warning-bg);
+        color: var(--warning-fg);
     }
 
     .operation-status-running .spinner-border {
@@ -593,24 +589,25 @@
     .operations-loading {
         text-align: center;
         padding: 2rem;
-        color: var(--text-muted);
+        color: var(--muted-foreground);
     }
 
+    /* Empty operations state (built by JS) */
     .operations-empty {
         text-align: center;
-        padding: 2rem 1.5rem;
-        color: var(--text-muted);
+        padding: 2.5rem 1.5rem;
+        color: var(--muted-foreground);
     }
 
     .operations-empty i {
-        font-size: 2.5rem;
+        font-size: 2.25rem;
         margin-bottom: 0.75rem;
-        opacity: 0.3;
+        opacity: 0.4;
         display: block;
     }
 
     .operations-empty h6 {
-        color: var(--text-primary);
+        color: var(--foreground);
         margin-bottom: 0.5rem;
     }
 
@@ -620,53 +617,46 @@
 
     .op-endpoint-db .op-endpoint {
         font-weight: 600;
-        font-size: 0.85rem;
+        font-size: 13px;
     }
 
     .op-endpoint-db .op-database {
-        font-size: 0.75rem;
-        color: var(--text-muted);
+        font-size: 11.5px;
+        color: var(--muted-foreground);
+        font-family: var(--font-mono);
     }
 
-    /* Responsive */
-    @media (max-width: 991px) {
-        .quick-actions-grid {
+    /* ---- Responsive ---- */
+    @media (max-width: 1100px) {
+        .stat-grid {
             grid-template-columns: repeat(2, 1fr);
+        }
+
+        .qa-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .dash-columns {
+            grid-template-columns: 1fr;
         }
     }
 
-    @media (max-width: 768px) {
-        .quick-actions-grid {
+    @media (max-width: 640px) {
+        .stat-grid {
             grid-template-columns: 1fr;
         }
 
-        .storage-badge {
-            font-size: 0.75rem;
-            padding: 0.375rem 0.75rem;
+        .qa-grid {
+            grid-template-columns: 1fr;
         }
 
-        .endpoint-item {
-            flex-wrap: wrap;
-        }
-
-        .endpoint-actions {
+        .dash-header-actions {
             width: 100%;
-            margin-top: 0.5rem;
-            justify-content: flex-end;
-        }
-
-        .endpoint-details {
-            flex-direction: column;
-            gap: 0.2rem;
-        }
-
-        .operations-table {
-            font-size: 0.8rem;
         }
 
         .operations-table thead th,
         .operations-table tbody td {
-            padding: 0.5rem 0.375rem;
+            padding: 8px 10px;
         }
     }
 </style>

@@ -2,14 +2,81 @@
 
 {% block title %}Query Editor - Magiku(r)p{% endblock %}
 
-{% block content %}
-<div class="row mb-2">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h2 class="mb-0"><i class="bi bi-code-square"></i> Query Editor</h2>
-    </div>
-</div>
-<hr class="mt-0 mb-3">
+{% block extra_css %}
+<style>
+/* ---- Query editor: page-specific tweaks over the v4.1.0 foundation ---- */
 
+/* Object browser panel title: violet leading icon */
+.qe-panel-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.qe-panel-title i {
+    color: var(--brand-fg);
+    font-size: 0.95rem;
+}
+
+/* Compact icon button in the panel header */
+.qe-header-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+}
+
+/* Toolbar: keep everything on one calm row */
+.qe-toolbar-row {
+    row-gap: 0.5rem;
+}
+.qe-status {
+    color: var(--muted-foreground);
+    white-space: nowrap;
+}
+
+/* Connected indicator (mirrors the mockup) */
+.qe-conn {
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+}
+
+/* Ctrl+Enter mono chip */
+.qe-kbd {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--muted-foreground);
+    background: var(--muted);
+    border: none;
+    box-shadow: none;
+    padding: 3px 8px;
+    border-radius: 6px;
+    align-items: center;
+}
+
+/* Mono values in the connection bar selects */
+#qeTimeout.mono,
+#qeRowLimit.mono {
+    font-family: var(--font-mono);
+}
+
+/* Results info bar sits on the pane surface with a mono exec time */
+#qeResultsHeader {
+    background: var(--pane);
+}
+#qeResultsInfo {
+    color: var(--muted-foreground);
+    font-weight: 500;
+}
+</style>
+{% endblock %}
+
+{% block content %}
 <!-- Connection Bar -->
 <div class="row mb-3">
     <div class="col-12">
@@ -18,9 +85,7 @@
                 <div class="row g-2 align-items-end">
                     <div class="col-md-3" data-bs-toggle="tooltip" data-bs-placement="top"
                          title="Seleziona l'endpoint PostgreSQL a cui connettersi">
-                        <label class="form-label form-label-sm mb-1">
-                            <i class="bi bi-plug me-1"></i>Endpoint
-                        </label>
+                        <label class="micro-label d-block mb-1">Endpoint</label>
                         <select class="form-select form-select-sm" id="qeEndpoint">
                             <option value="">Select endpoint...</option>
                             {% for name, ep in endpoints.items() %}
@@ -34,26 +99,22 @@
                     </div>
                     <div class="col-md-3" data-bs-toggle="tooltip" data-bs-placement="top"
                          title="Database su cui eseguire le query">
-                        <label class="form-label form-label-sm mb-1">
-                            <i class="bi bi-database me-1"></i>Database
-                        </label>
+                        <label class="micro-label d-block mb-1">Database</label>
                         <select class="form-select form-select-sm" id="qeDatabase" disabled>
                             <option value="">Select database...</option>
                         </select>
                     </div>
                     <div class="col-md-2" data-bs-toggle="tooltip" data-bs-placement="top"
                          title="Ruolo PostgreSQL con cui eseguire le query (opzionale). Usa SET ROLE per cambiare i privilegi.">
-                        <label class="form-label form-label-sm mb-1">
-                            <i class="bi bi-person me-1"></i>Run as Role
-                        </label>
+                        <label class="micro-label d-block mb-1">Run as Role</label>
                         <select class="form-select form-select-sm" id="qeRole">
                             <option value="">Default (endpoint user)</option>
                         </select>
                     </div>
                     <div class="col-md-2" data-bs-toggle="tooltip" data-bs-placement="top"
                          title="Tempo massimo di esecuzione per ogni query. Le query che superano il timeout vengono annullate automaticamente.">
-                        <label class="form-label form-label-sm mb-1">Timeout</label>
-                        <select class="form-select form-select-sm" id="qeTimeout">
+                        <label class="micro-label d-block mb-1">Timeout</label>
+                        <select class="form-select form-select-sm mono" id="qeTimeout">
                             <option value="5">5 sec</option>
                             <option value="10">10 sec</option>
                             <option value="30" selected>30 sec</option>
@@ -64,8 +125,8 @@
                     </div>
                     <div class="col-md-2" data-bs-toggle="tooltip" data-bs-placement="top"
                          title="Numero massimo di righe restituite. I risultati vengono troncati se superano questo limite.">
-                        <label class="form-label form-label-sm mb-1">Row Limit</label>
-                        <select class="form-select form-select-sm" id="qeRowLimit">
+                        <label class="micro-label d-block mb-1">Row Limit</label>
+                        <select class="form-select form-select-sm mono" id="qeRowLimit">
                             <option value="100">100</option>
                             <option value="500">500</option>
                             <option value="1000" selected>1,000</option>
@@ -84,17 +145,18 @@
     <!-- Left: Object Browser -->
     <div class="qe-sidebar card">
         <div class="card-header py-2 d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-diagram-3 me-1"></i>Object Browser</span>
-            <button class="btn btn-sm btn-outline-secondary py-0 px-1" id="qeRefreshTree"
+            <span class="qe-panel-title"><i class="bi bi-graph-up"></i>Object browser</span>
+            <button class="icon-btn qe-header-btn" id="qeRefreshTree"
                     data-bs-toggle="tooltip" data-bs-placement="left"
+                    aria-label="Refresh object tree"
                     title="Ricarica l'albero degli oggetti del database" disabled>
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
         </div>
         <div class="card-body p-2" id="qeObjectTree">
-            <div class="text-center text-muted py-4">
-                <i class="bi bi-database" style="font-size: 2rem; opacity: 0.3;"></i>
-                <p class="mt-2 mb-0 small">Select an endpoint and database</p>
+            <div class="empty-state py-4">
+                <span class="empty-state-icon"><i class="bi bi-database"></i></span>
+                <div class="empty-state-text">Select an endpoint and database</div>
             </div>
         </div>
     </div>
@@ -106,7 +168,7 @@
     <div class="qe-main">
         <!-- Toolbar -->
         <div class="qe-toolbar card mb-0">
-            <div class="card-body py-2 d-flex gap-2 align-items-center flex-wrap">
+            <div class="card-body py-2 d-flex gap-2 align-items-center flex-wrap qe-toolbar-row">
                 <button class="btn btn-sm btn-primary" id="qeRunBtn" disabled
                         data-bs-toggle="tooltip" data-bs-placement="bottom"
                         title="Esegui la query nell'editor (Ctrl+Enter)">
@@ -115,31 +177,33 @@
                 <button class="btn btn-sm btn-outline-secondary" id="qeRunSelBtn" disabled
                         data-bs-toggle="tooltip" data-bs-placement="bottom"
                         title="Esegui solo il testo selezionato nell'editor">
-                    <i class="bi bi-play"></i> Run Selection
+                    Run selection
                 </button>
                 <div class="vr mx-1"></div>
-                <button class="btn btn-sm btn-outline-secondary" id="qeClearBtn"
+                <button class="icon-btn" id="qeClearBtn"
                         data-bs-toggle="tooltip" data-bs-placement="bottom"
+                        aria-label="Clear editor"
                         title="Cancella il contenuto dell'editor">
                     <i class="bi bi-eraser"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-secondary" id="qeHistoryBtn"
+                <button class="icon-btn" id="qeHistoryBtn"
                         data-bs-toggle="tooltip" data-bs-placement="bottom"
+                        aria-label="Query history"
                         title="Mostra la cronologia delle query eseguite">
                     <i class="bi bi-clock-history"></i>
                 </button>
-                <div class="vr mx-1"></div>
-                <div class="form-check form-switch d-flex align-items-center mb-0"
+                <div class="form-check form-switch d-flex align-items-center mb-0 ms-1"
                      data-bs-toggle="tooltip" data-bs-placement="bottom"
                      title="Quando attivo, ogni istruzione SQL viene eseguita e confermata immediatamente (senza transazione esplicita). Quando disattivo, le query vengono eseguite in una transazione con COMMIT alla fine.">
-                    <input class="form-check-input me-1" type="checkbox" id="qeAutocommit"
+                    <input class="form-check-input me-2" type="checkbox" id="qeAutocommit"
                            {% if query_settings.autocommit %}checked{% endif %}>
                     <label class="form-check-label small" for="qeAutocommit">Autocommit</label>
                 </div>
-                <span class="ms-auto text-muted small d-none d-md-inline" id="qeStatusText">
-                    Ready
+                <span class="ms-auto qe-status small" id="qeStatusText">Ready</span>
+                <span class="qe-conn d-none d-md-inline-flex">
+                    <span class="dot dot-success"></span>Connected
                 </span>
-                <kbd class="ms-2 small d-none d-md-inline" style="opacity: 0.5;">Ctrl+Enter</kbd>
+                <kbd class="qe-kbd d-none d-md-inline-flex">Ctrl+Enter</kbd>
             </div>
         </div>
 
@@ -159,16 +223,19 @@
                 <div class="d-flex gap-2">
                     <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="qeExportCsvBtn"
                             data-bs-toggle="tooltip" data-bs-placement="top"
+                            aria-label="Export results as CSV"
                             title="Esporta i risultati correnti in formato CSV" style="display: none;">
-                        <i class="bi bi-filetype-csv"></i> CSV
+                        <i class="bi bi-download"></i> Export CSV
                     </button>
                 </div>
             </div>
             <div class="card-body" id="qeResultsBody">
-                <div class="text-center text-muted py-5" id="qeResultsEmpty">
-                    <i class="bi bi-table" style="font-size: 2rem; opacity: 0.3;"></i>
-                    <p class="mt-2 mb-0">Run a query to see results</p>
-                    <p class="small mt-1 mb-0" style="opacity: 0.5;">Ctrl+Enter to execute</p>
+                <div class="empty-state py-5" id="qeResultsEmpty">
+                    <span class="empty-state-icon"><i class="bi bi-table"></i></span>
+                    <div>
+                        <div class="empty-state-title">Run a query to see results</div>
+                        <div class="empty-state-text"><kbd class="qe-kbd">Ctrl+Enter</kbd> to execute</div>
+                    </div>
                 </div>
                 <div id="qeResultsError" class="p-3" style="display: none;"></div>
                 <div id="qeResultsDml" style="display: none;"></div>
