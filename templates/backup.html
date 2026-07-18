@@ -4,55 +4,64 @@
 
 {% block content %}
 <div class="backup-page">
-<div class="row">
-    <div class="col-12">
-        <h2><i class="bi bi-download"></i> Backup Database</h2>
-        <hr>
-    </div>
+<div class="page-header">
+    <h2>Backup database</h2>
+    <p class="page-subtitle">Export a database to a backup file with optional pg_dump parameters.</p>
 </div>
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
+<div class="row g-4 align-items-stretch">
+    <div class="col-lg-6">
+        <div class="card h-100">
             <div class="card-header">
-                <i class="bi bi-gear"></i> Backup Configuration
+                <i class="bi bi-gear"></i> Backup configuration
             </div>
             <div class="card-body">
                 <form id="backupForm">
-                    <!-- Endpoint Selection -->
-                    <div class="mb-3">
-                        <label for="endpoint" class="form-label">Database Endpoint</label>
-                        <select class="form-select" id="endpoint" name="endpoint" required>
-                            <option value="">Select endpoint...</option>
-                            {% for name, endpoint in endpoints.items() %}
-                            <option value="{{ name }}"
-                                    data-host="{{ endpoint.host }}"
-                                    data-port="{{ endpoint.port }}"
-                                    data-use-ssm="{{ endpoint.use_ssm|lower }}"
-                                    data-jumphost="{{ endpoint.jumphost_alias }}">
-                                {{ name }} ({{ endpoint.host }})
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <!-- SSM Tunnel Info Badge -->
-                        <div id="ssmInfoBadge" class="mt-2" style="display: none;">
-                            <span class="badge bg-warning text-dark">
-                                <i class="bi bi-cloud"></i> SSM Tunnel
-                            </span>
-                            <small class="text-muted ms-2">
-                                via jumphost: <strong id="ssmJumphostAlias"></strong>
-                            </small>
+                    <!-- Endpoint + Database Selection (one row) -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-6">
+                            <label for="endpoint" class="form-label">Database endpoint</label>
+                            <select class="form-select" id="endpoint" name="endpoint" required>
+                                <option value="">Select endpoint...</option>
+                                {% for name, endpoint in endpoints.items() %}
+                                <option value="{{ name }}"
+                                        data-host="{{ endpoint.host }}"
+                                        data-port="{{ endpoint.port }}"
+                                        data-use-ssm="{{ endpoint.use_ssm|lower }}"
+                                        data-jumphost="{{ endpoint.jumphost_alias }}">
+                                    {{ name }} ({{ endpoint.host }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <!-- SSM Tunnel Info Badge -->
+                            <div id="ssmInfoBadge" class="mt-2" style="display: none;">
+                                <span class="badge badge-conn-ssm">
+                                    <i class="bi bi-cloud"></i> SSM Tunnel
+                                </span>
+                                <small class="text-muted ms-2">
+                                    via jumphost: <strong id="ssmJumphostAlias" class="mono"></strong>
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="col-sm-6">
+                            <label for="database" class="form-label">Database</label>
+                            <select class="form-select" id="database" name="database" required disabled>
+                                <option value="">Select database...</option>
+                            </select>
+                            <div id="dbLoadingIndicator" class="form-text text-muted" style="display: none;">
+                                <span class="spinner-border spinner-border-sm"></span> Loading databases...
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Database Selection -->
+                    <!-- Backup Filename -->
                     <div class="mb-3">
-                        <label for="database" class="form-label">Database</label>
-                        <select class="form-select" id="database" name="database" required disabled>
-                            <option value="">Select database...</option>
-                        </select>
-                        <div id="dbLoadingIndicator" class="form-text text-muted" style="display: none;">
-                            <span class="spinner-border spinner-border-sm"></span> Loading databases...
+                        <label for="backupFilename" class="form-label">Backup filename</label>
+                        <input type="text" class="form-control" id="backupFilename" name="backup_filename"
+                               placeholder="Select a database to generate filename..." disabled>
+                        <div class="form-text">
+                            You can modify the filename or keep the auto-generated one.
                         </div>
                     </div>
 
@@ -64,9 +73,9 @@
                         </label>
                         <div class="toggle-label">
                             <span class="toggle-label-title">
-                                <i class="bi bi-layers"></i> Schema Mode
+                                <i class="bi bi-layers"></i> Schema mode
                             </span>
-                            <span class="toggle-label-desc">Backup specific schemas instead of the entire database</span>
+                            <span class="toggle-label-desc">Back up specific schemas instead of the whole database</span>
                         </div>
                     </div>
 
@@ -94,16 +103,6 @@
                         </div>
                     </div>
 
-                    <!-- Backup Filename -->
-                    <div class="mb-3">
-                        <label for="backupFilename" class="form-label">Backup Filename</label>
-                        <input type="text" class="form-control" id="backupFilename" name="backup_filename"
-                               placeholder="Select a database to generate filename..." disabled>
-                        <div class="form-text">
-                            You can modify the filename or keep the auto-generated one.
-                        </div>
-                    </div>
-
                     <!-- Advanced Parameters Toggle -->
                     <div class="advanced-params-toggle">
                         <label class="toggle-switch">
@@ -122,144 +121,73 @@
                     <div id="advancedParamsPanel" class="advanced-params-panel mb-3">
                         <div class="advanced-params-section">
                             <div class="advanced-params-section-title">
-                                <i class="bi bi-toggle-on"></i> Dump Options
+                                <i class="bi bi-toggle-on"></i> Dump options
                             </div>
 
-                            <!-- Row 1: large-objects + no-owner -->
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="largeObjects" checked>
-                                            <label class="form-check-label" for="largeObjects">
-                                                --large-objects
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Include large objects (BLOBs) in the dump. This is the default behavior. Disable this to exclude large objects and reduce dump size."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="noOwner" checked>
-                                            <label class="form-check-label" for="noOwner">
-                                                --no-owner
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Do not output commands to set ownership of objects. The restored objects will be owned by the user connecting to the database."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <!-- pg_dump flags as mono pills (checked = violet tint + check) -->
+                            <div class="flag-pill-grid">
+                                <label class="flag-pill-toggle"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Include large objects (BLOBs) in the dump. This is the default behavior. Disable this to exclude large objects and reduce dump size.">
+                                    <input class="form-check-input" type="checkbox" id="largeObjects" checked>
+                                    <span class="flag-pill-text">--large-objects</span>
+                                </label>
 
-                            <!-- Row 2: no-privileges + no-tablespaces -->
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="noPrivileges" checked>
-                                            <label class="form-check-label" for="noPrivileges">
-                                                --no-privileges
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Do not dump GRANT/REVOKE commands to set access privileges. Without this, the dump will try to replicate the same privileges that the original objects had."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="noTablespaces" checked>
-                                            <label class="form-check-label" for="noTablespaces">
-                                                --no-tablespaces
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Do not output commands to set tablespaces. All objects will be restored into the default tablespace during restore."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                                <label class="flag-pill-toggle"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Do not output commands to set ownership of objects. The restored objects will be owned by the user connecting to the database.">
+                                    <input class="form-check-input" type="checkbox" id="noOwner" checked>
+                                    <span class="flag-pill-text">--no-owner</span>
+                                </label>
 
-                            <!-- Row 3: no-comments + data-only -->
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="noComments" checked>
-                                            <label class="form-check-label" for="noComments">
-                                                --no-comments
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Do not dump COMMENT commands to set object comments. Useful to reduce dump size when comments are not needed."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="dataOnly">
-                                            <label class="form-check-label" for="dataOnly">
-                                                --data-only
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Dump only the data, not the schema (DDL). Table data, sequences, and large objects are dumped. Mutually exclusive with --schema-only."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                                <label class="flag-pill-toggle"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Do not dump GRANT/REVOKE commands to set access privileges. Without this, the dump will try to replicate the same privileges that the original objects had.">
+                                    <input class="form-check-input" type="checkbox" id="noPrivileges" checked>
+                                    <span class="flag-pill-text">--no-privileges</span>
+                                </label>
 
-                            <!-- Row 4: schema-only + clean -->
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="schemaOnly">
-                                            <label class="form-check-label" for="schemaOnly">
-                                                --schema-only
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Dump only the object definitions (schema/DDL), not data. Sequence values will not be dumped. Mutually exclusive with --data-only."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="cleanFlag">
-                                            <label class="form-check-label" for="cleanFlag">
-                                                --clean
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Output DROP commands before CREATE commands in the dump. This makes the dump suitable for cleanly replacing an existing database. Note: with custom format, this option takes effect only during restore."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                                <label class="flag-pill-toggle"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Do not output commands to set tablespaces. All objects will be restored into the default tablespace during restore.">
+                                    <input class="form-check-input" type="checkbox" id="noTablespaces" checked>
+                                    <span class="flag-pill-text">--no-tablespaces</span>
+                                </label>
 
-                            <!-- Row 5: create -->
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="createFlag">
-                                            <label class="form-check-label" for="createFlag">
-                                                --create
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Include CREATE DATABASE command in the dump. When restoring, the database itself will be created before connecting to it, and DROP DATABASE is added if --clean is also specified."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
+                                <label class="flag-pill-toggle"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Do not dump COMMENT commands to set object comments. Useful to reduce dump size when comments are not needed.">
+                                    <input class="form-check-input" type="checkbox" id="noComments" checked>
+                                    <span class="flag-pill-text">--no-comments</span>
+                                </label>
+
+                                <label class="flag-pill-toggle"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Dump only the data, not the schema (DDL). Table data, sequences, and large objects are dumped. Mutually exclusive with --schema-only.">
+                                    <input class="form-check-input" type="checkbox" id="dataOnly">
+                                    <span class="flag-pill-text">--data-only</span>
+                                </label>
+
+                                <label class="flag-pill-toggle"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Dump only the object definitions (schema/DDL), not data. Sequence values will not be dumped. Mutually exclusive with --data-only.">
+                                    <input class="form-check-input" type="checkbox" id="schemaOnly">
+                                    <span class="flag-pill-text">--schema-only</span>
+                                </label>
+
+                                <label class="flag-pill-toggle"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Output DROP commands before CREATE commands in the dump. This makes the dump suitable for cleanly replacing an existing database. Note: with custom format, this option takes effect only during restore.">
+                                    <input class="form-check-input" type="checkbox" id="cleanFlag">
+                                    <span class="flag-pill-text">--clean</span>
+                                </label>
+
+                                <label class="flag-pill-toggle"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Include CREATE DATABASE command in the dump. When restoring, the database itself will be created before connecting to it, and DROP DATABASE is added if --clean is also specified.">
+                                    <input class="form-check-input" type="checkbox" id="createFlag">
+                                    <span class="flag-pill-text">--create</span>
+                                </label>
                             </div>
                         </div>
 
@@ -303,20 +231,26 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" id="backupBtn">
-                        <i class="bi bi-play"></i> Start Backup
+                    <button type="submit" class="btn btn-primary w-100 btn-start-backup" id="backupBtn">
+                        <i class="bi bi-play-fill"></i> Start backup
                     </button>
                 </form>
             </div>
         </div>
     </div>
 
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-terminal"></i> Output
+    <div class="col-lg-6">
+        <div class="card h-100 output-card">
+            <div class="card-header output-header">
+                <span class="output-header-title"><i class="bi bi-terminal"></i> Output</span>
+                <span class="output-status output-status-idle">
+                    <span class="dot dot-idle"></span> Idle
+                </span>
+                <span class="output-status output-status-running">
+                    <span class="dot dot-running"></span> Running
+                </span>
             </div>
-            <div class="card-body">
+            <div class="card-body output-body">
                 <div id="progressContainer" style="display: none;">
                     <div class="progress mb-3">
                         <div class="progress-bar progress-bar-striped progress-bar-animated"
@@ -324,6 +258,14 @@
                     </div>
                 </div>
                 <div id="output" class="output-console"></div>
+                <!-- Idle empty state — shown until #output receives streamed lines -->
+                <div class="empty-state backup-empty-state">
+                    <span class="empty-state-icon"><i class="bi bi-terminal"></i></span>
+                    <div>
+                        <div class="empty-state-title">No backup running</div>
+                        <div class="empty-state-text">Live pg_dump output streams here once you start a backup.</div>
+                    </div>
+                </div>
                 <div id="resultContainer" style="display: none;" class="mt-3">
                     <div class="alert" id="resultAlert"></div>
                 </div>
@@ -336,24 +278,172 @@
 
 {% block extra_css %}
 <style>
-    /* Backup page — align to the Files design system (centered width + rhythm,
-       violet accent, monospace for data). All component styling (cards, buttons,
-       forms, badges, toggles, schema chips, advanced params, output console,
-       progress, alerts) is inherited from the global tokens/classes. */
+    /* Backup page — v4.1.0 redesign. Two flat cards (config + output), violet
+       accent, monospace for data. Component styling (cards, buttons, forms,
+       badges, toggles, schema chips, progress, alerts, flag pills, empty state)
+       comes from the global tokens/helper classes; only page-specific rules here. */
     .backup-page {
         max-width: 1180px;
         margin: 0 auto;
     }
-    /* The generated backup filename is a path/data field → monospace like the Files table */
+
+    /* Page header */
+    .backup-page .page-header {
+        margin-bottom: 20px;
+    }
+    .backup-page .page-header h2 {
+        font-size: 22px;
+        font-weight: 600;
+        margin: 0 0 3px;
+    }
+    .backup-page .page-subtitle {
+        font-size: 13.5px;
+        color: var(--muted-foreground);
+        margin: 0;
+    }
+
+    /* The generated backup filename is a path/data field → monospace */
     #backupFilename {
         font-family: var(--font-mono);
         font-size: 13px;
     }
+
     /* SSM tunnel indicator reads as a soft rounded pill */
     #ssmInfoBadge .badge {
         border-radius: 999px;
         font-weight: 500;
         padding: 2px 9px;
+    }
+
+    /* pg_dump flags as mono pills (on = accent-soft tint + check, off = outline).
+       The real <input> stays in the DOM (JS reads .checked); the label is the pill
+       and native label→input toggling keeps all hooks intact. */
+    .flag-pill-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .flag-pill-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+        padding: 5px 11px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--muted-foreground);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .flag-pill-toggle:hover {
+        border-color: color-mix(in oklab, var(--brand) 35%, var(--border));
+    }
+    /* Hide the raw checkbox but keep it focusable/clickable via the label */
+    .flag-pill-toggle input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        margin: 0;
+        pointer-events: none;
+    }
+    .flag-pill-toggle::before {
+        content: "\2713"; /* check */
+        font-weight: 700;
+        display: none;
+    }
+    .flag-pill-toggle:has(input:checked) {
+        background: var(--sidebar-accent);
+        color: var(--brand-fg);
+        border-color: color-mix(in oklab, var(--brand) 35%, transparent);
+    }
+    .flag-pill-toggle:has(input:checked)::before {
+        display: inline;
+    }
+    .flag-pill-toggle:has(input:focus-visible) {
+        outline: 3px solid var(--accent-soft);
+        outline-offset: 2px;
+    }
+
+    /* Full-width primary action */
+    .btn-start-backup {
+        height: 44px;
+        font-size: 14.5px;
+        font-weight: 600;
+        margin-top: 6px;
+    }
+
+    /* Output card: header with an Idle/Running status dot on the right */
+    .output-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .output-header-title {
+        display: inline-flex;
+        align-items: center;
+    }
+    .output-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+    }
+    .dot-running {
+        background: var(--warning);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--warning) 24%, transparent);
+        animation: backup-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes backup-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+
+    .output-body {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Idle vs running: driven purely by whether #output has streamed content.
+       Empty  → show the empty state, hide the console + Running dot.
+       Filled → hide the empty state, show the terminal + Running dot. */
+    #output:empty {
+        display: none;
+    }
+    #output:not(:empty) {
+        flex: 1;
+        min-height: 340px;
+    }
+    .backup-empty-state {
+        flex: 1;
+        min-height: 340px;
+        justify-content: center;
+    }
+    #output:not(:empty) ~ .backup-empty-state {
+        display: none;
+    }
+    .output-status-running {
+        display: none;
+    }
+    .output-card:has(#output:not(:empty)) .output-status-idle {
+        display: none;
+    }
+    .output-card:has(#output:not(:empty)) .output-status-running {
+        display: inline-flex;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .dot-running {
+            animation: none;
+        }
     }
 </style>
 {% endblock %}

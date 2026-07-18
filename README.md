@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:4.0.0 .
-docker push ghcr.io/fpellizz/magikup:4.0.0
+docker build -t ghcr.io/fpellizz/magikup:4.1.0 .
+docker push ghcr.io/fpellizz/magikup:4.1.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,10 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 4.1.0
+
+- **UI redesign (usability + visual pass)** — implements the MagikUp redesign handoff on top of the v4.0.0 violet system: denser, calmer, more consistent screens with the gradient washes removed. Highlights: a solid dark navbar (`#101114`) with a violet active-link underline; one button/badge hierarchy (violet primaries — the green Upload/Run buttons are gone — soft tinted badges, uniform 30×30 table icon actions); a two-column **login**; a **dashboard** with four stat cards + endpoints/operations lists; **Backup/Restore/Transfer** with pg flags as monospace pills and an **empty-state Output panel** (no more idle black void) that becomes a terminal only while running; a redesigned **Query editor**, **Admin** tables (underlined sub-tabs, connection/role/status badges — Admin role is violet, not red), and aligned Schedules/Info/Change-password. Centralized tokens + reusable component classes in `static/style.css`; purely presentational, no functional changes.
 
 ### 4.0.0
 

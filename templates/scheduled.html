@@ -17,31 +17,33 @@
     </div>
 </div>
 
-<!-- Summary Banner -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="storage-info-banner">
-            <div class="storage-info-item">
-                <i class="bi bi-calendar2-week-fill"></i>
-                <div>
-                    <span class="storage-label">Active Schedules</span>
-                    <span class="storage-value" id="summaryActive">—</span>
-                </div>
+<!-- Summary stat cards -->
+<div class="row g-3 mb-3 sched-stats">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-card-head">
+                <span class="stat-icon"><i class="bi bi-calendar2-week"></i></span>
+                <span class="stat-label">Active Schedules</span>
             </div>
-            <div class="storage-info-item">
-                <i class="bi bi-hourglass-split"></i>
-                <div>
-                    <span class="storage-label">Next Run</span>
-                    <span class="storage-value" id="summaryNext">—</span>
-                </div>
+            <div class="stat-value mono" id="summaryActive">—</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-card-head">
+                <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+                <span class="stat-label">Next Run</span>
             </div>
-            <div class="storage-info-item">
-                <i class="bi bi-check2-circle"></i>
-                <div>
-                    <span class="storage-label">Last Run</span>
-                    <span class="storage-value" id="summaryLast">—</span>
-                </div>
+            <div class="stat-value stat-value-compact" id="summaryNext">—</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-card-head">
+                <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+                <span class="stat-label">Last Run</span>
             </div>
+            <div class="stat-value stat-value-compact" id="summaryLast">—</div>
         </div>
     </div>
 </div>
@@ -342,7 +344,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="saveSchedule()" id="saveSchedBtn" disabled>
                     <i class="bi bi-save me-1"></i> Save
                 </button>
@@ -354,29 +356,14 @@
 
 {% block extra_css %}
 <style>
-    /* Summary banner — neutral stat cards, matching the Files page stat row */
-    .storage-info-banner {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 16px;
+    /* Summary stat cards use the foundation .stat-card system.
+       Next/Last run values carry longer strings, so keep them compact. */
+    .sched-stats .stat-value-compact {
+        font-size: 16px;
+        line-height: 1.35;
+        font-weight: 600;
     }
-    .storage-info-item {
-        display: flex;
-        align-items: center;
-        gap: 0.85rem;
-        padding: 18px 20px;
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow-sm);
-    }
-    .storage-info-item > i { font-size: 1.5rem; color: var(--accent-primary); }
-    .storage-info-item > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-    .storage-label {
-        font-size: 12px; font-weight: 600; text-transform: uppercase;
-        letter-spacing: 0.04em; color: var(--text-secondary);
-    }
-    .storage-value { font-weight: 600; font-size: 1.05rem; color: var(--text-primary); }
+    .sched-stats .stat-card { height: 100%; }
 
     .sched-note {
         display: flex;
@@ -393,11 +380,7 @@
     .sched-table-container { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border-color); }
     .sched-table-container .table { margin-bottom: 0; }
 
-    .sched-loading, .sched-empty-state { text-align: center; padding: 2rem; color: var(--text-muted); }
-    .sched-empty-state { padding: 3rem 2rem; }
-    .sched-empty-state i { font-size: 3.5rem; margin-bottom: 1rem; opacity: 0.3; display: block; }
-    .sched-empty-state h6 { color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 600; }
-    .sched-empty-state p { margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .sched-loading { text-align: center; padding: 2rem; color: var(--text-muted); }
 
     .sched-name { font-weight: 600; color: var(--text-primary); }
     .sched-subtle { font-size: 0.8rem; color: var(--text-muted); }
@@ -411,22 +394,24 @@
         border-radius: calc(var(--radius) - 2px);
     }
 
-    /* Status badges */
+    /* Status badges — aligned to the foundation soft-badge spec
+       (2px 9px / 999px / 11px-500, tinted bg + darker fg). */
     .sched-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.35rem;
-        padding: 0.25rem 0.6rem;
+        gap: 5px;
+        padding: 2px 9px;
         border-radius: 999px;
-        font-size: 0.78rem;
-        font-weight: 600;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1.4;
         white-space: nowrap;
     }
-    .sched-badge-success { background: var(--success-bg); color: var(--success); }
-    .sched-badge-failed { background: var(--danger-bg); color: var(--danger); }
-    .sched-badge-copy_failed { background: var(--warning-bg); color: var(--warning); }
-    .sched-badge-running { background: var(--info-bg); color: var(--info); }
-    .sched-badge-never { background: var(--bg-tertiary); color: var(--text-muted); }
+    .sched-badge-success { background: var(--success-bg); color: var(--success-fg); }
+    .sched-badge-failed { background: var(--danger-bg); color: var(--danger-fg); }
+    .sched-badge-copy_failed { background: var(--warning-bg); color: var(--warning-fg); }
+    .sched-badge-running { background: var(--warning-bg); color: var(--warning-fg); }
+    .sched-badge-never { background: var(--muted); color: var(--muted-foreground); }
 
     /* Destination chip */
     .dest-chip {
@@ -454,11 +439,16 @@
 
     .countdown { font-weight: 600; color: var(--text-primary); font-size: 0.85rem; }
     .countdown-off { color: var(--text-muted); font-weight: 500; }
-    .next-local { font-size: 0.78rem; color: var(--text-secondary); }
-    .next-utc { font-size: 0.7rem; color: var(--text-muted); }
+    .next-local { font-size: 0.78rem; color: var(--text-secondary); font-family: var(--font-mono); }
+    .next-utc { font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); }
 
     .sched-actions { display: flex; gap: 0.35rem; justify-content: flex-end; }
-    .sched-actions .btn { padding: 0.3rem 0.5rem; }
+    a.icon-btn { text-decoration: none; }
+    .icon-btn:disabled, .icon-btn.disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
 
     .fail-warn { font-size: 0.72rem; color: var(--warning); margin-top: 0.2rem; }
     .disabled-note { font-size: 0.72rem; color: var(--danger); margin-top: 0.2rem; }
@@ -519,10 +509,6 @@
     }
     .ssm-toggle-wrapper { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--bg-tertiary); border-radius: calc(var(--radius) - 2px); }
     .ssm-toggle-wrapper .form-check-label { font-weight: 500; cursor: pointer; }
-
-    @media (max-width: 768px) {
-        .storage-info-banner { grid-template-columns: 1fr; }
-    }
 </style>
 {% endblock %}
 
@@ -656,11 +642,13 @@
         if (!schedules.length) {
             tbody.innerHTML = `
                 <tr><td colspan="8">
-                    <div class="sched-empty-state">
-                        <i class="bi bi-calendar-x"></i>
-                        <h6>No schedules yet</h6>
-                        <p>Automate recurring backups on a cron schedule.</p>
-                        ${IS_ADMIN ? `<button class="btn btn-primary btn-sm" onclick="openScheduleModal()"><i class="bi bi-plus-lg me-1"></i> New Schedule</button>` : `<p class="text-muted">Ask an administrator to create one.</p>`}
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i class="bi bi-calendar-x"></i></div>
+                        <div>
+                            <div class="empty-state-title">No schedules yet</div>
+                            <div class="empty-state-text">Automate recurring backups on a cron schedule.</div>
+                        </div>
+                        ${IS_ADMIN ? `<button class="btn btn-primary btn-sm" onclick="openScheduleModal()"><i class="bi bi-plus-lg me-1"></i> New Schedule</button>` : `<div class="empty-state-text">Ask an administrator to create one.</div>`}
                     </div>
                 </td></tr>`;
             return;
@@ -684,10 +672,10 @@
                 </td>
                 <td>
                     <div class="sched-name">${n}</div>
-                    <div class="sched-subtle"><i class="bi bi-database"></i> ${esc(s.database)}</div>
+                    <div class="sched-subtle"><i class="bi bi-database"></i> <span class="mono">${esc(s.database)}</span></div>
                     ${disabledNote}${failWarn}
                 </td>
-                <td><span class="sched-subtle"><i class="bi bi-hdd-network"></i> ${esc(s.endpoint)}</span></td>
+                <td><span class="sched-subtle"><i class="bi bi-hdd-network"></i> <span class="mono">${esc(s.endpoint)}</span></span></td>
                 <td>
                     <div>${esc(s.cron_human || '')}</div>
                     <code class="cron-code">${esc(s.cron)}</code>
@@ -700,14 +688,14 @@
                 <td>${destChip(s)}</td>
                 <td class="text-end">
                     <div class="sched-actions">
-                        <button class="btn btn-sm btn-outline-primary" onclick="runNow('${n}')" title="Run now" aria-label="Run schedule ${n} now" ${s.running ? 'disabled' : ''}>
+                        <button type="button" class="icon-btn icon-btn-primary" onclick="runNow('${n}')" title="Run now" aria-label="Run schedule ${n} now" ${s.running ? 'disabled' : ''}>
                             <i class="bi bi-play-fill"></i>
                         </button>
                         ${IS_ADMIN ? `
-                        <button class="btn btn-sm btn-outline-secondary" onclick="editSchedule('${n}')" title="Edit" aria-label="Edit schedule ${n}">
+                        <button type="button" class="icon-btn icon-btn-primary" onclick="editSchedule('${n}')" title="Edit" aria-label="Edit schedule ${n}">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteSchedule('${n}')" title="Delete" aria-label="Delete schedule ${n}">
+                        <button type="button" class="icon-btn icon-btn-danger" onclick="deleteSchedule('${n}')" title="Delete" aria-label="Delete schedule ${n}">
                             <i class="bi bi-trash"></i>
                         </button>` : ''}
                     </div>
@@ -799,7 +787,7 @@
         } catch (e) { runs = []; }
 
         if (!runs.length) {
-            tbody.innerHTML = `<tr><td colspan="7"><div class="sched-empty-state"><i class="bi bi-clock-history"></i><h6>No runs yet</h6><p>Scheduled and run-now backups will appear here.</p></div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-state-icon"><i class="bi bi-clock-history"></i></div><div><div class="empty-state-title">No runs yet</div><div class="empty-state-text">Scheduled and run-now backups will appear here.</div></div></div></td></tr>`;
             return;
         }
         tbody.innerHTML = runs.map(op => {
@@ -810,13 +798,13 @@
             return `
             <tr>
                 <td class="sched-name">${esc(meta.schedule || '—')}</td>
-                <td>${esc(op.database || '')}</td>
-                <td>${esc(op.endpoint || '')}</td>
+                <td><span class="mono">${esc(op.database || '')}</span></td>
+                <td><span class="mono">${esc(op.endpoint || '')}</span></td>
                 <td><span class="sched-subtle">${esc(trigger)}</span></td>
-                <td>${esc(started)}</td>
+                <td><span class="mono">${esc(started)}</span></td>
                 <td>${runStatusBadge(op)}</td>
                 <td class="text-end">
-                    ${logId ? `<a class="btn btn-sm btn-outline-secondary" href="${BASE_PATH}/api/operations/${encodeURIComponent(logId)}/log" title="Download log" target="_blank"><i class="bi bi-file-text"></i></a>` : ''}
+                    ${logId ? `<a class="icon-btn icon-btn-primary" href="${BASE_PATH}/api/operations/${encodeURIComponent(logId)}/log" title="Download log" aria-label="Download log" target="_blank"><i class="bi bi-file-text"></i></a>` : ''}
                 </td>
             </tr>`;
         }).join('');

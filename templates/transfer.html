@@ -2,11 +2,126 @@
 
 {% block title %}Transfer - PostgreSQL Backup/Restore{% endblock %}
 
+{% block extra_css %}
+<style>
+/* ---------------------------------------------------------------
+   Transfer page — page-specific overrides only.
+   Not pictured in the handoff: it is Backup + Restore combined, so
+   it reuses the same design-system tokens and global classes
+   (cards, buttons, forms, badges, toggles, schema chips, advanced
+   params, phase indicator, progress, alerts) from static/style.css.
+   Only the bits unique to this screen live here.
+   --------------------------------------------------------------- */
+
+/* Center the page to the same rhythm as Backup / Restore / Files */
+.transfer-page { max-width: 1180px; margin: 0 auto; }
+
+/* Page header (icon + title + subtitle + rule) */
+.transfer-page-title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+.transfer-page-title i { color: var(--brand-fg); }
+.transfer-page-subtitle {
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+}
+.transfer-page-subtitle + hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    opacity: 1;
+    margin: 0 0 1.25rem;
+}
+
+/* Destructive warning banner — destination data is replaced.
+   Amber status hue, tinted (never a full-saturation block). */
+.transfer-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: var(--radius);
+    background: var(--warning-bg, color-mix(in oklab, #f59e0b 14%, transparent));
+    border: 1px solid color-mix(in oklab, #f59e0b 30%, transparent);
+    color: var(--warning-fg, #b45309);
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+.transfer-warning i { font-size: 1rem; line-height: 1.3; flex-shrink: 0; }
+.transfer-warning .mono { color: inherit; }
+[data-bs-theme="dark"] .transfer-warning {
+    background: color-mix(in oklab, #f59e0b 14%, transparent);
+    color: #fbbf24;
+    border-color: color-mix(in oklab, #f59e0b 26%, transparent);
+}
+
+/* Idle output console → design-system empty state (reclaims the
+   black void until a transfer actually streams). As soon as the JS
+   appends a <div>, :empty stops matching and it becomes the terminal. */
+#output.output-console:empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: var(--pane);
+    border: 1px dashed var(--border);
+    color: var(--muted-foreground);
+    font-family: inherit;
+    text-align: center;
+}
+#output.output-console:empty::before {
+    content: "\21C4"; /* ⇄ transfer glyph */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 26px;
+}
+#output.output-console:empty::after {
+    content: "No transfer running \2014 live pg_dump / pg_restore output streams here";
+    font-size: 13px;
+    max-width: 320px;
+}
+
+/* Phase indicator: soften to tinted design-system pills instead of
+   solid blocks (keeps the .active / .completed classes the JS sets). */
+.phase-step {
+    background: var(--muted);
+    color: var(--muted-foreground);
+    border: 1px solid var(--border);
+}
+.phase-step.active {
+    background: var(--sidebar-accent);
+    color: var(--brand-fg);
+    border-color: color-mix(in oklab, var(--brand) 35%, transparent);
+    box-shadow: none;
+}
+.phase-step.completed {
+    background: var(--success-bg);
+    color: var(--success-fg);
+    border-color: color-mix(in oklab, var(--success) 30%, transparent);
+}
+.phase-arrow { color: var(--muted-foreground); }
+</style>
+{% endblock %}
+
 {% block content %}
+<div class="transfer-page">
 <div class="row">
     <div class="col-12">
-        <h2><i class="bi bi-arrow-left-right"></i> Transfer Database</h2>
-        <p class="text-muted">Backup from source and restore to destination in one operation</p>
+        <h2 class="transfer-page-title"><i class="bi bi-arrow-left-right"></i> Transfer Database</h2>
+        <p class="transfer-page-subtitle">Backup from source and restore to destination in one operation</p>
         <hr>
     </div>
 </div>
@@ -35,9 +150,9 @@
                         {% endfor %}
                     </select>
                     <div id="sourceSSMInfo" class="mt-2" style="display: none;">
-                        <span class="badge bg-primary">
+                        <span class="badge-conn-ssm">
                             <i class="bi bi-shield-lock"></i> SSM Tunnel
-                            <span class="ms-1" id="sourceJumphostAlias"></span>
+                            <span class="ms-1 mono" id="sourceJumphostAlias"></span>
                         </span>
                     </div>
                 </div>
@@ -313,11 +428,17 @@
                         {% endfor %}
                     </select>
                     <div id="destSSMInfo" class="mt-2" style="display: none;">
-                        <span class="badge bg-primary">
+                        <span class="badge-conn-ssm">
                             <i class="bi bi-shield-lock"></i> SSM Tunnel
-                            <span class="ms-1" id="destJumphostAlias"></span>
+                            <span class="ms-1 mono" id="destJumphostAlias"></span>
                         </span>
                     </div>
+                </div>
+
+                <!-- Destructive warning: destination data is replaced -->
+                <div class="transfer-warning mb-3">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>Objects in the destination database may be dropped and replaced. If <span class="mono">--clean</span> is enabled in Restore Parameters, existing objects are removed before the transfer. Double-check the destination endpoint and database.</span>
                 </div>
 
                 <!-- Destination Database Selection -->
@@ -582,8 +703,8 @@
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-terminal"></i> Transfer Progress</span>
-                    <button type="button" class="btn btn-primary" id="transferBtn" onclick="startTransfer()">
-                        <i class="bi bi-play"></i> Start Transfer
+                    <button type="button" class="btn btn-primary" id="transferBtn" onclick="startTransfer()" aria-label="Start transfer">
+                        <i class="bi bi-play-fill"></i> Start Transfer
                     </button>
                 </div>
             </div>
@@ -615,6 +736,7 @@
             </div>
         </div>
     </div>
+</div>
 </div>
 {% endblock %}
 

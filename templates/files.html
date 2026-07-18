@@ -5,6 +5,17 @@
 {% block content %}
 <div class="bf-page">
 
+    <!-- 0. Page header -->
+    <div class="bf-header">
+        <div class="bf-header-text">
+            <h1 class="bf-page-title">Backup files</h1>
+            <p class="bf-page-sub">Upload, download, restore and archive backup files.</p>
+        </div>
+        <button class="bf-btn bf-btn-primary" onclick="document.getElementById('uploadFileInput').click()">
+            <i class="bi bi-upload"></i> Upload backup
+        </button>
+    </div>
+
     <!-- 1. Stat cards -->
     <div class="bf-stats">
         <div class="bf-card bf-stat">
@@ -62,7 +73,18 @@
                             <i class="bi bi-search"></i> Browse
                         </button>
                     </div>
-                    <div id="s3ObjectsContainer" class="bf-objects"></div>
+                    <div id="s3ObjectsContainer" class="bf-objects">
+                        <div class="empty-state">
+                            <span class="empty-state-icon"><i class="bi bi-box"></i></span>
+                            <div>
+                                <div class="empty-state-title">No S3 buckets configured</div>
+                                <div class="empty-state-text">Connect a bucket to pull backups straight from S3.</div>
+                            </div>
+                            <a class="bf-btn bf-btn-outline" href="{{ base_path }}/admin">
+                                <i class="bi bi-plus-lg"></i> Configure a bucket
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 <!-- From filebrowser -->
                 <div class="tab-pane fade" id="retrieveFbPane" role="tabpanel">
@@ -77,7 +99,18 @@
                             <i class="bi bi-search"></i> Browse
                         </button>
                     </div>
-                    <div id="fbObjectsContainer" class="bf-objects"></div>
+                    <div id="fbObjectsContainer" class="bf-objects">
+                        <div class="empty-state">
+                            <span class="empty-state-icon"><i class="bi bi-folder2"></i></span>
+                            <div>
+                                <div class="empty-state-title">No filebrowser configured</div>
+                                <div class="empty-state-text">Connect a filebrowser instance to pull backups from it.</div>
+                            </div>
+                            <a class="bf-btn bf-btn-outline" href="{{ base_path }}/admin">
+                                <i class="bi bi-plus-lg"></i> Configure filebrowser
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 <!-- From link -->
                 <div class="tab-pane fade" id="retrieveLinkPane" role="tabpanel">
@@ -121,8 +154,8 @@
                 <i class="bi bi-search"></i>
                 <input type="text" id="backupSearch" placeholder="Search backups…" onkeyup="filterBackups()" autocomplete="off">
             </div>
-            <button class="bf-btn bf-btn-primary bf-upload-btn" onclick="document.getElementById('uploadFileInput').click()">
-                <i class="bi bi-upload"></i> Upload backup
+            <button class="bf-btn bf-btn-outline bf-refresh-btn" onclick="loadBackups()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
             </button>
         </div>
 
@@ -198,36 +231,28 @@
 {% block extra_css %}
 <style>
     /* ===== Backup Files redesign — "stat cards + collapsible remote", violet accent ===== */
+    /* Map local aliases to the foundation's canonical tokens so light + dark
+       both track the global theme (no hard-coded hex). */
     .bf-page {
-        --bf-brand: #8b5cf6;
-        --bf-brand-fg: #7c3aed;
-        --bf-card: #ffffff;
-        --bf-fg: #111827;
-        --bf-border: #e5e7eb;
-        --bf-muted: #f3f4f6;
-        --bf-muted-fg: #6b7280;
-        --bf-pane: #fafafa;
-        --bf-pane-accent: #f3f4f6;
-        --bf-destructive: #dc2626;
-        --bf-radius: 0.625rem;
-        --bf-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        --bf-brand: var(--brand);
+        --bf-brand-fg: var(--brand-fg);
+        --bf-primary: var(--primary);
+        --bf-primary-fg: var(--primary-foreground);
+        --bf-card: var(--card);
+        --bf-fg: var(--foreground);
+        --bf-border: var(--border);
+        --bf-muted: var(--muted);
+        --bf-muted-fg: var(--muted-foreground);
+        --bf-pane: var(--pane);
+        --bf-pane-accent: var(--pane-accent);
+        --bf-destructive: var(--destructive);
+        --bf-radius: var(--radius);
+        --bf-mono: var(--font-mono);
         display: flex;
         flex-direction: column;
         gap: 16px;
         max-width: 1180px;
         margin: 0 auto;
-    }
-    [data-bs-theme="dark"] .bf-page {
-        --bf-brand: #a78bfa;
-        --bf-brand-fg: #a78bfa;
-        --bf-card: #171717;
-        --bf-fg: #f5f5f5;
-        --bf-border: rgba(255, 255, 255, 0.12);
-        --bf-muted: #262626;
-        --bf-muted-fg: #a3a3a3;
-        --bf-pane: #1f1f1f;
-        --bf-pane-accent: #2a2a2a;
-        --bf-destructive: #f87171;
     }
 
     .bf-card {
@@ -239,6 +264,12 @@
     .bf-muted { color: var(--bf-muted-fg); }
     .bf-small { font-size: 12px; }
     .bf-mono { font-family: var(--bf-mono); }
+
+    /* --- Page header --- */
+    .bf-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .bf-page-title { margin: 0 0 3px; font-size: 22px; font-weight: 600; color: var(--bf-fg); }
+    .bf-page-sub { margin: 0; font-size: 13.5px; color: var(--bf-muted-fg); }
+    .bf-header .bf-btn-primary { height: 40px; }
 
     /* --- Stat cards --- */
     .bf-stats {
@@ -311,10 +342,11 @@
         display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
         padding: 8px 14px; border-radius: calc(var(--bf-radius) - 2px);
         font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent;
-        transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+        text-decoration: none;
+        transition: background .15s ease, border-color .15s ease, filter .15s ease;
     }
-    .bf-btn-primary { background: var(--bf-brand-fg); color: #fff; }
-    .bf-btn-primary:hover { opacity: .92; color: #fff; }
+    .bf-btn-primary { background: var(--bf-primary); color: var(--bf-primary-fg); }
+    .bf-btn-primary:hover { filter: brightness(.94); color: var(--bf-primary-fg); }
     .bf-btn-outline { background: var(--bf-card); border-color: var(--bf-border); color: var(--bf-fg); }
     .bf-btn-outline:hover { background: var(--bf-pane-accent); }
     .bf-btn:disabled { opacity: .5; cursor: not-allowed; }
@@ -343,7 +375,7 @@
         background: var(--bf-card); color: var(--bf-fg);
     }
     .bf-search input:focus { outline: none; border-color: var(--bf-brand); box-shadow: 0 0 0 3px color-mix(in oklab, var(--bf-brand) 20%, transparent); }
-    .bf-upload-btn { margin-left: auto; }
+    .bf-refresh-btn { margin-left: auto; }
 
     .bf-table-wrap { overflow-x: auto; }
     .bf-table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--bf-fg); }
@@ -377,16 +409,6 @@
     .bf-created-abs { font-family: var(--bf-mono); font-size: 11.5px; color: var(--bf-muted-fg); }
 
     .bf-actions { display: flex; gap: 4px; justify-content: flex-end; }
-    .bf-act {
-        width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
-        border: 1px solid var(--bf-border); border-radius: calc(var(--bf-radius) - 2px);
-        background: var(--bf-card); color: var(--bf-fg); cursor: pointer; font-size: 14px;
-        transition: background .12s ease;
-    }
-    .bf-act:hover { background: var(--bf-pane-accent); }
-    .bf-act-download { color: var(--bf-brand-fg); }
-    .bf-act-delete { color: var(--bf-destructive); }
-    .bf-act-delete:hover { background: color-mix(in oklab, var(--bf-destructive) 10%, transparent); }
 
     /* Upload progress */
     .bf-upload-progress { padding: 16px 20px; border-bottom: 1px solid var(--bf-border); }
@@ -409,7 +431,7 @@
         .bf-stats { grid-template-columns: 1fr; }
         .bf-file-name { max-width: 180px; }
         .bf-search { width: 100%; order: 3; }
-        .bf-upload-btn { margin-left: 0; }
+        .bf-refresh-btn { margin-left: 0; }
         @media (prefers-reduced-motion: reduce) {
             .bf-chevron, .bf-progress-fill, .bf-btn, .bf-act { transition: none; }
         }
@@ -481,10 +503,10 @@
                 </td>
                 <td>
                     <div class="bf-actions">
-                        <button class="bf-act bf-act-download" onclick="downloadBackup('${jsAttr(backup.name)}')" title="Download"><i class="bi bi-download"></i></button>
-                        <button class="bf-act" onclick="restoreBackup('${jsAttr(backup.name)}')" title="Restore"><i class="bi bi-arrow-counterclockwise"></i></button>
-                        <button class="bf-act" onclick="openPushModal('${jsAttr(backup.name)}')" title="Send to remote storage"><i class="bi bi-cloud-upload"></i></button>
-                        <button class="bf-act bf-act-delete" onclick="deleteBackup('${jsAttr(backup.name)}')" title="Delete"><i class="bi bi-trash"></i></button>
+                        <button class="icon-btn icon-btn-primary" onclick="restoreBackup('${jsAttr(backup.name)}')" title="Restore" aria-label="Restore"><i class="bi bi-arrow-counterclockwise"></i></button>
+                        <button class="icon-btn" onclick="downloadBackup('${jsAttr(backup.name)}')" title="Download" aria-label="Download"><i class="bi bi-download"></i></button>
+                        <button class="icon-btn" onclick="openPushModal('${jsAttr(backup.name)}')" title="Send to remote storage" aria-label="Send to remote storage"><i class="bi bi-send"></i></button>
+                        <button class="icon-btn icon-btn-danger" onclick="deleteBackup('${jsAttr(backup.name)}')" title="Delete" aria-label="Delete"><i class="bi bi-trash3"></i></button>
                     </div>
                 </td>
             </tr>`;
@@ -698,7 +720,7 @@
                     <td><span class="bf-file-name" title="${o.name}">${o.name}</span></td>
                     <td class="text-end"><span class="bf-size">${o.size_human}</span></td>
                     <td><span class="bf-created-abs">${o.modified ? formatDateTime(o.modified) : ''}</span></td>
-                    <td class="text-end"><button class="bf-act bf-act-download" onclick="${fn}('${jsAttr(name)}', ${i})" title="Download to local"><i class="bi bi-download"></i></button></td>
+                    <td class="text-end"><button class="icon-btn icon-btn-primary" onclick="${fn}('${jsAttr(name)}', ${i})" title="Download to local" aria-label="Download to local"><i class="bi bi-download"></i></button></td>
                 </tr>`).join('') + `</tbody></table></div>`;
     }
 

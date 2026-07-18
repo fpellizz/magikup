@@ -12,22 +12,85 @@
    design-system tokens, so they are intentionally NOT redefined here.
    --------------------------------------------------------------- */
 
-/* Page header (icon + title + rule) aligned to the Files eyebrow scale */
-.restore-page-title {
+/* Page head: title + subtitle (flat, no rule) */
+.restore-head { margin-bottom: 20px; }
+.restore-head h2 {
     display: flex;
     align-items: center;
     gap: 0.55rem;
-    font-size: 1.35rem;
+    margin: 0 0 3px;
+    font-size: 1.5rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--foreground);
 }
-.restore-page-title i { color: var(--accent-primary); }
-.restore-page-title + hr {
-    border: 0;
-    border-top: 1px solid var(--border-color);
-    opacity: 1;
-    margin: 0.75rem 0 1.25rem;
+.restore-head h2 i { color: var(--brand-fg); font-size: 1.35rem; }
+.restore-head .restore-subtitle {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--muted-foreground);
 }
+
+/* Destructive warning banner (amber status hue, never a solid block) */
+.restore-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 13px;
+    margin-bottom: 16px;
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--warning-bg, color-mix(in oklab, #f59e0b 12%, transparent));
+    border: 1px solid color-mix(in oklab, #f59e0b 32%, transparent);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #92400e;
+}
+.restore-warning i { color: #b45309; font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+.restore-warning .mono { font-family: var(--font-mono); }
+[data-bs-theme="dark"] .restore-warning {
+    background: color-mix(in oklab, #f59e0b 14%, transparent);
+    border-color: color-mix(in oklab, #f59e0b 26%, transparent);
+    color: #fcd34d;
+}
+[data-bs-theme="dark"] .restore-warning i { color: #fbbf24; }
+
+/* Prominent option toggle cards (Clean / TimescaleDB) */
+.restore-toggle-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--card);
+    cursor: pointer;
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+.restore-toggle-card:hover { background: var(--pane-accent); }
+.restore-toggle-card .form-check {
+    padding: 0;
+    margin: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+}
+.restore-toggle-card .form-check-input {
+    width: 2.5em;
+    height: 1.4em;
+    margin: 0;
+    float: none;
+    cursor: pointer;
+}
+.restore-toggle-text { display: flex; flex-direction: column; }
+.restore-toggle-title { font-size: 0.84rem; font-weight: 600; color: var(--foreground); }
+.restore-toggle-title .flag-hint {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted-foreground);
+    margin-left: 3px;
+}
+.restore-toggle-desc { font-size: 0.75rem; color: var(--muted-foreground); }
 
 /* SSM Tunnel info badge — semantic "secure tunnel" indicator.
    Amber is used deliberately as a status hue; shape follows the
@@ -57,14 +120,27 @@
     color: #fbbf24;
     border-color: color-mix(in oklab, #f59e0b 28%, transparent);
 }
+
+/* Idle empty state, centered inside the dark output console.
+   Cleared by the existing JS (output.innerHTML = '') when a run starts. */
+.output-console:has(.empty-state) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.output-console .empty-state-icon { background: rgba(255,255,255,.06); color: #8b949e; }
+.output-console .empty-state-title { color: #c9d1d9; }
+.output-console .empty-state-text { color: #8b949e; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-12">
-        <h2 class="restore-page-title"><i class="bi bi-upload"></i> Restore Database</h2>
-        <hr>
+        <div class="restore-head">
+            <h2><i class="bi bi-box-arrow-up"></i> Restore database</h2>
+            <p class="restore-subtitle">Import a backup file into a destination database.</p>
+        </div>
     </div>
 </div>
 
@@ -72,13 +148,19 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header">
-                <i class="bi bi-gear"></i> Restore Configuration
+                <i class="bi bi-box-arrow-up"></i> Restore configuration
             </div>
             <div class="card-body">
                 <form id="restoreForm">
+                    <!-- Destructive warning banner -->
+                    <div class="restore-warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <div><strong>Restore is destructive.</strong> With <span class="mono">--clean</span> enabled, existing objects in the destination are dropped and recreated.</div>
+                    </div>
+
                     <!-- Backup File Selection -->
                     <div class="mb-3">
-                        <label for="backupFile" class="form-label">Backup File</label>
+                        <label for="backupFile" class="form-label">Backup file</label>
                         <select class="form-select" id="backupFile" name="backupFile" required>
                             <option value="">Select backup file...</option>
                             {% for backup in backups %}
@@ -89,38 +171,38 @@
                         </select>
                     </div>
 
-                    <!-- Endpoint Selection -->
-                    <div class="mb-3">
-                        <label for="endpoint" class="form-label">Destination Endpoint</label>
-                        <select class="form-select" id="endpoint" name="endpoint" required>
-                            <option value="">Select endpoint...</option>
-                            {% for name, endpoint in endpoints.items() %}
-                            <option value="{{ name }}"
-                                    data-host="{{ endpoint.host }}"
-                                    data-port="{{ endpoint.port }}"
-                                    data-use-ssm="{{ endpoint.use_ssm|lower }}"
-                                    data-jumphost="{{ endpoint.jumphost_alias }}">
-                                {{ name }} ({{ endpoint.host }})
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <div id="ssmTunnelInfo" style="display: none;">
-                            <span class="ssm-tunnel-badge">
-                                <i class="bi bi-shield-lock"></i>
-                                SSM Tunnel
-                                <span id="ssmJumphostAlias"></span>
-                            </span>
+                    <!-- Endpoint + Database -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="endpoint" class="form-label">Destination endpoint</label>
+                            <select class="form-select" id="endpoint" name="endpoint" required>
+                                <option value="">Select endpoint...</option>
+                                {% for name, endpoint in endpoints.items() %}
+                                <option value="{{ name }}"
+                                        data-host="{{ endpoint.host }}"
+                                        data-port="{{ endpoint.port }}"
+                                        data-use-ssm="{{ endpoint.use_ssm|lower }}"
+                                        data-jumphost="{{ endpoint.jumphost_alias }}">
+                                    {{ name }} ({{ endpoint.host }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div id="ssmTunnelInfo" style="display: none;">
+                                <span class="ssm-tunnel-badge">
+                                    <i class="bi bi-shield-lock"></i>
+                                    SSM Tunnel
+                                    <span id="ssmJumphostAlias"></span>
+                                </span>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Database Selection -->
-                    <div class="mb-3">
-                        <label for="database" class="form-label">Destination Database</label>
-                        <select class="form-select" id="database" name="database" required disabled>
-                            <option value="">Select database...</option>
-                        </select>
-                        <div id="dbLoadingIndicator" class="form-text text-muted" style="display: none;">
-                            <span class="spinner-border spinner-border-sm"></span> Loading databases...
+                        <div class="col-md-6">
+                            <label for="database" class="form-label">Destination database</label>
+                            <select class="form-select" id="database" name="database" required disabled>
+                                <option value="">Select database...</option>
+                            </select>
+                            <div id="dbLoadingIndicator" class="form-text text-muted" style="display: none;">
+                                <span class="spinner-border spinner-border-sm"></span> Loading databases...
+                            </div>
                         </div>
                     </div>
 
@@ -132,6 +214,30 @@
                         </select>
                         <div class="form-text">Objects will be owned by this role after restore</div>
                     </div>
+
+                    <!-- Clean before restore (destructive) -->
+                    <label class="restore-toggle-card">
+                        <span class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="clean" checked
+                                   aria-label="Clean before restore">
+                        </span>
+                        <span class="restore-toggle-text">
+                            <span class="restore-toggle-title">Clean before restore <span class="flag-hint">--clean --if-exists</span></span>
+                            <span class="restore-toggle-desc">Drop objects before recreating them</span>
+                        </span>
+                    </label>
+
+                    <!-- TimescaleDB-aware restore -->
+                    <label class="restore-toggle-card">
+                        <span class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="timescaledb"
+                                   aria-label="TimescaleDB-aware restore">
+                        </span>
+                        <span class="restore-toggle-text">
+                            <span class="restore-toggle-title">TimescaleDB-aware</span>
+                            <span class="restore-toggle-desc">Run pre/post-restore hooks; requires superuser</span>
+                        </span>
+                    </label>
 
                     <!-- Schema Mode Toggle -->
                     <div class="schema-mode-toggle">
@@ -199,21 +305,8 @@
                                 <i class="bi bi-toggle-on"></i> Restore Options
                             </div>
 
-                            <!-- Row 1: --clean + --no-owner -->
+                            <!-- Row 1: --no-owner + --no-privileges -->
                             <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="clean" checked>
-                                            <label class="form-check-label" for="clean">
-                                                --clean
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Drop database objects before recreating them. Uses --if-exists to avoid errors if objects don't exist yet."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
                                 <div class="col-6">
                                     <div class="param-toggle-item">
                                         <div class="form-check form-switch">
@@ -227,10 +320,6 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- Row 2: --no-privileges + --no-tablespaces -->
-                            <div class="row g-2 mb-2">
                                 <div class="col-6">
                                     <div class="param-toggle-item">
                                         <div class="form-check form-switch">
@@ -244,6 +333,10 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Row 2: --no-tablespaces + --no-comments -->
+                            <div class="row g-2 mb-2">
                                 <div class="col-6">
                                     <div class="param-toggle-item">
                                         <div class="form-check form-switch">
@@ -257,10 +350,6 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- Row 3: --no-comments + --data-only -->
-                            <div class="row g-2 mb-2">
                                 <div class="col-6">
                                     <div class="param-toggle-item">
                                         <div class="form-check form-switch">
@@ -274,6 +363,10 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Row 3: --data-only + --schema-only -->
+                            <div class="row g-2 mb-2">
                                 <div class="col-6">
                                     <div class="param-toggle-item">
                                         <div class="form-check form-switch">
@@ -287,10 +380,6 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- Row 4: --schema-only + --exit-on-error -->
-                            <div class="row g-2 mb-2">
                                 <div class="col-6">
                                     <div class="param-toggle-item">
                                         <div class="form-check form-switch">
@@ -304,6 +393,10 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Row 4: --exit-on-error + --no-publications -->
+                            <div class="row g-2 mb-2">
                                 <div class="col-6">
                                     <div class="param-toggle-item">
                                         <div class="form-check form-switch">
@@ -317,10 +410,6 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- Row 5: --no-publications + --no-subscriptions -->
-                            <div class="row g-2">
                                 <div class="col-6">
                                     <div class="param-toggle-item">
                                         <div class="form-check form-switch">
@@ -334,6 +423,10 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Row 5: --no-subscriptions -->
+                            <div class="row g-2">
                                 <div class="col-6">
                                     <div class="param-toggle-item">
                                         <div class="form-check form-switch">
@@ -343,23 +436,6 @@
                                                 <i class="bi bi-question-circle param-tooltip"
                                                    data-bs-toggle="tooltip" data-bs-placement="top"
                                                    title="Do not restore subscription definitions. Prevents the restored database from trying to connect to publisher servers."></i>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Row 6: TimescaleDB -->
-                            <div class="row g-2 mt-1">
-                                <div class="col-12">
-                                    <div class="param-toggle-item">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="timescaledb">
-                                            <label class="form-check-label" for="timescaledb">
-                                                TimescaleDB
-                                                <i class="bi bi-question-circle param-tooltip"
-                                                   data-bs-toggle="tooltip" data-bs-placement="top"
-                                                   title="Enable TimescaleDB-aware restore. Runs SELECT timescaledb_pre_restore() before and SELECT timescaledb_post_restore() after pg_restore, and adds --disable-triggers to pg_restore. Requires the target database to have the timescaledb extension installed and the user to be a superuser."></i>
                                             </label>
                                         </div>
                                     </div>
@@ -413,8 +489,8 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" id="restoreBtn">
-                        <i class="bi bi-play"></i> Start Restore
+                    <button type="submit" class="btn btn-primary w-100" id="restoreBtn">
+                        <i class="bi bi-play-fill"></i> Start restore
                     </button>
                 </form>
             </div>
@@ -433,7 +509,11 @@
                              id="progressBar" role="progressbar" style="width: 100%"></div>
                     </div>
                 </div>
-                <div id="output" class="output-console"></div>
+                <div id="output" class="output-console"><div class="empty-state">
+                        <span class="empty-state-icon"><i class="bi bi-terminal"></i></span>
+                        <span class="empty-state-title">No restore running</span>
+                        <span class="empty-state-text">Live pg_restore output streams here once you start a restore.</span>
+                    </div></div>
                 <div id="resultContainer" style="display: none;" class="mt-3">
                     <div class="alert" id="resultAlert"></div>
                 </div>
