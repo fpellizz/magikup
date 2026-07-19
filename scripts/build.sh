@@ -51,13 +51,13 @@ ${CYAN}Examples:${NC}
   $0
 
   ${YELLOW}# Build with custom tag${NC}
-  $0 -t 4.1.1
+  $0 -t 4.2.0
 
   ${YELLOW}# Build and push to registry${NC}
-  $0 -r ghcr.io/fpellizz -t 4.1.1 --push
+  $0 -r ghcr.io/fpellizz -t 4.2.0 --push
 
   ${YELLOW}# Using environment variables${NC}
-  REGISTRY=myregistry.io IMAGE_TAG=4.1.1 PUSH=true $0
+  REGISTRY=myregistry.io IMAGE_TAG=4.2.0 PUSH=true $0
 
 ${CYAN}Notes:${NC}
   - If Trivy is installed, a security scan runs automatically after build

@@ -320,12 +320,18 @@
                 <div class="version-timeline">
                     <div class="tl-item tl-current">
                         <div class="tl-head">
-                            <span class="tl-version">4.1.1</span>
+                            <span class="tl-version">4.2.0</span>
                             <span class="tl-current-tag">Current</span>
                         </div>
                         <ul class="tl-list">
-                            <li><i class="bi bi-check2"></i>Consistent page width — every screen centers to one shared max-width (global page shell); fixes the Backup/Transfer/Files vs Dashboard/Admin misalignment</li>
+                            <li><i class="bi bi-check2"></i>Query page: create databases and users, and modify user permissions — capability-gated (superuser / CREATEDB / CREATEROLE), refused on read-only endpoints</li>
+                            <li><i class="bi bi-check2"></i>See all databases on the server, not just the connected one (non-connectable ones marked)</li>
+                            <li><i class="bi bi-check2"></i>Safe DDL via psycopg2.sql only; identifiers validated up-front; passwords never logged</li>
                         </ul>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">4.1.1</span></div>
+                        <div class="tl-desc">Consistent page width across all screens (global page shell)</div>
                     </div>
                     <div class="tl-item">
                         <div class="tl-head"><span class="tl-version">4.1.0</span></div>

@@ -68,7 +68,7 @@ logger.info(f"Context path: '{_context_path}' (empty = root)")
 app = FastAPI(
     title="PostgreSQL Backup/Restore",
     description="Backup and restore PostgreSQL databases via direct or SSM tunnel connections",
-    version="4.1.1",
+    version="4.2.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -308,6 +308,57 @@ class QueryExecuteRequest(BaseModel):
     timeout_seconds: int = 30
     row_limit: int = 1000
     autocommit: bool = False
+
+
+# DB / user management (v4.2.0)
+class CreateDatabaseRequest(BaseModel):
+    endpoint_name: str
+    database: str = "postgres"  # DB to connect to for issuing the statement
+    name: str
+    owner: Optional[str] = None
+    encoding: Optional[str] = None
+    template: Optional[str] = None
+
+
+class CreateRoleRequest(BaseModel):
+    endpoint_name: str
+    database: str = "postgres"
+    name: str
+    password: str
+    login: bool = True
+    createdb: bool = False
+    createrole: bool = False
+    superuser: bool = False
+    valid_until: Optional[str] = None
+
+
+class AlterRoleRequest(BaseModel):
+    endpoint_name: str
+    database: str = "postgres"
+    name: str
+    login: Optional[bool] = None
+    createdb: Optional[bool] = None
+    createrole: Optional[bool] = None
+    superuser: Optional[bool] = None
+    password: Optional[str] = None
+    valid_until: Optional[str] = None
+
+
+class RoleMembershipRequest(BaseModel):
+    endpoint_name: str
+    database: str = "postgres"
+    role: str
+    member: str
+    grant: bool = True
+
+
+class DatabasePrivilegesRequest(BaseModel):
+    endpoint_name: str
+    database: str = "postgres"  # DB to connect to for issuing the statement
+    target_database: str        # DB the privileges apply to
+    role: str
+    privileges: List[str]
+    grant: bool = True
 
 
 class ScheduleModel(BaseModel):
@@ -1092,6 +1143,285 @@ async def api_execute_query(req: QueryExecuteRequest, user: dict = Depends(auth.
         )
     )
 
+    return result
+
+
+# =============================================================================
+# DB / user management API (v4.2.0)
+# =============================================================================
+# Every mutating endpoint below: require_operator + require_endpoint_access +
+# refuse read-only endpoints + validate identifiers BEFORE resolving the tunnel
+# or opening any DB connection. psycopg2.sql is used for all statement building
+# in db_service. The DB itself is the final authority on CREATEDB/CREATEROLE.
+
+
+def _resolve_mgmt_endpoint(user: dict, endpoint_name: str, require_writable: bool) -> cfg.DatabaseConfig:
+    """Shared preamble for DB-management endpoints: 404 if unknown, 403 if the
+    user cannot access it, 403 if it is read-only (for mutating actions). Does
+    NOT open a DB connection so it is testable without a live database."""
+    endpoint = cfg.get_database_endpoint(endpoint_name)
+    if not endpoint:
+        raise HTTPException(status_code=404, detail="Endpoint not found")
+    require_endpoint_access(user, endpoint_name)
+    if require_writable and endpoint.read_only:
+        raise HTTPException(status_code=403, detail="Endpoint is read-only")
+    return endpoint
+
+
+@app.get("/api/db/capabilities/{endpoint_name}")
+async def api_db_capabilities(endpoint_name: str, database: str = "postgres", user: dict = Depends(auth.require_operator)):
+    """Report the connected role's capabilities (superuser / createdb / createrole)."""
+    endpoint = _resolve_mgmt_endpoint(user, endpoint_name, require_writable=False)
+
+    try:
+        ensure_tunnel_sync(endpoint)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    host, port = resolve_endpoint_connection(endpoint)
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: db.get_role_capabilities(
+            host=host, port=port,
+            username=endpoint.username, password=endpoint.password,
+            sslmode=endpoint.sslmode, database=database,
+        ),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to get capabilities"))
+    return result
+
+
+@app.get("/api/db/roles/{endpoint_name}")
+async def api_db_roles(endpoint_name: str, database: str = "postgres", user: dict = Depends(auth.require_operator)):
+    """List roles on the server (excluding internal pg_* roles)."""
+    endpoint = _resolve_mgmt_endpoint(user, endpoint_name, require_writable=False)
+
+    try:
+        ensure_tunnel_sync(endpoint)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    host, port = resolve_endpoint_connection(endpoint)
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: db.list_roles(
+            host=host, port=port,
+            username=endpoint.username, password=endpoint.password,
+            sslmode=endpoint.sslmode, database=database,
+        ),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to list roles"))
+    return result
+
+
+@app.post("/api/db/database")
+async def api_db_create_database(req: CreateDatabaseRequest, user: dict = Depends(auth.require_operator)):
+    """Create a database. Requires the connected role to have CREATEDB (or be a
+    superuser) — the DB enforces this; a failure is surfaced as 400."""
+    endpoint = _resolve_mgmt_endpoint(user, req.endpoint_name, require_writable=True)
+
+    # Validate identifiers BEFORE touching the DB / tunnel.
+    try:
+        db._validate_ident(req.name, "database name")
+        if req.owner:
+            db._validate_ident(req.owner, "owner")
+        if req.template:
+            db._validate_ident(req.template, "template")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        ensure_tunnel_sync(endpoint)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    host, port = resolve_endpoint_connection(endpoint)
+    logger.info(f"CREATE DATABASE '{req.name}' requested by {user['username']} on {req.endpoint_name}")
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: db.create_database(
+            host=host, port=port,
+            username=endpoint.username, password=endpoint.password,
+            sslmode=endpoint.sslmode, database=req.database,
+            name=req.name, owner=req.owner, encoding=req.encoding, template=req.template,
+        ),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to create database"))
+    return result
+
+
+@app.post("/api/db/role")
+async def api_db_create_role(req: CreateRoleRequest, user: dict = Depends(auth.require_operator)):
+    """Create a role/user. Granting SUPERUSER requires the connected role to be a
+    superuser (guarded here and enforced by the DB)."""
+    endpoint = _resolve_mgmt_endpoint(user, req.endpoint_name, require_writable=True)
+
+    try:
+        db._validate_ident(req.name, "role name")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        ensure_tunnel_sync(endpoint)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    host, port = resolve_endpoint_connection(endpoint)
+
+    # Superuser guard: only a superuser may create a superuser role.
+    if req.superuser:
+        caps = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: db.get_role_capabilities(
+                host=host, port=port,
+                username=endpoint.username, password=endpoint.password,
+                sslmode=endpoint.sslmode, database=req.database,
+            ),
+        )
+        if not caps.get("success"):
+            raise HTTPException(status_code=400, detail=caps.get("error", "Failed to verify capabilities"))
+        if not caps.get("is_superuser"):
+            raise HTTPException(status_code=403, detail="Only a superuser can create a superuser role")
+
+    logger.info(f"CREATE ROLE '{req.name}' requested by {user['username']} on {req.endpoint_name}")  # never log password
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: db.create_role(
+            host=host, port=port,
+            username=endpoint.username, password=endpoint.password,
+            sslmode=endpoint.sslmode, database=req.database,
+            name=req.name, role_password=req.password,
+            login=req.login, createdb=req.createdb, createrole=req.createrole,
+            superuser=req.superuser, valid_until=req.valid_until,
+        ),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to create role"))
+    return result
+
+
+@app.post("/api/db/role/alter")
+async def api_db_alter_role(req: AlterRoleRequest, user: dict = Depends(auth.require_operator)):
+    """Alter a role's attributes / reset its password. Granting SUPERUSER
+    requires the connected role to be a superuser."""
+    endpoint = _resolve_mgmt_endpoint(user, req.endpoint_name, require_writable=True)
+
+    try:
+        db._validate_ident(req.name, "role name")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        ensure_tunnel_sync(endpoint)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    host, port = resolve_endpoint_connection(endpoint)
+
+    # Superuser guard: only a superuser may grant SUPERUSER.
+    if req.superuser is True:
+        caps = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: db.get_role_capabilities(
+                host=host, port=port,
+                username=endpoint.username, password=endpoint.password,
+                sslmode=endpoint.sslmode, database=req.database,
+            ),
+        )
+        if not caps.get("success"):
+            raise HTTPException(status_code=400, detail=caps.get("error", "Failed to verify capabilities"))
+        if not caps.get("is_superuser"):
+            raise HTTPException(status_code=403, detail="Only a superuser can grant superuser")
+
+    logger.info(f"ALTER ROLE '{req.name}' requested by {user['username']} on {req.endpoint_name}")  # never log password
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: db.alter_role(
+            host=host, port=port,
+            username=endpoint.username, password=endpoint.password,
+            sslmode=endpoint.sslmode, database=req.database,
+            name=req.name, login=req.login, createdb=req.createdb,
+            createrole=req.createrole, superuser=req.superuser,
+            role_password=req.password, valid_until=req.valid_until,
+        ),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to alter role"))
+    return result
+
+
+@app.post("/api/db/role/membership")
+async def api_db_role_membership(req: RoleMembershipRequest, user: dict = Depends(auth.require_operator)):
+    """Grant/revoke membership of one role in another."""
+    endpoint = _resolve_mgmt_endpoint(user, req.endpoint_name, require_writable=True)
+
+    try:
+        db._validate_ident(req.role, "role")
+        db._validate_ident(req.member, "member")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        ensure_tunnel_sync(endpoint)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    host, port = resolve_endpoint_connection(endpoint)
+    logger.info(
+        f"{'GRANT' if req.grant else 'REVOKE'} membership '{req.role}' / '{req.member}' "
+        f"requested by {user['username']} on {req.endpoint_name}"
+    )
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: db.grant_role_membership(
+            host=host, port=port,
+            username=endpoint.username, password=endpoint.password,
+            sslmode=endpoint.sslmode, database=req.database,
+            role=req.role, member=req.member, grant=req.grant,
+        ),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to change membership"))
+    return result
+
+
+@app.post("/api/db/database/privileges")
+async def api_db_database_privileges(req: DatabasePrivilegesRequest, user: dict = Depends(auth.require_operator)):
+    """Grant/revoke database-level privileges (CONNECT/CREATE/TEMP/ALL)."""
+    endpoint = _resolve_mgmt_endpoint(user, req.endpoint_name, require_writable=True)
+
+    try:
+        db._validate_ident(req.target_database, "target database")
+        db._validate_ident(req.role, "role")
+        db._validate_privileges(req.privileges)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        ensure_tunnel_sync(endpoint)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    host, port = resolve_endpoint_connection(endpoint)
+    logger.info(
+        f"{'GRANT' if req.grant else 'REVOKE'} {req.privileges} on '{req.target_database}' "
+        f"/ '{req.role}' requested by {user['username']} on {req.endpoint_name}"
+    )
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: db.grant_database_privileges(
+            host=host, port=port,
+            username=endpoint.username, password=endpoint.password,
+            sslmode=endpoint.sslmode, database=req.database,
+            target_database=req.target_database, role=req.role,
+            privileges=req.privileges, grant=req.grant,
+        ),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to change privileges"))
     return result
 
 

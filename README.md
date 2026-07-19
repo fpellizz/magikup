@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:4.1.1 .
-docker push ghcr.io/fpellizz/magikup:4.1.1
+docker build -t ghcr.io/fpellizz/magikup:4.2.0 .
+docker push ghcr.io/fpellizz/magikup:4.2.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,12 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 4.2.0
+
+- **Query page — database & user management** — when the role connected to a database is a superuser or has the relevant attribute (`CREATEDB` / `CREATEROLE`), the Query page now lets you **create databases**, **create users (roles)**, and **modify user permissions** (role attributes, password reset, role membership, and database-level `CONNECT`/`CREATE`/`TEMP` grants) from capability-gated dialogs that match the app's design system. The actions are hidden on read-only endpoints and disabled when the connected role lacks the privilege (the database remains the final authority).
+- **See all databases on the server** — the database list is no longer restricted to the databases you can connect to; every database on the server is shown (those without `CONNECT` are marked and greyed).
+- New endpoints under `/api/db/*` (capabilities, roles, create database, create/alter role, role membership, database privileges). All mutating operations require operator rights, are refused on read-only endpoints, validate identifiers up-front, and build SQL exclusively with `psycopg2.sql` (no string interpolation); passwords are never logged.
 
 ### 4.1.1
 
