@@ -1667,6 +1667,14 @@ a.nav-link:focus-visible,
     padding-bottom: 2rem;
 }
 
+/* Global page shell: every page centers to the same max width so all screens
+   share one rhythm (fixes per-page width drift). Individual pages must NOT set
+   their own max-width/centering wrapper — they inherit this. */
+.app-main {
+    max-width: 1360px;
+    margin-inline: auto;
+}
+
 /* Icon Enhancements */
 .bi {
     vertical-align: -0.125em;
