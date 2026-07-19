@@ -73,6 +73,50 @@
     color: var(--muted-foreground);
     font-weight: 500;
 }
+
+/* ---- DB admin action group (connection bar) ---- */
+.qe-admin-actions {
+    display: none;                 /* toggled to flex from JS */
+    border-top: 1px solid var(--border);
+}
+.qe-admin-actions.qe-admin-visible {
+    display: flex;
+}
+.qe-admin-actions .micro-label i {
+    color: var(--brand-fg);
+}
+.qe-conn-user {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+}
+
+/* ---- Management modal helpers (reuse admin design tokens) ---- */
+.form-section-title-qe {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted-foreground);
+    margin-bottom: 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.form-section-title-qe i {
+    color: var(--brand-fg);
+}
+.qe-manage-box {
+    padding: 0.9rem 1rem;
+    background: var(--pane);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.qe-attr-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 1rem;
+}
 </style>
 {% endblock %}
 
@@ -91,7 +135,8 @@
                             {% for name, ep in endpoints.items() %}
                             <option value="{{ name }}"
                                     data-use-ssm="{{ ep.use_ssm|string|lower }}"
-                                    data-jumphost="{{ ep.jumphost_alias }}">
+                                    data-jumphost="{{ ep.jumphost_alias }}"
+                                    data-read-only="{{ ep.read_only|string|lower }}">
                                 {{ name }} ({{ ep.host }}:{{ ep.port }})
                             </option>
                             {% endfor %}
@@ -134,6 +179,20 @@
                             <option value="10000">10,000</option>
                         </select>
                     </div>
+                </div>
+                <!-- DB admin action group (server-side capability gated; hidden when read-only) -->
+                <div class="qe-admin-actions align-items-center flex-wrap gap-2 mt-2 pt-2" id="qeAdminActions" style="display: none;">
+                    <span class="micro-label mb-0 me-1"><i class="bi bi-shield-lock"></i> DB admin</span>
+                    <button class="btn btn-sm btn-outline-secondary" id="qeNewDbBtn" type="button" disabled>
+                        <i class="bi bi-database-add"></i> New database
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="qeNewUserBtn" type="button" disabled>
+                        <i class="bi bi-person-plus"></i> New user
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="qeManageUsersBtn" type="button" disabled>
+                        <i class="bi bi-people"></i> Manage users
+                    </button>
+                    <span class="qe-conn-user ms-auto small" id="qeConnUser"></span>
                 </div>
             </div>
         </div>
@@ -255,12 +314,12 @@
 </div>
 
 <!-- Query History Modal -->
-<div class="modal fade" id="qeHistoryModal" tabindex="-1">
+<div class="modal fade" id="qeHistoryModal" tabindex="-1" aria-labelledby="qeHistoryModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>Query History</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="qeHistoryModalLabel"><i class="bi bi-clock-history me-2"></i>Query History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0">
                 <div class="list-group list-group-flush" id="qeHistoryList">
@@ -272,6 +331,249 @@
                     <i class="bi bi-trash3"></i> Clear History
                 </button>
                 <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     Create Database Modal
+     ============================================ -->
+<div class="modal fade" id="qeCreateDbModal" tabindex="-1" aria-labelledby="qeCreateDbModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="qeCreateDbModalLabel">
+                    <i class="bi bi-database-add me-2"></i>Create Database
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="qeCreateDbForm" onsubmit="return false;">
+                    <div class="mb-3">
+                        <label for="qeDbName" class="form-label">Name</label>
+                        <input type="text" class="form-control mono" id="qeDbName" placeholder="my_database"
+                               autocomplete="off" spellcheck="false" required>
+                        <div class="form-text">Valid identifier: letters, digits, <code>_</code>, <code>$</code> (max 63 chars).</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="qeDbOwner" class="form-label">Owner <span class="text-muted">(optional)</span></label>
+                        <select class="form-select" id="qeDbOwner">
+                            <option value="">Default (current role)</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="qeDbEncoding" class="form-label">Encoding <span class="text-muted">(optional)</span></label>
+                            <input type="text" class="form-control mono" id="qeDbEncoding" placeholder="UTF8"
+                                   autocomplete="off" spellcheck="false">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="qeDbTemplate" class="form-label">Template <span class="text-muted">(optional)</span></label>
+                            <input type="text" class="form-control mono" id="qeDbTemplate" placeholder="template0"
+                                   autocomplete="off" spellcheck="false">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="qeCreateDbSubmit">
+                    <i class="bi bi-plus me-1"></i> Create Database
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     Create User (Role) Modal
+     ============================================ -->
+<div class="modal fade" id="qeCreateUserModal" tabindex="-1" aria-labelledby="qeCreateUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="qeCreateUserModalLabel">
+                    <i class="bi bi-person-plus me-2"></i>Create User
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="qeCreateUserForm" onsubmit="return false;">
+                    <div class="mb-3">
+                        <label for="qeUserName" class="form-label">Role name</label>
+                        <input type="text" class="form-control mono" id="qeUserName" placeholder="app_user"
+                               autocomplete="off" spellcheck="false" required>
+                        <div class="form-text">Valid identifier: letters, digits, <code>_</code>, <code>$</code> (max 63 chars).</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="qeUserPassword" class="form-label">Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="qeUserPassword" autocomplete="new-password">
+                            <button class="btn btn-outline-secondary password-toggle" type="button" aria-label="Show or hide password"
+                                    onclick="qeTogglePassword('qeUserPassword', this)">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">The password is sent over the API and never stored or logged by the app.</div>
+                    </div>
+                    <div class="mb-2 form-section-title-qe">Attributes</div>
+                    <div class="qe-attr-grid mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="qeUserLogin" checked>
+                            <label class="form-check-label" for="qeUserLogin">Can login</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="qeUserCreateDb">
+                            <label class="form-check-label" for="qeUserCreateDb">Create databases</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="qeUserCreateRole">
+                            <label class="form-check-label" for="qeUserCreateRole">Create roles</label>
+                        </div>
+                        <div class="form-check" id="qeUserSuperuserWrap">
+                            <input class="form-check-input" type="checkbox" id="qeUserSuperuser">
+                            <label class="form-check-label" for="qeUserSuperuser">Superuser</label>
+                        </div>
+                    </div>
+                    <div class="mb-1">
+                        <label for="qeUserValidUntil" class="form-label">Valid until <span class="text-muted">(optional)</span></label>
+                        <input type="datetime-local" class="form-control" id="qeUserValidUntil">
+                        <div class="form-text">Password expiry timestamp. Leave empty for no expiry.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="qeCreateUserSubmit">
+                    <i class="bi bi-plus me-1"></i> Create User
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     Manage Users Modal
+     ============================================ -->
+<div class="modal fade" id="qeManageUsersModal" tabindex="-1" aria-labelledby="qeManageUsersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="qeManageUsersModalLabel">
+                    <i class="bi bi-people me-2"></i>Manage Users
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="qeManageRole" class="form-label">Role</label>
+                    <select class="form-select" id="qeManageRole">
+                        <option value="">Select a role...</option>
+                    </select>
+                </div>
+
+                <div id="qeManagePanel" style="display: none;">
+                    <!-- Attributes -->
+                    <div class="form-section-title-qe"><i class="bi bi-sliders"></i> Attributes</div>
+                    <div class="qe-manage-box mb-3">
+                        <div class="qe-attr-grid mb-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="qeMgLogin">
+                                <label class="form-check-label" for="qeMgLogin">Can login</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="qeMgCreateDb">
+                                <label class="form-check-label" for="qeMgCreateDb">Create databases</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="qeMgCreateRole">
+                                <label class="form-check-label" for="qeMgCreateRole">Create roles</label>
+                            </div>
+                            <div class="form-check form-switch" id="qeMgSuperuserWrap">
+                                <input class="form-check-input" type="checkbox" id="qeMgSuperuser">
+                                <label class="form-check-label" for="qeMgSuperuser">Superuser</label>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary" id="qeMgSaveAttrsBtn">
+                            <i class="bi bi-save me-1"></i> Save attributes
+                        </button>
+                    </div>
+
+                    <!-- Reset password -->
+                    <div class="form-section-title-qe"><i class="bi bi-key"></i> Reset password</div>
+                    <div class="qe-manage-box mb-3">
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="qeMgPassword"
+                                   placeholder="New password" autocomplete="new-password">
+                            <button class="btn btn-outline-secondary password-toggle" type="button" aria-label="Show or hide password"
+                                    onclick="qeTogglePassword('qeMgPassword', this)">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-primary" type="button" id="qeMgResetPwBtn">
+                                <i class="bi bi-arrow-repeat me-1"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Role membership -->
+                    <div class="form-section-title-qe"><i class="bi bi-diagram-3"></i> Role membership</div>
+                    <div class="qe-manage-box mb-3">
+                        <div class="form-text mb-2">Grant or revoke membership of another role for
+                            <span class="mono" id="qeMgMemberSubject"></span>.</div>
+                        <div class="input-group">
+                            <span class="input-group-text">Role</span>
+                            <select class="form-select" id="qeMgMembershipRole">
+                                <option value="">Select a role...</option>
+                            </select>
+                            <button class="btn btn-outline-primary" type="button" id="qeMgGrantMembershipBtn">
+                                <i class="bi bi-plus-lg"></i> Grant
+                            </button>
+                            <button class="btn btn-outline-danger" type="button" id="qeMgRevokeMembershipBtn">
+                                <i class="bi bi-dash-lg"></i> Revoke
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Database privileges -->
+                    <div class="form-section-title-qe"><i class="bi bi-shield-check"></i> Database privileges</div>
+                    <div class="qe-manage-box">
+                        <div class="row g-2 align-items-end mb-2">
+                            <div class="col-md-6">
+                                <label for="qeMgPrivDatabase" class="form-label">Database</label>
+                                <select class="form-select form-select-sm" id="qeMgPrivDatabase">
+                                    <option value="">Select database...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label d-block">Privileges</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="qeMgPrivConnect" value="CONNECT" checked>
+                                        <label class="form-check-label mono" for="qeMgPrivConnect">CONNECT</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="qeMgPrivCreate" value="CREATE">
+                                        <label class="form-check-label mono" for="qeMgPrivCreate">CREATE</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="qeMgPrivTemp" value="TEMP">
+                                        <label class="form-check-label mono" for="qeMgPrivTemp">TEMP</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="qeMgGrantPrivBtn">
+                            <i class="bi bi-plus-lg"></i> Grant
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="qeMgRevokePrivBtn">
+                            <i class="bi bi-dash-lg"></i> Revoke
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -322,6 +624,17 @@ const clearHistoryBtn = document.getElementById('qeClearHistoryBtn');
 
 let currentResults = null;
 
+// ---- DB admin state + refs ----
+let caps = null;              // {is_superuser, can_create_db, can_create_role, current_user}
+let allDatabases = [];        // last /api/databases response for this endpoint
+let rolesCache = [];          // last /api/db/roles response
+
+const adminActions   = document.getElementById('qeAdminActions');
+const newDbBtn       = document.getElementById('qeNewDbBtn');
+const newUserBtn     = document.getElementById('qeNewUserBtn');
+const manageUsersBtn = document.getElementById('qeManageUsersBtn');
+const connUserLabel  = document.getElementById('qeConnUser');
+
 // ============================================================
 // Ace Editor Setup
 // ============================================================
@@ -365,6 +678,9 @@ endpointSel.addEventListener('change', async function() {
     roleSel.innerHTML = '<option value="">Default (endpoint user)</option>';
     objectTree.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm"></span></div>';
     refreshBtn.disabled = true;
+    caps = null;
+    allDatabases = [];
+    updateAdminActions();
     updateRunState();
 
     if (!ep) {
@@ -376,11 +692,18 @@ endpointSel.addEventListener('change', async function() {
     try {
         const resp = await apiCall(`/api/databases/${ep}`);
         if (resp.success) {
+            allDatabases = resp.databases || [];
             databaseSel.innerHTML = '<option value="">Select database...</option>';
             resp.databases.forEach(db => {
                 const opt = document.createElement('option');
                 opt.value = db.name;
-                opt.textContent = `${db.name} (${db.size})`;
+                const canConnect = db.can_connect !== false;
+                const sizeLabel = (db.size !== null && db.size !== undefined) ? ` (${db.size})` : '';
+                opt.textContent = db.name + (canConnect ? sizeLabel : ' — no access');
+                if (!canConnect) {
+                    opt.disabled = true;
+                    opt.title = 'You cannot connect to this database with the current role';
+                }
                 databaseSel.appendChild(opt);
             });
             databaseSel.disabled = false;
@@ -404,8 +727,13 @@ databaseSel.addEventListener('change', async function() {
         roleSel.innerHTML = '<option value="">Default (endpoint user)</option>';
         objectTree.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-database" style="font-size:2rem;opacity:0.3;"></i><p class="mt-2 mb-0 small">Select a database</p></div>';
         refreshBtn.disabled = true;
+        caps = null;
+        updateAdminActions();
         return;
     }
+
+    // Load DB-admin capabilities for this connection (UX gating only)
+    loadCapabilities(ep, db);
 
     // Load roles
     try {
@@ -1015,6 +1343,361 @@ function esc(str) {
     d.textContent = String(str);
     return d.innerHTML;
 }
+
+// ============================================================
+// DB Admin: capabilities + create database / users / permissions
+// ============================================================
+
+// Global (used by inline onclick in the modals) show/hide password toggle
+function qeTogglePassword(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const icon = btn ? btn.querySelector('i') : null;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) icon.className = 'bi bi-eye-slash';
+    } else {
+        input.type = 'password';
+        if (icon) icon.className = 'bi bi-eye';
+    }
+}
+
+function endpointIsReadOnly() {
+    const opt = endpointSel.options[endpointSel.selectedIndex];
+    return !!(opt && opt.getAttribute('data-read-only') === 'true');
+}
+
+// The database used to *issue* management statements (default postgres)
+function mgmtConnDb() {
+    return databaseSel.value || 'postgres';
+}
+
+async function loadCapabilities(ep, db) {
+    caps = null;
+    updateAdminActions();
+    try {
+        const resp = await apiCall(`/api/db/capabilities/${ep}?database=${encodeURIComponent(db)}`);
+        if (resp && resp.success) {
+            caps = {
+                current_user: resp.current_user,
+                is_superuser: !!resp.is_superuser,
+                can_create_db: !!resp.can_create_db,
+                can_create_role: !!resp.can_create_role,
+            };
+        }
+    } catch (e) { /* capabilities are UX-only; ignore errors */ }
+    updateAdminActions();
+}
+
+function updateAdminActions() {
+    // Hide the whole group for read-only endpoints or when caps not loaded.
+    if (!caps || endpointIsReadOnly()) {
+        adminActions.classList.remove('qe-admin-visible');
+        adminActions.style.display = 'none';
+        return;
+    }
+    adminActions.classList.add('qe-admin-visible');
+    adminActions.style.display = 'flex';
+
+    const canDb   = caps.can_create_db || caps.is_superuser;
+    const canRole = caps.can_create_role || caps.is_superuser;
+
+    newDbBtn.disabled = !canDb;
+    newDbBtn.title = canDb
+        ? 'Create a new database on this server'
+        : 'Requires the CREATEDB attribute or superuser on the connected role';
+
+    newUserBtn.disabled = !canRole;
+    newUserBtn.title = canRole
+        ? 'Create a new role / user'
+        : 'Requires the CREATEROLE attribute or superuser on the connected role';
+
+    manageUsersBtn.disabled = !canRole;
+    manageUsersBtn.title = canRole
+        ? 'Modify role attributes, passwords and privileges'
+        : 'Requires the CREATEROLE attribute or superuser on the connected role';
+
+    connUserLabel.textContent = caps.current_user
+        ? `${caps.current_user}${caps.is_superuser ? ' · superuser' : ''}`
+        : '';
+}
+
+// Fetch roles for the current connection (cached in rolesCache)
+async function fetchRoles() {
+    const ep = endpointSel.value;
+    if (!ep) return [];
+    try {
+        const resp = await apiCall(`/api/db/roles/${ep}?database=${encodeURIComponent(mgmtConnDb())}`);
+        if (resp && resp.success) {
+            rolesCache = resp.roles || [];
+            return rolesCache;
+        }
+        showToast(`Failed to load roles: ${resp && resp.error ? resp.error : 'unknown error'}`, 'error');
+    } catch (e) {
+        showToast(`Failed to load roles: ${e.message}`, 'error');
+    }
+    return [];
+}
+
+function fillRoleSelect(sel, roles, placeholder) {
+    sel.innerHTML = `<option value="">${esc(placeholder)}</option>`;
+    roles.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.name;
+        opt.textContent = r.name + (r.is_superuser ? ' (superuser)' : '');
+        sel.appendChild(opt);
+    });
+}
+
+function fillDatabaseSelect(sel, placeholder) {
+    sel.innerHTML = `<option value="">${esc(placeholder)}</option>`;
+    allDatabases.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.name;
+        opt.textContent = d.name + (d.can_connect === false ? ' — no access' : '');
+        sel.appendChild(opt);
+    });
+}
+
+// Reload the endpoint's database list (e.g. after creating a database)
+async function refreshDatabaseList() {
+    const ep = endpointSel.value;
+    if (!ep) return;
+    const keep = databaseSel.value;
+    try {
+        const resp = await apiCall(`/api/databases/${ep}`);
+        if (resp.success) {
+            allDatabases = resp.databases || [];
+            databaseSel.innerHTML = '<option value="">Select database...</option>';
+            resp.databases.forEach(db => {
+                const opt = document.createElement('option');
+                opt.value = db.name;
+                const canConnect = db.can_connect !== false;
+                const sizeLabel = (db.size !== null && db.size !== undefined) ? ` (${db.size})` : '';
+                opt.textContent = db.name + (canConnect ? sizeLabel : ' — no access');
+                if (!canConnect) { opt.disabled = true; opt.title = 'You cannot connect to this database with the current role'; }
+                databaseSel.appendChild(opt);
+            });
+            if (keep) databaseSel.value = keep;
+        }
+    } catch (e) { /* ignore */ }
+}
+
+// ---- Create database ----
+const createDbModal = document.getElementById('qeCreateDbModal');
+newDbBtn.addEventListener('click', async () => {
+    document.getElementById('qeDbName').value = '';
+    document.getElementById('qeDbEncoding').value = '';
+    document.getElementById('qeDbTemplate').value = '';
+    const ownerSel = document.getElementById('qeDbOwner');
+    fillRoleSelect(ownerSel, await fetchRoles(), 'Default (current role)');
+    new bootstrap.Modal(createDbModal).show();
+});
+
+document.getElementById('qeCreateDbSubmit').addEventListener('click', async () => {
+    const name = document.getElementById('qeDbName').value.trim();
+    if (!name) { showToast('Database name is required', 'warning'); return; }
+    const payload = {
+        endpoint_name: endpointSel.value,
+        database: mgmtConnDb(),
+        name: name,
+        owner: document.getElementById('qeDbOwner').value || null,
+        encoding: document.getElementById('qeDbEncoding').value.trim() || null,
+        template: document.getElementById('qeDbTemplate').value.trim() || null,
+    };
+    const btn = document.getElementById('qeCreateDbSubmit');
+    btn.disabled = true;
+    try {
+        const resp = await apiCall('/api/db/database', 'POST', payload);
+        if (resp && resp.success) {
+            showToast(resp.message || `Database "${name}" created`, 'success');
+            bootstrap.Modal.getInstance(createDbModal).hide();
+            await refreshDatabaseList();
+        } else {
+            showToast((resp && (resp.detail || resp.error)) || 'Failed to create database', 'error');
+        }
+    } catch (e) {
+        showToast(`Failed to create database: ${e.message}`, 'error');
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+// ---- Create user (role) ----
+const createUserModal = document.getElementById('qeCreateUserModal');
+newUserBtn.addEventListener('click', () => {
+    document.getElementById('qeUserName').value = '';
+    document.getElementById('qeUserPassword').value = '';
+    document.getElementById('qeUserPassword').type = 'password';
+    document.getElementById('qeUserLogin').checked = true;
+    document.getElementById('qeUserCreateDb').checked = false;
+    document.getElementById('qeUserCreateRole').checked = false;
+    document.getElementById('qeUserSuperuser').checked = false;
+    document.getElementById('qeUserValidUntil').value = '';
+    // Superuser only offered when the connected role is a superuser
+    document.getElementById('qeUserSuperuserWrap').style.display =
+        (caps && caps.is_superuser) ? '' : 'none';
+    new bootstrap.Modal(createUserModal).show();
+});
+
+document.getElementById('qeCreateUserSubmit').addEventListener('click', async () => {
+    const name = document.getElementById('qeUserName').value.trim();
+    if (!name) { showToast('Role name is required', 'warning'); return; }
+    const validUntil = document.getElementById('qeUserValidUntil').value;
+    const payload = {
+        endpoint_name: endpointSel.value,
+        database: mgmtConnDb(),
+        name: name,
+        password: document.getElementById('qeUserPassword').value,
+        login: document.getElementById('qeUserLogin').checked,
+        createdb: document.getElementById('qeUserCreateDb').checked,
+        createrole: document.getElementById('qeUserCreateRole').checked,
+        superuser: (caps && caps.is_superuser) ? document.getElementById('qeUserSuperuser').checked : false,
+        valid_until: validUntil || null,
+    };
+    const btn = document.getElementById('qeCreateUserSubmit');
+    btn.disabled = true;
+    try {
+        const resp = await apiCall('/api/db/role', 'POST', payload);
+        if (resp && resp.success) {
+            showToast(resp.message || `Role "${name}" created`, 'success');
+            bootstrap.Modal.getInstance(createUserModal).hide();
+            rolesCache = [];
+        } else {
+            showToast((resp && (resp.detail || resp.error)) || 'Failed to create role', 'error');
+        }
+    } catch (e) {
+        showToast(`Failed to create role: ${e.message}`, 'error');
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+// ---- Manage users ----
+const manageUsersModal = document.getElementById('qeManageUsersModal');
+const manageRoleSel    = document.getElementById('qeManageRole');
+const managePanel      = document.getElementById('qeManagePanel');
+
+manageUsersBtn.addEventListener('click', async () => {
+    managePanel.style.display = 'none';
+    const roles = await fetchRoles();
+    fillRoleSelect(manageRoleSel, roles, 'Select a role...');
+    fillRoleSelect(document.getElementById('qeMgMembershipRole'), roles, 'Select a role...');
+    fillDatabaseSelect(document.getElementById('qeMgPrivDatabase'), 'Select database...');
+    // Superuser toggle only when the connected role is superuser
+    document.getElementById('qeMgSuperuserWrap').style.display =
+        (caps && caps.is_superuser) ? '' : 'none';
+    new bootstrap.Modal(manageUsersModal).show();
+});
+
+manageRoleSel.addEventListener('change', function() {
+    const roleName = this.value;
+    if (!roleName) { managePanel.style.display = 'none'; return; }
+    const r = rolesCache.find(x => x.name === roleName);
+    if (!r) { managePanel.style.display = 'none'; return; }
+    document.getElementById('qeMgLogin').checked = !!r.can_login;
+    document.getElementById('qeMgCreateDb').checked = !!r.can_create_db;
+    document.getElementById('qeMgCreateRole').checked = !!r.can_create_role;
+    document.getElementById('qeMgSuperuser').checked = !!r.is_superuser;
+    document.getElementById('qeMgPassword').value = '';
+    document.getElementById('qeMgMemberSubject').textContent = roleName;
+    managePanel.style.display = '';
+});
+
+async function postMgmt(url, payload, okMsg) {
+    try {
+        const resp = await apiCall(url, 'POST', payload);
+        if (resp && resp.success) {
+            showToast(resp.message || okMsg, 'success');
+            return true;
+        }
+        showToast((resp && (resp.detail || resp.error)) || 'Operation failed', 'error');
+    } catch (e) {
+        showToast(`Operation failed: ${e.message}`, 'error');
+    }
+    return false;
+}
+
+// Save attribute toggles
+document.getElementById('qeMgSaveAttrsBtn').addEventListener('click', async () => {
+    const roleName = manageRoleSel.value;
+    if (!roleName) return;
+    const payload = {
+        endpoint_name: endpointSel.value,
+        database: mgmtConnDb(),
+        name: roleName,
+        login: document.getElementById('qeMgLogin').checked,
+        createdb: document.getElementById('qeMgCreateDb').checked,
+        createrole: document.getElementById('qeMgCreateRole').checked,
+    };
+    // Only submit the superuser attribute when the connected role can grant it
+    if (caps && caps.is_superuser) {
+        payload.superuser = document.getElementById('qeMgSuperuser').checked;
+    }
+    const btn = document.getElementById('qeMgSaveAttrsBtn');
+    btn.disabled = true;
+    const ok = await postMgmt('/api/db/role/alter', payload, `Attributes updated for "${roleName}"`);
+    btn.disabled = false;
+    if (ok) { rolesCache = []; rolesCache = await fetchRoles(); }
+});
+
+// Reset password
+document.getElementById('qeMgResetPwBtn').addEventListener('click', async () => {
+    const roleName = manageRoleSel.value;
+    if (!roleName) return;
+    const pw = document.getElementById('qeMgPassword').value;
+    if (!pw) { showToast('Enter a new password', 'warning'); return; }
+    const payload = {
+        endpoint_name: endpointSel.value,
+        database: mgmtConnDb(),
+        name: roleName,
+        password: pw,
+    };
+    const btn = document.getElementById('qeMgResetPwBtn');
+    btn.disabled = true;
+    const ok = await postMgmt('/api/db/role/alter', payload, `Password reset for "${roleName}"`);
+    if (ok) document.getElementById('qeMgPassword').value = '';
+    btn.disabled = false;
+});
+
+// Role membership grant / revoke
+async function doMembership(grant) {
+    const subject = manageRoleSel.value;
+    const memberOf = document.getElementById('qeMgMembershipRole').value;
+    if (!subject || !memberOf) { showToast('Select a role to grant/revoke', 'warning'); return; }
+    if (subject === memberOf) { showToast('A role cannot be a member of itself', 'warning'); return; }
+    await postMgmt('/api/db/role/membership', {
+        endpoint_name: endpointSel.value,
+        database: mgmtConnDb(),
+        role: memberOf,      // the group role
+        member: subject,     // the role being managed becomes a member
+        grant: grant,
+    }, grant ? `Granted "${memberOf}" to "${subject}"` : `Revoked "${memberOf}" from "${subject}"`);
+}
+document.getElementById('qeMgGrantMembershipBtn').addEventListener('click', () => doMembership(true));
+document.getElementById('qeMgRevokeMembershipBtn').addEventListener('click', () => doMembership(false));
+
+// Database privileges grant / revoke
+async function doPrivileges(grant) {
+    const roleName = manageRoleSel.value;
+    const targetDb = document.getElementById('qeMgPrivDatabase').value;
+    if (!roleName || !targetDb) { showToast('Select a database', 'warning'); return; }
+    const privileges = [];
+    if (document.getElementById('qeMgPrivConnect').checked) privileges.push('CONNECT');
+    if (document.getElementById('qeMgPrivCreate').checked) privileges.push('CREATE');
+    if (document.getElementById('qeMgPrivTemp').checked) privileges.push('TEMP');
+    if (privileges.length === 0) { showToast('Select at least one privilege', 'warning'); return; }
+    await postMgmt('/api/db/database/privileges', {
+        endpoint_name: endpointSel.value,
+        database: mgmtConnDb(),
+        target_database: targetDb,
+        role: roleName,
+        privileges: privileges,
+        grant: grant,
+    }, grant ? `Privileges granted on "${targetDb}"` : `Privileges revoked on "${targetDb}"`);
+}
+document.getElementById('qeMgGrantPrivBtn').addEventListener('click', () => doPrivileges(true));
+document.getElementById('qeMgRevokePrivBtn').addEventListener('click', () => doPrivileges(false));
 
 // Initialize Bootstrap tooltips
 document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));

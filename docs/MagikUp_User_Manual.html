@@ -309,7 +309,7 @@
   <h1>Magiku(r)p</h1>
   <div class="subtitle">PostgreSQL Backup &amp; Restore Web Application</div>
   <div class="subtitle" style="font-size:14pt; color:#495057;">Manuale Utente</div>
-  <div class="version">Versione 4.1.1</div>
+  <div class="version">Versione 4.2.0</div>
   <div class="meta">
     MagikUp<br>
     Aprile 2026
@@ -484,10 +484,10 @@ FastAPI (main.py) ── Auth (auth.py) ── Users (users.json)
 <h3>Build e Push dell&rsquo;immagine</h3>
 <pre>
 # Build dell'immagine Docker
-docker build -t ghcr.io/fpellizz/magikup:4.1.1 .
+docker build -t ghcr.io/fpellizz/magikup:4.2.0 .
 
 # Push al registry
-docker push ghcr.io/fpellizz/magikup:4.1.1
+docker push ghcr.io/fpellizz/magikup:4.2.0
 </pre>
 
 <h3>Configurazione Secrets</h3>
@@ -1613,6 +1613,13 @@ La vecchia route <code>/about</code> effettua un redirect automatico a <code>/in
 <h3>Cronologia Versioni</h3>
 <p>La card <strong>Version History</strong> nella pagina Info riporta il changelog dell&rsquo;applicazione. Di seguito il dettaglio della versione corrente:</p>
 
+<h4>Versione 4.2.0</h4>
+<ul>
+  <li><strong>Pagina Query &mdash; gestione database e utenti</strong> &mdash; Quando il ruolo connesso al database &egrave; superuser o ha l&rsquo;attributo pertinente (<code>CREATEDB</code> / <code>CREATEROLE</code>), dalla pagina Query si possono ora <strong>creare database</strong>, <strong>creare utenti (ruoli)</strong> e <strong>modificare i permessi degli utenti</strong> (attributi del ruolo, reset password, appartenenza a ruoli e concessioni a livello di database <code>CONNECT</code>/<code>CREATE</code>/<code>TEMP</code>) tramite dialog coerenti col design system, abilitati in base alle capability. Le azioni sono nascoste sugli endpoint read-only e disabilitate se il ruolo connesso non ha il privilegio (il database resta l&rsquo;autorit&agrave; finale).</li>
+  <li><strong>Tutti i database del server</strong> &mdash; L&rsquo;elenco dei database non &egrave; pi&ugrave; limitato a quelli connettibili: vengono mostrati tutti i database presenti sul server (quelli senza <code>CONNECT</code> sono marcati e in grigio).</li>
+  <li>Nuovi endpoint <code>/api/db/*</code>; le operazioni di modifica richiedono privilegi operator, sono rifiutate sugli endpoint read-only, validano gli identificatori a monte e costruiscono l&rsquo;SQL solo con <code>psycopg2.sql</code> (nessuna interpolazione di stringa); le password non vengono mai loggate.</li>
+</ul>
+
 <h4>Versione 4.1.1</h4>
 <ul>
   <li><strong>Larghezza delle pagine uniforme</strong> &mdash; Tutte le schermate ora si centrano su un&rsquo;unica larghezza massima condivisa (un contenitore globale <code>.app-main</code> in <code>base.html</code>/<code>static/style.css</code>). Prima alcune pagine (Backup, Transfer, Files) erano centrate a una larghezza pi&ugrave; stretta mentre altre (Dashboard, Restore, Query, Schedules, Admin) andavano a piena larghezza, causando il disallineamento; i wrapper di larghezza per-pagina sono stati rimossi a favore di un&rsquo;unica &laquo;page shell&raquo;. Correzione puramente estetica.</li>
@@ -1981,7 +1988,7 @@ MagikUp Pod ──&gt; SSM Session ──&gt; EC2 Jump Host ──&gt; VPC Netwo
 <!-- ==================== FOOTER ==================== -->
 <div style="margin-top:60px; padding-top:20px; border-top:2px solid #6f42c1; text-align:center; color:#6c757d; font-size:9pt;">
   <p><strong>Magiku(r)p</strong> &mdash; PostgreSQL Backup &amp; Restore Web Application</p>
-  <p>Versione 4.1.1 &mdash; 2026 &mdash; MagikUp</p>
+  <p>Versione 4.2.0 &mdash; 2026 &mdash; MagikUp</p>
   <p><em>Manuale utente</em></p>
 </div>
 
