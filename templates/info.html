@@ -320,14 +320,18 @@
                 <div class="version-timeline">
                     <div class="tl-item tl-current">
                         <div class="tl-head">
-                            <span class="tl-version">4.2.0</span>
+                            <span class="tl-version">4.3.0</span>
                             <span class="tl-current-tag">Current</span>
                         </div>
                         <ul class="tl-list">
-                            <li><i class="bi bi-check2"></i>Query page: create databases and users, and modify user permissions — capability-gated (superuser / CREATEDB / CREATEROLE), refused on read-only endpoints</li>
-                            <li><i class="bi bi-check2"></i>See all databases on the server, not just the connected one (non-connectable ones marked)</li>
-                            <li><i class="bi bi-check2"></i>Safe DDL via psycopg2.sql only; identifiers validated up-front; passwords never logged</li>
+                            <li><i class="bi bi-check2"></i>Email sending (SMTP): encrypted [smtp] config in Admin → Settings with a Send test email action</li>
+                            <li><i class="bi bi-check2"></i>Optional email field on users; foundation for password recovery + future alerts</li>
+                            <li><i class="bi bi-check2"></i>Password masked/preserved, header-injection defenses, no secrets in logs</li>
                         </ul>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">4.2.0</span></div>
+                        <div class="tl-desc">Query page: create databases/users + modify permissions (capability-gated); see all server databases</div>
                     </div>
                     <div class="tl-item">
                         <div class="tl-head"><span class="tl-version">4.1.1</span></div>
