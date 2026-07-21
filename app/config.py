@@ -107,6 +107,16 @@ class ScheduleConfig:
     dest_target: str = ""           # referenced storage-config name; empty when dest_kind=none
     delete_local_after_copy: bool = False
     keep_last_n: int = 0            # local retention for this DB; 0 = unlimited
+    # --- email notifications (v4.4.0) ---
+    # notify: when to email about a run's outcome. One of NOTIFY_POLICIES.
+    #   off        -> never (default; backward compatible with old sections)
+    #   on_failure -> only failures (incl. copy_failed)
+    #   on_success -> only fully successful runs
+    #   always     -> every completed run, success or failure
+    notify: str = "off"
+    # Comma-separated recipient email addresses. Empty => no notification is sent
+    # regardless of policy. Validated (each address) on save.
+    notify_recipients: str = ""
 
 
 @dataclass
@@ -148,10 +158,19 @@ class SMTPConfig:
     from_name: str = "MagikUp"
     reply_to: str = ""
     timeout_seconds: int = 15
+    # Canonical public base URL used to build links in outgoing emails (e.g. the
+    # password-reset link), e.g. "https://magikup.example.com". When empty, links
+    # fall back to the request Host — which is ONLY trusted when ALLOWED_HOSTS is a
+    # real allowlist; otherwise link-bearing emails are not sent (see main.py).
+    base_url: str = ""
 
 
 VALID_SMTP_SECURITY = ("starttls", "ssl", "none")
 DEFAULT_SMTP_SECURITY = "starttls"
+
+# Scheduled-backup email notification policies (see ScheduleConfig.notify).
+NOTIFY_POLICIES = ("off", "on_failure", "on_success", "always")
+DEFAULT_NOTIFY_POLICY = "off"
 SMTP_TIMEOUT_MIN = 5
 SMTP_TIMEOUT_MAX = 60
 DEFAULT_SMTP_TIMEOUT = 15
@@ -416,6 +435,8 @@ region = us-east-1
 #   dest_target =             ; referenced storage-config name; empty when dest_kind=none
 #   delete_local_after_copy = false  ; honored only when dest_kind != none
 #   keep_last_n = 0           ; local retention for this DB; 0 = unlimited
+#   notify = off              ; email policy: off|on_failure|on_success|always
+#   notify_recipients =       ; comma-separated recipient emails (validated on save)
 """
 
 
@@ -854,6 +875,7 @@ def get_smtp_config() -> SMTPConfig:
         from_name=config.get(section, 'from_name', fallback='MagikUp'),
         reply_to=config.get(section, 'reply_to', fallback=''),
         timeout_seconds=config.getint(section, 'timeout_seconds', fallback=DEFAULT_SMTP_TIMEOUT),
+        base_url=config.get(section, 'base_url', fallback=''),
     )
 
 
@@ -885,6 +907,7 @@ def save_smtp_config(smtp: SMTPConfig) -> None:
     config.set(section, 'from_name', smtp.from_name)
     config.set(section, 'reply_to', smtp.reply_to)
     config.set(section, 'timeout_seconds', str(smtp.timeout_seconds))
+    config.set(section, 'base_url', smtp.base_url)
     write_config(config)
     logger.info("Saved SMTP config (enabled: %s, host: %s, port: %s, security: %s)",
                 smtp.enabled, smtp.host, smtp.port, smtp.security)
@@ -958,6 +981,10 @@ def get_schedules() -> Dict[str, ScheduleConfig]:
                 dest_target=config.get(section, 'dest_target', fallback=''),
                 delete_local_after_copy=config.getboolean(section, 'delete_local_after_copy', fallback=False),
                 keep_last_n=config.getint(section, 'keep_last_n', fallback=0),
+                # Notification fields (v4.4.0). Old sections lack these keys;
+                # fall back to "off"/"" so they stay disabled and valid.
+                notify=config.get(section, 'notify', fallback=DEFAULT_NOTIFY_POLICY),
+                notify_recipients=config.get(section, 'notify_recipients', fallback=''),
             )
     return schedules
 
@@ -971,8 +998,28 @@ def save_schedule(sched: ScheduleConfig) -> None:
     """Save a scheduled backup definition under [schedule:<name>].
 
     The name is validated (validate_schedule_name); no secrets are stored — a
-    schedule references an endpoint and remote target by name only."""
+    schedule references an endpoint and remote target by name only.
+
+    Notification settings are validated too: ``notify`` must be one of
+    NOTIFY_POLICIES and every address in ``notify_recipients`` (CSV) must pass
+    email_service.is_valid_email. Raises ValueError on any violation."""
     validate_schedule_name(sched.name)
+
+    # Validate notification policy + recipients before persisting.
+    policy = (sched.notify or DEFAULT_NOTIFY_POLICY).strip().lower()
+    if policy not in NOTIFY_POLICIES:
+        raise ValueError(
+            f"Invalid notify policy '{sched.notify}'. Allowed: {', '.join(NOTIFY_POLICIES)}"
+        )
+    recipients = [r.strip() for r in (sched.notify_recipients or "").split(",") if r.strip()]
+    if recipients:
+        # Local import avoids a config <-> email_service import cycle.
+        from . import email_service
+        for addr in recipients:
+            if not email_service.is_valid_email(addr):
+                raise ValueError(f"Invalid notification recipient address: {addr}")
+    normalized_recipients = ",".join(recipients)
+
     config = read_config()
     section = f'schedule:{sched.name}'
     if section not in config:
@@ -998,9 +1045,12 @@ def save_schedule(sched: ScheduleConfig) -> None:
     config.set(section, 'dest_target', sched.dest_target)
     config.set(section, 'delete_local_after_copy', str(sched.delete_local_after_copy).lower())
     config.set(section, 'keep_last_n', str(sched.keep_last_n))
+    config.set(section, 'notify', policy)
+    config.set(section, 'notify_recipients', normalized_recipients)
     write_config(config)
     logger.info(f"Saved schedule '{sched.name}' (cron: {sched.cron}, endpoint: {sched.endpoint}, "
-                f"database: {sched.database}, enabled: {sched.enabled})")
+                f"database: {sched.database}, enabled: {sched.enabled}, notify: {policy}, "
+                f"recipients: {len(recipients)})")
 
 
 def delete_schedule(name: str) -> None:

@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:4.3.0 .
-docker push ghcr.io/fpellizz/magikup:4.3.0
+docker build -t ghcr.io/fpellizz/magikup:4.4.0 .
+docker push ghcr.io/fpellizz/magikup:4.4.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,12 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 4.4.0
+
+- **Password recovery (self-service)** — a **Forgot password?** link on the login page starts an email-based reset: a signed, expiring (30 min), single-use token (via `itsdangerous`, `pwv` password-hash fingerprint) is emailed as a reset link; the reset page enforces the password policy and a successful reset also clears any account lockout. Strict **no-user-enumeration** (always a generic response), per-IP rate limiting, and audit logging. New `forgot-password` / `reset-password` pages styled like login. Reset links are built from a configured **SMTP base URL** (or a locked-down `ALLOWED_HOSTS`) — never from an attacker-controllable `Host` header — and the send happens after the response to avoid a timing oracle.
+- **Scheduled-backup email notifications** — each schedule can email on a **policy** (Off / On failure / On success / Always) to one or more recipients, with built-in success/failure templates (endpoint, database, filename, size, duration, destination, error). Sending is best-effort and never blocks or fails a backup. Configure it in the schedule dialog (Admin → Schedules); a bell chip in the list shows the active policy.
+- The user **email** field is now surfaced as needed for password recovery (still technically optional so a no-email bootstrap admin isn't locked out).
 
 ### 4.3.0
 

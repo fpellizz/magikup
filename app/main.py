@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Tuple
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, File, UploadFile, Depends, Form
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, File, UploadFile, Depends, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -69,7 +69,7 @@ logger.info(f"Context path: '{_context_path}' (empty = root)")
 app = FastAPI(
     title="PostgreSQL Backup/Restore",
     description="Backup and restore PostgreSQL databases via direct or SSM tunnel connections",
-    version="4.3.0",
+    version="4.4.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -272,6 +272,7 @@ class SMTPConfigIn(BaseModel):
     from_name: Optional[str] = "MagikUp"
     reply_to: Optional[str] = ""
     timeout_seconds: int = 15
+    base_url: Optional[str] = ""
 
 
 class SMTPTestModel(BaseModel):
@@ -404,6 +405,9 @@ class ScheduleModel(BaseModel):
     dest_target: Optional[str] = None
     delete_local_after_copy: bool = False
     keep_last_n: int = 0
+    # Email notifications (v4.4.0).
+    notify: str = "off"                       # off|on_failure|on_success|always
+    notify_recipients: List[str] = []         # list of recipient email addresses
 
 
 class ScheduleToggleModel(BaseModel):
@@ -613,6 +617,151 @@ async def logout(request: Request):
     response = RedirectResponse(url=f"{_context_path}/login", status_code=303)
     response.delete_cookie(key="session_token")
     return response
+
+
+# =============================================================================
+# Password Recovery (self-service reset via email) — all unauthenticated
+# =============================================================================
+
+def _reset_link(request: Request, token: str) -> Optional[str]:
+    """Build the absolute reset link from a TRUSTED base only.
+
+    The reset link is a bearer secret emailed to the user, so its host must not be
+    attacker-controllable (Host-header poisoning → token exfiltration). Priority:
+      1. the configured SMTP ``base_url`` (server-controlled, authoritative);
+      2. else the request Host, but ONLY when ALLOWED_HOSTS is a real allowlist
+         (TrustedHostMiddleware then guarantees the Host is one we trust).
+    Returns None when no trusted base exists (ALLOWED_HOSTS == ['*'] and no
+    base_url) — the caller then skips sending rather than mail an untrusted link."""
+    base = cfg.get_smtp_config().base_url.strip()
+    if base:
+        return f"{base.rstrip('/')}/reset-password?token={token}"
+    if _allowed_hosts != ["*"]:
+        scheme = (request.headers.get("x-forwarded-proto")
+                  or request.url.scheme or "https").split(",")[0].strip()
+        host = request.headers.get("host") or request.url.netloc
+        return f"{scheme}://{host}{_context_path}/reset-password?token={token}"
+    return None
+
+
+@app.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    """Render the 'forgot password' request form (unauthenticated)."""
+    return templates.TemplateResponse("forgot_password.html", {"request": request})
+
+
+@app.post("/forgot-password", response_class=HTMLResponse)
+async def forgot_password(request: Request, background_tasks: BackgroundTasks, identifier: str = Form(...)):
+    """Accept a username or email and ALWAYS return the same generic
+    confirmation (no user enumeration). An email is dispatched only when the
+    identifier resolves to an enabled user WITH an email AND SMTP is enabled."""
+    ip = request.client.host if request.client else "unknown"
+
+    # Per-IP rate limit (reuses the shared login limiter). When blocked we still
+    # return the generic confirmation but skip the resolve/send work entirely.
+    is_blocked, _ = auth._check_rate_limit(ip)
+    if not is_blocked:
+        auth._record_failed_attempt(ip)
+        try:
+            payload = auth.request_password_reset(identifier, ip)
+            if payload:
+                smtp = cfg.get_smtp_config()
+                link = _reset_link(request, payload["token"]) if (smtp.enabled and smtp.host) else None
+                if smtp.enabled and smtp.host and link is None:
+                    # No trusted base URL to build the link from — do not mail an
+                    # attacker-controllable host. Admin must set SMTP base_url or a
+                    # non-wildcard ALLOWED_HOSTS.
+                    auth.audit_log("password_reset_email_suppressed", payload["username"], ip, "no_trusted_base_url")
+                    logger.warning("Password-reset email suppressed: configure SMTP base_url "
+                                   "(or a non-wildcard ALLOWED_HOSTS) to build a trusted reset link.")
+                elif link is not None:
+                    subject = "Reset your MagikUp password"
+                    text = (
+                        "We received a request to reset your MagikUp password.\n\n"
+                        f"Open this link to choose a new password (valid for 30 minutes):\n{link}\n\n"
+                        "If you didn't request this, you can safely ignore this email — "
+                        "your password will not change."
+                    )
+                    html = (
+                        "<html><body style=\"font-family:-apple-system,Segoe UI,Roboto,sans-serif;"
+                        "color:#111827;\">"
+                        "<p>We received a request to reset your <strong>MagikUp</strong> password.</p>"
+                        f'<p><a href="{link}" style="background:#7c3aed;color:#fff;padding:10px 18px;'
+                        'border-radius:6px;text-decoration:none;display:inline-block;">'
+                        "Choose a new password</a></p>"
+                        "<p style=\"color:#6b7280;font-size:13px;\">This link is valid for 30 minutes. "
+                        "If the button doesn't work, copy and paste this URL:</p>"
+                        f'<p style="font-family:monospace;font-size:12px;word-break:break-all;">{link}</p>'
+                        "<p style=\"color:#9ca3af;font-size:12px;margin-top:16px;\">"
+                        "If you didn't request this, you can safely ignore this email — "
+                        "your password will not change.</p>"
+                        "</body></html>"
+                    )
+
+                    # Send AFTER the response (BackgroundTasks) so the HTTP
+                    # response time is identical whether or not an email goes out,
+                    # closing the timing side-channel that would otherwise reveal
+                    # "valid account with an email".
+                    def _send(username, recipient):
+                        try:
+                            email_service.send_email(recipient, subject, html, text)
+                            auth.audit_log("password_reset_email_sent", username, ip)
+                        except Exception as exc:
+                            auth.audit_log("password_reset_email_error", username, ip,
+                                           exc.__class__.__name__)
+                            logger.warning("Password-reset email to %s failed: %s",
+                                           username, exc.__class__.__name__)
+                    background_tasks.add_task(_send, payload["username"], payload["email"])
+        except Exception:
+            # Any unexpected failure must still yield the generic response.
+            logger.warning("forgot-password handling error (suppressed)")
+
+    return templates.TemplateResponse("forgot_password.html",
+                                      {"request": request, "submitted": True})
+
+
+@app.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request, token: str = ""):
+    """Validate the token and render the reset form, or a generic invalid/expired
+    state. Does not reveal which condition failed."""
+    user = auth.verify_reset_token(token)
+    if not user:
+        return templates.TemplateResponse("reset_password.html",
+                                          {"request": request, "valid": False})
+    return templates.TemplateResponse("reset_password.html",
+                                      {"request": request, "valid": True, "token": token})
+
+
+@app.post("/reset-password", response_class=HTMLResponse)
+async def reset_password(request: Request, token: str = Form(...),
+                         password: str = Form(...),
+                         confirm_password: str = Form(...)):
+    """Validate token + policy, set the new password, clear lockout. Redirects
+    to /login on success (no auto-login)."""
+    ip = request.client.host if request.client else "unknown"
+
+    # Confirm-match first (cheap; token preserved for re-submit).
+    if password != confirm_password:
+        # Only re-render the form if the token is still valid; else generic state.
+        if auth.verify_reset_token(token):
+            return templates.TemplateResponse("reset_password.html", {
+                "request": request, "valid": True, "token": token,
+                "error": "The passwords do not match.",
+            })
+        return templates.TemplateResponse("reset_password.html",
+                                          {"request": request, "valid": False})
+
+    success, error_msg, category = auth.reset_password_with_token(token, password, ip)
+    if success:
+        return templates.TemplateResponse("reset_password.html",
+                                          {"request": request, "success": True})
+    if category == "policy":
+        return templates.TemplateResponse("reset_password.html", {
+            "request": request, "valid": True, "token": token, "error": error_msg,
+        })
+    # invalid_token (or anything else) -> generic invalid/expired state.
+    return templates.TemplateResponse("reset_password.html",
+                                      {"request": request, "valid": False})
 
 
 # =============================================================================
@@ -2140,6 +2289,7 @@ async def api_get_smtp(user: dict = Depends(auth.require_admin)):
         "from_name": s.from_name,
         "reply_to": s.reply_to,
         "timeout_seconds": s.timeout_seconds,
+        "base_url": s.base_url,
         "configured": bool(s.enabled and s.host),
     }
 
@@ -2168,6 +2318,10 @@ async def api_save_smtp(smtp: SMTPConfigIn, user: dict = Depends(auth.require_ad
     if reply_to and not email_service.is_valid_email(reply_to):
         raise HTTPException(status_code=400, detail="Reply-To is not a valid email")
 
+    base_url = (smtp.base_url or "").strip()
+    if base_url and not (base_url.startswith("http://") or base_url.startswith("https://")):
+        raise HTTPException(status_code=400, detail="Base URL must start with http:// or https://")
+
     cfg.save_smtp_config(cfg.SMTPConfig(
         enabled=smtp.enabled,
         host=(smtp.host or "").strip(),
@@ -2179,6 +2333,7 @@ async def api_save_smtp(smtp: SMTPConfigIn, user: dict = Depends(auth.require_ad
         from_name=smtp.from_name or "",
         reply_to=reply_to,
         timeout_seconds=smtp.timeout_seconds,
+        base_url=base_url,
     ))
     return {"status": "ok"}
 
@@ -2381,6 +2536,8 @@ def _schedule_to_dict(sched: cfg.ScheduleConfig) -> dict:
         "dest_target": sched.dest_target,
         "delete_local_after_copy": sched.delete_local_after_copy,
         "keep_last_n": sched.keep_last_n,
+        "notify": sched.notify,
+        "notify_recipients": [r.strip() for r in sched.notify_recipients.split(",") if r.strip()],
     }
 
 
@@ -2459,6 +2616,17 @@ def _validate_and_build_schedule(model: ScheduleModel) -> cfg.ScheduleConfig:
     if model.keep_last_n < 0:
         raise HTTPException(status_code=400, detail="keep_last_n must be zero or greater")
 
+    # Notifications: policy against the fixed set + each recipient address.
+    notify = (model.notify or "off").strip().lower()
+    if notify not in cfg.NOTIFY_POLICIES:
+        raise HTTPException(status_code=400,
+                            detail=f"Invalid notify policy. Allowed: {', '.join(cfg.NOTIFY_POLICIES)}")
+    notify_recipients = [r.strip() for r in model.notify_recipients if r and r.strip()]
+    for addr in notify_recipients:
+        if not email_service.is_valid_email(addr):
+            raise HTTPException(status_code=400,
+                                detail=f"Invalid notification recipient address: {addr}")
+
     return cfg.ScheduleConfig(
         name=model.name,
         cron=expr,
@@ -2482,6 +2650,8 @@ def _validate_and_build_schedule(model: ScheduleModel) -> cfg.ScheduleConfig:
         dest_target=dest_target,
         delete_local_after_copy=model.delete_local_after_copy,
         keep_last_n=model.keep_last_n,
+        notify=notify,
+        notify_recipients=",".join(notify_recipients),
     )
 
 
@@ -2529,6 +2699,51 @@ def apply_local_retention(sched: cfg.ScheduleConfig) -> None:
         logger.warning("Local retention for schedule '%s' failed: %s", sched.name, exc)
 
 
+def _notify_schedule_outcome(sched: cfg.ScheduleConfig, *, status: str, trigger: str,
+                             filename=None, size=None, duration_seconds=None,
+                             error: str = None) -> None:
+    """Best-effort email notification for a finished schedule run. Applies the
+    schedule's policy, checks SMTP is enabled and that recipients exist, then
+    hands off to email_service.send_schedule_notification (which itself never
+    raises). This whole function is wrapped so it can NEVER fail a backup.
+
+    Policy match: always -> any outcome; on_failure -> any failure (incl.
+    copy_failed); on_success -> success only. ``status == "success"`` is the
+    only success; everything else is a failure."""
+    try:
+        policy = (sched.notify or "off").strip().lower()
+        if policy == "off":
+            return
+        succeeded = status == "success"
+        if policy == "on_success" and not succeeded:
+            return
+        if policy == "on_failure" and succeeded:
+            return
+        recipients = [r.strip() for r in (sched.notify_recipients or "").split(",") if r.strip()]
+        if not recipients:
+            return
+        smtp = cfg.get_smtp_config()
+        if not smtp.enabled or not smtp.host:
+            return
+        destination = sched.dest_kind if sched.dest_kind and sched.dest_kind != "none" else "local"
+        email_service.send_schedule_notification(
+            recipients,
+            schedule_name=sched.name,
+            status=status,
+            endpoint=sched.endpoint,
+            database=sched.database,
+            filename=filename,
+            size=size,
+            duration_seconds=duration_seconds,
+            destination=destination,
+            trigger=trigger,
+            error=error,
+        )
+    except Exception as exc:
+        logger.warning("Schedule notification for '%s' skipped: %s",
+                       getattr(sched, "name", "?"), exc.__class__.__name__)
+
+
 async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=None, filename=None):
     """Run a single backup for schedule ``name``. Reuses the manual backup
     machinery (run_backup generator + broadcaster + _running_operations) and
@@ -2554,6 +2769,10 @@ async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=Non
         if operation_id:
             ol.complete_operation(operation_id, status="failed", error="Endpoint not found")
         _record_schedule_failure(name, sched, "failed", "Endpoint not found")
+        _notify_schedule_outcome(
+            sched, status="failed", trigger=trigger,
+            duration_seconds=(datetime.now(timezone.utc) - now).total_seconds(),
+            error="Endpoint not found")
         return
 
     # 2. Replica + SSM tunnel resolution (mirrors the manual path).
@@ -2567,6 +2786,10 @@ async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=Non
         if operation_id:
             ol.complete_operation(operation_id, status="failed", error=f"Connection failed: {exc}")
         _record_schedule_failure(name, sched, "failed", f"Connection failed: {exc}")
+        _notify_schedule_outcome(
+            sched, status="failed", trigger=trigger,
+            duration_seconds=(datetime.now(timezone.utc) - now).total_seconds(),
+            error=f"Connection failed: {exc}")
         return
 
     # 3. Options + output file.
@@ -2640,6 +2863,10 @@ async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=Non
     if not backup_ok:
         # run_backup already completed the operation as failed; ensure state too.
         _record_schedule_failure(name, sched, "failed", "Backup failed")
+        _notify_schedule_outcome(
+            sched, status="failed", trigger=trigger, filename=filename,
+            duration_seconds=(datetime.now(timezone.utc) - now).total_seconds(),
+            error="Backup failed (pg_dump)")
         return
 
     # --- Phase 2: remote push (only when a destination is configured) ---
@@ -2647,6 +2874,13 @@ async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=Non
         ol.complete_operation(operation_id, status="completed")
         schedule_state.mark(name, last_status="success", last_run=now.isoformat(),
                             last_error="", consecutive_failures=0)
+        try:
+            final_size = os.path.getsize(output_file)
+        except OSError:
+            final_size = None
+        _notify_schedule_outcome(
+            sched, status="success", trigger=trigger, filename=filename, size=final_size,
+            duration_seconds=(datetime.now(timezone.utc) - now).total_seconds())
         apply_local_retention(sched)
         return
 
@@ -2676,6 +2910,11 @@ async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=Non
         ol.complete_operation(operation_id, status="completed", error=err)
         ol.log_message(operation_id, f"Remote push failed; local copy kept: {result.get('error')}")
         _record_schedule_failure(name, sched, "copy_failed", err)
+        _notify_schedule_outcome(
+            sched, status="copy_failed", trigger=trigger, filename=filename,
+            size=(local_size if local_size >= 0 else None),
+            duration_seconds=(datetime.now(timezone.utc) - now).total_seconds(),
+            error=err)
         return
 
     # --- Phase 3: verified delete-local (opt-in) ---
@@ -2693,6 +2932,10 @@ async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=Non
     ol.complete_operation(operation_id, status="completed")
     schedule_state.mark(name, last_status="success", last_run=now.isoformat(),
                         last_error="", consecutive_failures=0)
+    _notify_schedule_outcome(
+        sched, status="success", trigger=trigger, filename=filename,
+        size=(local_size if local_size >= 0 else None),
+        duration_seconds=(datetime.now(timezone.utc) - now).total_seconds())
     apply_local_retention(sched)
 
 
