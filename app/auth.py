@@ -67,6 +67,14 @@ def _get_secret_key() -> str:
 SECRET_KEY = _get_secret_key()
 session_serializer = URLSafeTimedSerializer(SECRET_KEY)
 
+# Dedicated serializer for self-service password-reset tokens. A distinct salt
+# (same SECRET_KEY) keeps reset tokens cryptographically separate from session
+# tokens — a session token can never be replayed as a reset token or vice versa.
+reset_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="password-reset")
+
+# Reset links expire 30 minutes after issuance (enforced by loads(max_age=...)).
+PASSWORD_RESET_TOKEN_MAX_AGE = 1800
+
 # =============================================================================
 # Data models
 # =============================================================================
@@ -557,6 +565,166 @@ def verify_session_token(token: str, max_age: int = 28800) -> Optional[dict]:
         return {"username": username, "role": role}
     except Exception:
         return None
+
+
+# =============================================================================
+# Password recovery (self-service reset via email)
+# =============================================================================
+#
+# Token design (signed, tamper-evident, NOT encrypted — treat as readable):
+#   {"u": "<username>", "pwv": "<password_hash[:12]>", "iat": <unix issue time>}
+# - ``u``   : the resolved username the token is for.
+# - ``pwv`` : "password version" — a fingerprint of the CURRENT password hash.
+#             A successful reset (or any password change / admin reset) rotates
+#             the hash, so ``pwv`` no longer matches and every previously issued
+#             token is implicitly single-use / invalidated — no server-side token
+#             store required.
+# - ``iat`` : informational; expiry is enforced by URLSafeTimedSerializer via
+#             max_age=PASSWORD_RESET_TOKEN_MAX_AGE (30 min).
+# The token is HMAC-signed with SECRET_KEY (salt "password-reset"): tampering
+# yields BadSignature -> rejected. Tokens and passwords are NEVER logged.
+
+
+def _password_fingerprint(password_hash: str) -> str:
+    """Fingerprint of the current password hash embedded in a reset token as
+    ``pwv``. First 12 chars of the bcrypt hash — enough to change on every
+    password rotation without exposing the hash."""
+    return (password_hash or "")[:12]
+
+
+def find_user_by_identifier(identifier: str) -> Optional[User]:
+    """Resolve a user by exact username first, then by case-insensitive email.
+    Returns the User or None. Username takes precedence over email on collision."""
+    if not identifier:
+        return None
+    identifier = identifier.strip()
+    if not identifier:
+        return None
+    # 1) exact username match
+    user = get_user(identifier)
+    if user:
+        return user
+    # 2) case-insensitive email match
+    lowered = identifier.lower()
+    for u in get_all_users().values():
+        if u.email and u.email.strip().lower() == lowered:
+            return u
+    return None
+
+
+def generate_reset_token(user: User) -> str:
+    """Mint a signed, expiring password-reset token for ``user`` (see design
+    note above). The token embeds the current password fingerprint so it becomes
+    invalid the moment the password changes. Never logs the token."""
+    return reset_serializer.dumps({
+        "u": user.username,
+        "pwv": _password_fingerprint(user.password_hash),
+        "iat": int(time.time()),
+    })
+
+
+def verify_reset_token(token: str,
+                       max_age: int = PASSWORD_RESET_TOKEN_MAX_AGE) -> Optional[User]:
+    """Validate a reset token and return the target User, or None.
+
+    Returns None (never raises) when the token is missing, tampered
+    (BadSignature), expired (SignatureExpired > max_age), refers to an
+    unknown/disabled user, or its ``pwv`` no longer matches the user's current
+    password hash (already-used / superseded). Callers must not distinguish
+    between these to avoid leaking which condition failed."""
+    if not token:
+        return None
+    try:
+        data = reset_serializer.loads(token, max_age=max_age)
+    except Exception:
+        # BadSignature, SignatureExpired, BadData, ... — all generic-reject.
+        return None
+    if not isinstance(data, dict):
+        return None
+    username = data.get("u")
+    pwv = data.get("pwv")
+    if not username or not pwv:
+        return None
+    user = get_user(username)
+    if not user or not user.enabled:
+        return None
+    if _password_fingerprint(user.password_hash) != pwv:
+        return None
+    return user
+
+
+def request_password_reset(username_or_email: str, ip: str = "") -> Optional[dict]:
+    """Begin a self-service password reset.
+
+    ALWAYS audits the request against the SUBMITTED identifier (never whether it
+    matched) and ALWAYS lets the caller render an identical generic response —
+    there is NO user enumeration. Strictly a server-side signal:
+
+    - Returns ``{"username", "email", "token"}`` when the identifier resolves to
+      an ENABLED user that HAS an email address (the caller then decides whether
+      SMTP is enabled and sends the link).
+    - Returns ``None`` for every other case (no match, disabled, no email).
+
+    Minting a token is harmless (it's only useful to the mailbox owner) and does
+    not mutate any state. Never raises for control flow; never logs the token."""
+    submitted = (username_or_email or "").strip()
+    audit_log("password_reset_requested", submitted[:120], ip)
+    user = find_user_by_identifier(submitted)
+    if not user or not user.enabled:
+        return None
+    email = (user.email or "").strip()
+    if not email:
+        return None
+    return {
+        "username": user.username,
+        "email": email,
+        "token": generate_reset_token(user),
+    }
+
+
+def reset_password_with_token(token: str, new_password: str,
+                              ip: str = "") -> Tuple[bool, str, str]:
+    """Complete a password reset using a valid token.
+
+    Returns ``(success, error_message, category)`` where ``category`` is:
+      - ``""``            on success,
+      - ``"invalid_token"`` when the token is missing/tampered/expired/used or
+        the user is gone/disabled — the route should show the generic
+        invalid/expired state (no field re-render),
+      - ``"policy"``      when the new password fails ``validate_password`` — the
+        route re-renders the form with the message; the token is still usable.
+
+    On success: rotates ``password_hash`` and clears ``failed_attempts`` +
+    ``locked`` (so a locked-out user self-recovers, US-2). Rotating the hash also
+    invalidates this and any other outstanding token via the ``pwv`` fingerprint.
+    Never logs the token or the password."""
+    user = verify_reset_token(token)
+    if not user:
+        audit_log("password_reset_failed", "", ip, "invalid or expired token")
+        return False, "This reset link is invalid or has expired.", "invalid_token"
+
+    valid, policy_error = validate_password(new_password)
+    if not valid:
+        return False, policy_error, "policy"
+
+    with _users_lock:
+        data = _load_users()
+        entry = data.get("users", {}).get(user.username)
+        if not entry or not entry.get("enabled", True):
+            audit_log("password_reset_failed", user.username, ip, "user missing or disabled")
+            return False, "This reset link is invalid or has expired.", "invalid_token"
+        # Re-check the fingerprint under the lock: guards against a concurrent
+        # reset/change between verify and write (that would have rotated the hash).
+        if _password_fingerprint(entry.get("password_hash", "")) != _password_fingerprint(user.password_hash):
+            audit_log("password_reset_failed", user.username, ip, "token superseded")
+            return False, "This reset link is invalid or has expired.", "invalid_token"
+        entry["password_hash"] = hash_password(new_password)
+        entry["failed_attempts"] = 0
+        entry["locked"] = False
+        _save_users(data)
+
+    audit_log("password_reset_completed", user.username, ip)
+    return True, "", ""
 
 
 # =============================================================================

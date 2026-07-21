@@ -921,6 +921,12 @@
                         <input type="email" class="form-control" id="smtpReplyTo" placeholder="support@example.com">
                     </div>
 
+                    <div class="mb-3">
+                        <label for="smtpBaseUrl" class="form-label">Public base URL <span class="text-muted">(for links in emails)</span></label>
+                        <input type="url" class="form-control mono" id="smtpBaseUrl" placeholder="https://magikup.example.com">
+                        <div class="form-text">Used to build links in outgoing emails (e.g. the password-reset link). Required for password-recovery emails unless <code>ALLOWED_HOSTS</code> is locked to a specific host.</div>
+                    </div>
+
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-primary" onclick="saveSmtpConfig()">
                             <i class="bi bi-save me-1"></i> Save
@@ -1626,9 +1632,9 @@
                         <div class="form-text">Alphanumeric characters, hyphens and underscores only</div>
                     </div>
                     <div class="mb-3">
-                        <label for="newUserEmail" class="form-label">Email <span class="text-muted">(optional)</span></label>
+                        <label for="newUserEmail" class="form-label">Email</label>
                         <input type="email" class="form-control" id="newUserEmail" placeholder="john@example.com">
-                        <div class="form-text">Used by future notification features. Leave blank if not needed.</div>
+                        <div class="form-text"><i class="bi bi-shield-lock me-1"></i>Used for password recovery and notifications. Without an email, this user can't self-reset their password.</div>
                     </div>
                     <div class="mb-3">
                         <label for="newPassword" class="form-label">Password</label>
@@ -1690,9 +1696,9 @@
                         <input type="text" class="form-control" id="editUsername" readonly>
                     </div>
                     <div class="mb-3">
-                        <label for="editUserEmail" class="form-label">Email <span class="text-muted">(optional)</span></label>
+                        <label for="editUserEmail" class="form-label">Email</label>
                         <input type="email" class="form-control" id="editUserEmail" placeholder="john@example.com">
-                        <div class="form-text">Used by future notification features. Leave blank if not needed.</div>
+                        <div class="form-text"><i class="bi bi-shield-lock me-1"></i>Used for password recovery and notifications. Without an email, this user can't self-reset their password.</div>
                     </div>
                     <div class="mb-3">
                         <label for="editUserRole" class="form-label">Role</label>
@@ -2573,6 +2579,7 @@
             document.getElementById('smtpFromAddress').value = cfg.from_address || '';
             document.getElementById('smtpFromName').value = cfg.from_name || '';
             document.getElementById('smtpReplyTo').value = cfg.reply_to || '';
+            document.getElementById('smtpBaseUrl').value = cfg.base_url || '';
             document.getElementById('smtpTimeout').value = cfg.timeout_seconds || 15;
             onSmtpSecurityChange();
             updateSmtpStatusPill(!!cfg.configured, !!cfg.enabled);
@@ -2593,6 +2600,7 @@
             from_address: document.getElementById('smtpFromAddress').value.trim(),
             from_name: document.getElementById('smtpFromName').value.trim(),
             reply_to: document.getElementById('smtpReplyTo').value.trim(),
+            base_url: document.getElementById('smtpBaseUrl').value.trim(),
             timeout_seconds: parseInt(document.getElementById('smtpTimeout').value, 10) || 15
         };
         try {

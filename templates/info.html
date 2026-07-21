@@ -320,14 +320,18 @@
                 <div class="version-timeline">
                     <div class="tl-item tl-current">
                         <div class="tl-head">
-                            <span class="tl-version">4.3.0</span>
+                            <span class="tl-version">4.4.0</span>
                             <span class="tl-current-tag">Current</span>
                         </div>
                         <ul class="tl-list">
-                            <li><i class="bi bi-check2"></i>Email sending (SMTP): encrypted [smtp] config in Admin → Settings with a Send test email action</li>
-                            <li><i class="bi bi-check2"></i>Optional email field on users; foundation for password recovery + future alerts</li>
-                            <li><i class="bi bi-check2"></i>Password masked/preserved, header-injection defenses, no secrets in logs</li>
+                            <li><i class="bi bi-check2"></i>Password recovery: "Forgot password?" on login → signed, expiring, single-use email link; no user enumeration, rate-limited, clears lockout</li>
+                            <li><i class="bi bi-check2"></i>Scheduled-backup email notifications: per-schedule policy (Off / on failure / on success / always) with success/failure templates</li>
+                            <li><i class="bi bi-check2"></i>Reset links built from a trusted SMTP base URL (no Host-header poisoning); sent after the response (no timing oracle)</li>
                         </ul>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head"><span class="tl-version">4.3.0</span></div>
+                        <div class="tl-desc">Email sending (SMTP): encrypted config in Admin → Settings + Send test email; user email field</div>
                     </div>
                     <div class="tl-item">
                         <div class="tl-head"><span class="tl-version">4.2.0</span></div>

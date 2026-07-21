@@ -269,3 +269,129 @@ def send_test_email(recipient: str) -> None:
         "</body></html>"
     )
     send_email(recipient.strip(), subject, html, text=text)
+
+
+# =============================================================================
+# Scheduled-backup notifications (v4.4.0)
+# =============================================================================
+
+def _fmt_size(size) -> str:
+    """Human-readable byte size. Returns '—' for unknown (None or < 0)."""
+    try:
+        n = int(size)
+    except (TypeError, ValueError):
+        return "—"
+    if n < 0:
+        return "—"
+    units = ("B", "KB", "MB", "GB", "TB", "PB")
+    value = float(n)
+    for unit in units:
+        if value < 1024.0 or unit == units[-1]:
+            if unit == "B":
+                return f"{int(value)} {unit}"
+            return f"{value:.1f} {unit}"
+        value /= 1024.0
+    return f"{n} B"
+
+
+def _fmt_duration(seconds) -> str:
+    """Human-readable duration. Returns '—' for unknown (None or < 0)."""
+    try:
+        s = float(seconds)
+    except (TypeError, ValueError):
+        return "—"
+    if s < 0:
+        return "—"
+    s = int(round(s))
+    if s < 60:
+        return f"{s}s"
+    m, sec = divmod(s, 60)
+    if m < 60:
+        return f"{m}m {sec}s"
+    h, m = divmod(m, 60)
+    return f"{h}h {m}m {sec}s"
+
+
+def _esc(value) -> str:
+    """Minimal HTML escape for text interpolated into the HTML body."""
+    text = "" if value is None else str(value)
+    return (text.replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def send_schedule_notification(recipients, *, schedule_name: str, status: str,
+                               endpoint: str, database: str, filename=None,
+                               size=None, duration_seconds=None,
+                               destination: str = "local", trigger: str = "schedule",
+                               error: str = None) -> None:
+    """Send a scheduled-backup outcome notification (best-effort).
+
+    ``status`` is the run outcome: "success" is treated as a success; any other
+    value ("failed", "copy_failed", ...) is treated as a failure. Builds a clean
+    subject and an HTML+text body with the run details and calls send_email.
+
+    BEST-EFFORT CONTRACT: this function NEVER raises. Any failure (SMTP down,
+    bad config, build error) is caught and logged so the backup flow that calls
+    it is never affected. Never logs SMTP secrets.
+    """
+    try:
+        succeeded = str(status).strip().lower() == "success"
+        outcome_word = "succeeded" if succeeded else "failed"
+        subject = (f"[MagikUp] Backup {schedule_name} {outcome_word} — "
+                   f"{database}@{endpoint}")
+
+        when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        status_label = {
+            "success": "Success",
+            "failed": "Failed",
+            "copy_failed": "Backup OK, remote copy failed",
+        }.get(str(status).strip().lower(), str(status))
+
+        rows = [
+            ("Schedule", schedule_name),
+            ("Status", status_label),
+            ("Endpoint", endpoint),
+            ("Database", database),
+            ("Trigger", trigger),
+            ("Destination", destination or "local"),
+            ("File", filename or "—"),
+            ("Size", _fmt_size(size)),
+            ("Duration", _fmt_duration(duration_seconds)),
+            ("Time", when),
+        ]
+        if not succeeded and error:
+            rows.append(("Error", error))
+
+        # --- text body ---
+        text_lines = [
+            f"MagikUp scheduled backup {outcome_word}.",
+            "",
+        ]
+        for label, value in rows:
+            text_lines.append(f"{label}: {value}")
+        text = "\n".join(text_lines) + "\n"
+
+        # --- html body ---
+        accent = "#16a34a" if succeeded else "#dc2626"
+        html_rows = "".join(
+            f'<tr><td style="padding:4px 12px 4px 0;color:#6b7280;'
+            f'vertical-align:top;white-space:nowrap;">{_esc(label)}</td>'
+            f'<td style="padding:4px 0;font-family:monospace;">{_esc(value)}</td></tr>'
+            for label, value in rows
+        )
+        html = (
+            "<html><body style=\"font-family:-apple-system,Segoe UI,Roboto,sans-serif;"
+            "color:#111827;\">"
+            f'<p style="font-size:16px;">Scheduled backup '
+            f'<strong style="color:{accent};">{outcome_word}</strong>.</p>'
+            f'<table style="border-collapse:collapse;font-size:14px;">{html_rows}</table>'
+            '<p style="color:#9ca3af;font-size:12px;margin-top:16px;">'
+            "This is an automated message from MagikUp.</p>"
+            "</body></html>"
+        )
+
+        send_email(recipients, subject, html, text=text)
+    except Exception as exc:
+        # Best-effort: never propagate into the backup flow.
+        logger.warning("Schedule notification for %r not sent: %s",
+                       schedule_name, exc.__class__.__name__)

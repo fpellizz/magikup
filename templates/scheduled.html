@@ -342,6 +342,26 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Notifications -->
+                <div class="sched-notify-block mb-3">
+                    <label class="form-label" for="schedNotify"><i class="bi bi-bell me-1"></i> Notifications</label>
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <select class="form-select" id="schedNotify" onchange="onNotifyChange()">
+                                <option value="off">Off — never email</option>
+                                <option value="on_failure">On failure only</option>
+                                <option value="on_success">On success only</option>
+                                <option value="always">Always (success &amp; failure)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7" id="schedNotifyRecipientsWrap" style="display:none;">
+                            <input type="text" class="form-control" id="schedNotifyRecipients"
+                                   placeholder="ops@example.com, dba@example.com">
+                            <div class="form-text">Comma-separated email addresses. Requires SMTP to be enabled in Admin → Email.</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -509,6 +529,24 @@
     }
     .ssm-toggle-wrapper { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--bg-tertiary); border-radius: calc(var(--radius) - 2px); }
     .ssm-toggle-wrapper .form-check-label { font-weight: 500; cursor: pointer; }
+
+    .sched-notify-block {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        padding: 1rem 1.25rem;
+    }
+    .sched-notify-block > .form-label i { color: var(--accent-primary); }
+
+    /* Notification policy chip shown in the schedules list */
+    .notify-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        margin-top: 0.25rem;
+        font-size: 0.72rem;
+        color: var(--accent-primary);
+    }
 </style>
 {% endblock %}
 
@@ -659,6 +697,8 @@
                 ? `<div class="fail-warn"><i class="bi bi-exclamation-triangle"></i> ${s.consecutive_failures} consecutive failure${s.consecutive_failures !== 1 ? 's' : ''}</div>` : '';
             const disabledNote = (!s.enabled && s.consecutive_failures >= 5)
                 ? `<div class="disabled-note"><i class="bi bi-shield-exclamation"></i> auto-disabled after repeated failures</div>` : '';
+            const notifyChip = (s.notify && s.notify !== 'off')
+                ? `<div class="notify-chip" title="Email notifications: ${esc(NOTIFY_LABELS[s.notify] || s.notify)}${(s.notify_recipients && s.notify_recipients.length) ? ' → ' + esc(s.notify_recipients.join(', ')) : ''}"><i class="bi bi-bell-fill"></i> ${esc(NOTIFY_LABELS[s.notify] || s.notify)}</div>` : '';
             return `
             <tr>
                 <td>
@@ -673,7 +713,7 @@
                 <td>
                     <div class="sched-name">${n}</div>
                     <div class="sched-subtle"><i class="bi bi-database"></i> <span class="mono">${esc(s.database)}</span></div>
-                    ${disabledNote}${failWarn}
+                    ${notifyChip}${disabledNote}${failWarn}
                 </td>
                 <td><span class="sched-subtle"><i class="bi bi-hdd-network"></i> <span class="mono">${esc(s.endpoint)}</span></span></td>
                 <td>
@@ -917,6 +957,18 @@
         }
     }
 
+    function onNotifyChange() {
+        const policy = document.getElementById('schedNotify').value;
+        const wrap = document.getElementById('schedNotifyRecipientsWrap');
+        wrap.style.display = (policy && policy !== 'off') ? '' : 'none';
+    }
+
+    const NOTIFY_LABELS = {
+        on_failure: 'On failure',
+        on_success: 'On success',
+        always: 'Always',
+    };
+
     // ============================================================
     // Cron builder
     // ============================================================
@@ -1111,6 +1163,10 @@
         document.getElementById('schedDest').value = 'none';
         document.getElementById('schedDeleteAfter').checked = false;
         document.getElementById('schedKeepLastN').value = '0';
+        // notifications default: off
+        document.getElementById('schedNotify').value = 'off';
+        document.getElementById('schedNotifyRecipients').value = '';
+        onNotifyChange();
         editingEnabled = true;   // new schedules are enabled by default
         onDestChange();
         // cron default: daily 02:30
@@ -1169,6 +1225,10 @@
         onDestChange();
         document.getElementById('schedDeleteAfter').checked = !!cfg.delete_local_after_copy;
         document.getElementById('schedKeepLastN').value = cfg.keep_last_n || 0;
+        // notifications
+        document.getElementById('schedNotify').value = cfg.notify || 'off';
+        document.getElementById('schedNotifyRecipients').value = (cfg.notify_recipients || []).join(', ');
+        onNotifyChange();
         editingEnabled = !!cfg.enabled;   // preserve current state; toggled from the list
         // cron
         hydrateBuilderFromCron(cfg.cron);
@@ -1200,6 +1260,15 @@
         const schemas = document.getElementById('optSchemas').value
             .split(',').map(s => s.trim()).filter(Boolean);
 
+        const notify = document.getElementById('schedNotify').value || 'off';
+        const notify_recipients = document.getElementById('schedNotifyRecipients').value
+            .split(',').map(s => s.trim()).filter(Boolean);
+
+        if (notify !== 'off' && !notify_recipients.length) {
+            showToast('Add at least one recipient email, or set notifications to Off', 'error');
+            return;
+        }
+
         const payload = {
             name, cron, endpoint, database,
             enabled: editingEnabled,
@@ -1219,6 +1288,8 @@
             dest_kind, dest_target,
             delete_local_after_copy: document.getElementById('schedDeleteAfter').checked,
             keep_last_n: parseInt(document.getElementById('schedKeepLastN').value, 10) || 0,
+            notify,
+            notify_recipients,
         };
 
         const btn = document.getElementById('saveSchedBtn');
