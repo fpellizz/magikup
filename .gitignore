@@ -26,6 +26,15 @@ config/schedule_state.json
 kubernetes/secret.yaml
 kubernetes/**/secret.yaml
 
+# Per-environment kustomize folders — real cluster values live on disk, untracked.
+# Only kubernetes/template/ (the blanked template) is committed. New environments
+# are copies of template/ (see kubernetes/template/README.md); add their folder
+# name here so the real values are never committed.
+kubernetes/panservice-servizi/
+kubernetes/vetri_speciali_gcp/
+kubernetes/skf-pume-dev/
+kubernetes/testdialberto/
+
 # Backups
 backups/
 

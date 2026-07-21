@@ -239,7 +239,7 @@ An OpenVPN client needs:
 - `CAP_NET_ADMIN` to create the `tun` interface and install routes, and
 - (typically) the ability to write resolv.conf / run up/down scripts.
 
-MagikUp's pod today (`kubernetes/base/deployment.yaml`) is deliberately the opposite:
+MagikUp's pod today (`kubernetes/template/deployment.yaml`) is deliberately the opposite:
 - Pod: `runAsNonRoot: true`, `runAsUser/Group: 1000`, `fsGroup: 1000`, `seccompProfile: RuntimeDefault`.
 - App + init container: `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, `capabilities.drop: [ALL]`.
 - `automountServiceAccountToken: false`; writable paths only via mounts (`/backups`, `/app/config`, `/app/logs`, `/tmp`).
