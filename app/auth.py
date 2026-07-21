@@ -321,7 +321,7 @@ def create_user(username: str, password: str, role: str, created_by: str,
 
 def update_user(username: str, role: Optional[str] = None,
                 enabled: Optional[bool] = None, locked: Optional[bool] = None,
-                endpoints: Optional[list] = None) -> dict:
+                endpoints: Optional[list] = None, email: Optional[str] = None) -> dict:
     """Update user attributes. Returns {"success": True} or {"success": False, "error": "..."}."""
     with _users_lock:
         data = _load_users()
@@ -354,6 +354,8 @@ def update_user(username: str, role: Optional[str] = None,
                 user_entry["failed_attempts"] = 0
         if endpoints is not None:
             user_entry["endpoints"] = _normalize_endpoints(endpoints)
+        if email is not None:
+            user_entry["email"] = email
 
         _save_users(data)
         return {"success": True}
