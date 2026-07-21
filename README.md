@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:4.4.0 .
-docker push ghcr.io/fpellizz/magikup:4.4.0
+docker build -t ghcr.io/fpellizz/magikup:4.4.1 .
+docker push ghcr.io/fpellizz/magikup:4.4.1
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,10 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 4.4.1
+
+- **Fix: user email now persists.** Creating or editing a user silently dropped the `email` field (the API models/handlers never forwarded it), so no user ever had an email and self-service password recovery could never send. The create/update user endpoints now accept and store `email` (validated), so recovery works. Passwords were always saved correctly; this only affected the email address.
 
 ### 4.4.0
 

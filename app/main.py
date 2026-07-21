@@ -69,7 +69,7 @@ logger.info(f"Context path: '{_context_path}' (empty = root)")
 app = FastAPI(
     title="PostgreSQL Backup/Restore",
     description="Backup and restore PostgreSQL databases via direct or SSM tunnel connections",
-    version="4.4.0",
+    version="4.4.1",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -306,12 +306,14 @@ class UserCreateModel(BaseModel):
     username: str
     password: str
     role: str = "viewer"
+    email: Optional[str] = ""               # used for self-service password recovery
     endpoints: Optional[List[str]] = None  # None/["*"] = all endpoints
 
 
 class UserUpdateModel(BaseModel):
     role: Optional[str] = None
     enabled: Optional[bool] = None
+    email: Optional[str] = None             # None = leave unchanged
     endpoints: Optional[List[str]] = None
 
 
@@ -3190,8 +3192,12 @@ async def api_list_app_users(user: dict = Depends(auth.require_admin)):
 @app.post("/api/users")
 async def api_create_user(req: UserCreateModel, request: Request, user: dict = Depends(auth.require_admin)):
     """Create a new application user."""
+    email = (req.email or "").strip()
+    if email and not email_service.is_valid_email(email):
+        raise HTTPException(status_code=400, detail="Email is not a valid address")
     result = auth.create_user(req.username, req.password, req.role,
-                              created_by=user["username"], endpoints=req.endpoints)
+                              created_by=user["username"], endpoints=req.endpoints,
+                              email=email)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     ip = request.client.host if request.client else "unknown"
@@ -3201,8 +3207,12 @@ async def api_create_user(req: UserCreateModel, request: Request, user: dict = D
 
 @app.put("/api/users/{username}")
 async def api_update_user(username: str, req: UserUpdateModel, request: Request, user: dict = Depends(auth.require_admin)):
-    """Update user role/enabled status."""
-    result = auth.update_user(username, role=req.role, enabled=req.enabled, endpoints=req.endpoints)
+    """Update user role/enabled status/email."""
+    email = req.email.strip() if req.email is not None else None
+    if email and not email_service.is_valid_email(email):
+        raise HTTPException(status_code=400, detail="Email is not a valid address")
+    result = auth.update_user(username, role=req.role, enabled=req.enabled,
+                              endpoints=req.endpoints, email=email)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     ip = request.client.host if request.client else "unknown"
