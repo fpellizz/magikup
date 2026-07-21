@@ -5,6 +5,8 @@ metadata:
   labels:
     app: magikup
   annotations:
+    # --- cert-manager (uncomment + set your ClusterIssuer) ---
+    # cert-manager.io/cluster-issuer: __CLUSTER_ISSUER__
     # --- TLS / HTTPS ---
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
@@ -54,10 +56,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - magikup.example.com
+        - __INGRESS_HOST__
       secretName: magikup-tls
   rules:
-    - host: magikup.example.com
+    - host: __INGRESS_HOST__
       http:
         paths:
           # Default: root path deployment

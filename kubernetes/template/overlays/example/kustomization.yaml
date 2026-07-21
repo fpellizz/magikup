@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ============================================================================
+# EXAMPLE overlay — the only kustomization tracked in git (with ../base).
+# Copy the whole `template/` project to a new, untracked folder and fill in the
+# placeholders. See template/README.md.
+#
+#   namespace          -> the target namespace
+#   __IMAGE_TAG__      images.newTag below  -> e.g. 4.4.1
+#   __INGRESS_HOST__   ingress.yaml          -> e.g. magikup.decisyon.com
+#   __CLUSTER_ISSUER__ ingress.yaml          -> cert-manager ClusterIssuer (uncomment)
+#   __STORAGE_CLASS__  the PVC patch below   -> cluster StorageClass (uncomment) or omit
+# ============================================================================
+
+namespace: magikup
+
+labels:
+  - pairs:
+      app: magikup
+    includeSelectors: true
+
+resources:
+  - ../../base
+  - configmap.yaml
+  - service.yaml
+  - ingress.yaml
+  # NetworkPolicy: include ONLY on clusters where ingress-nginx uses normal pod
+  # networking. On hostNetwork ingress controllers (e.g. RKE2) it blocks traffic.
+  # - networkpolicy.yaml
+
+images:
+  - name: ghcr.io/fpellizz/magikup
+    newTag: "__IMAGE_TAG__"
+
+# Pin the cluster StorageClass on every PVC (uncomment + set, or omit to use the
+# cluster default StorageClass).
+# patches:
+#   - target:
+#       kind: PersistentVolumeClaim
+#     patch: |-
+#       - op: add
+#         path: /spec/storageClassName
+#         value: __STORAGE_CLASS__
