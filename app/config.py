@@ -131,6 +131,32 @@ class FileBrowserConfig:
     verify_ssl: bool = True
 
 
+@dataclass
+class SMTPConfig:
+    """Outbound email (SMTP) configuration. Single fixed [smtp] section.
+
+    ``password`` is held in plaintext in memory but is the ONLY field encrypted
+    at rest (Fernet, ``ENC:`` prefix) — mirroring the [fileshare:*]/[filebrowser:*]
+    recipe. ``security`` is one of: starttls | ssl | none."""
+    enabled: bool = False
+    host: str = ""
+    port: int = 587
+    security: str = "starttls"       # starttls | ssl | none
+    username: str = ""
+    password: str = ""               # encrypted at rest
+    from_address: str = ""
+    from_name: str = "MagikUp"
+    reply_to: str = ""
+    timeout_seconds: int = 15
+
+
+VALID_SMTP_SECURITY = ("starttls", "ssl", "none")
+DEFAULT_SMTP_SECURITY = "starttls"
+SMTP_TIMEOUT_MIN = 5
+SMTP_TIMEOUT_MAX = 60
+DEFAULT_SMTP_TIMEOUT = 15
+
+
 APP_ROOT = Path(__file__).parent.parent
 
 @dataclass
@@ -291,6 +317,22 @@ session_timeout_minutes = 480
 [query]
 # Query Editor defaults
 autocommit = false
+
+[smtp]
+# Outbound email (SMTP) — used by the "Send test email" action and future
+# consumers (password recovery, alerts). Only `password` is encrypted (ENC:...).
+# security: one of starttls | ssl | none
+# password: stored encrypted as ENC:... ; empty allowed
+enabled = false
+host =
+port = 587
+security = starttls
+username =
+password =
+from_address =
+from_name = MagikUp
+reply_to =
+timeout_seconds = 15
 
 [aws:default]
 # AWS credentials for SSM tunneling
@@ -789,6 +831,63 @@ def delete_filebrowser_config(name: str) -> None:
         config.remove_section(section)
         write_config(config)
         logger.info(f"Deleted filebrowser '{name}'")
+
+
+# =============================================================================
+# Email (SMTP) Configuration — single fixed [smtp] section
+# =============================================================================
+
+def get_smtp_config() -> SMTPConfig:
+    """Read the [smtp] section. The password is decrypted on read; all other
+    fields fall back to their defaults when absent (backward compatible: a
+    config.ini without an [smtp] section yields a disabled default config)."""
+    config = read_config()
+    section = 'smtp'
+    return SMTPConfig(
+        enabled=config.getboolean(section, 'enabled', fallback=False),
+        host=config.get(section, 'host', fallback=''),
+        port=config.getint(section, 'port', fallback=587),
+        security=config.get(section, 'security', fallback=DEFAULT_SMTP_SECURITY),
+        username=config.get(section, 'username', fallback=''),
+        password=decrypt_password(config.get(section, 'password', fallback='')),
+        from_address=config.get(section, 'from_address', fallback=''),
+        from_name=config.get(section, 'from_name', fallback='MagikUp'),
+        reply_to=config.get(section, 'reply_to', fallback=''),
+        timeout_seconds=config.getint(section, 'timeout_seconds', fallback=DEFAULT_SMTP_TIMEOUT),
+    )
+
+
+def save_smtp_config(smtp: SMTPConfig) -> None:
+    """Save the [smtp] section (password encrypted at rest).
+
+    Empty-keeps-existing: if ``smtp.password`` is empty AND an encrypted value is
+    already stored, the existing ciphertext is preserved (no clobber) — implementing
+    the "leave blank to keep current password" UX. Never logs the password."""
+    config = read_config()
+    section = 'smtp'
+    if section not in config:
+        config.add_section(section)
+
+    # Preserve the stored secret when the incoming password is blank.
+    incoming = smtp.password or ""
+    if incoming:
+        stored_password = encrypt_password(incoming)
+    else:
+        stored_password = config.get(section, 'password', fallback='')
+
+    config.set(section, 'enabled', str(smtp.enabled).lower())
+    config.set(section, 'host', smtp.host)
+    config.set(section, 'port', str(smtp.port))
+    config.set(section, 'security', smtp.security)
+    config.set(section, 'username', smtp.username)
+    config.set(section, 'password', stored_password)
+    config.set(section, 'from_address', smtp.from_address)
+    config.set(section, 'from_name', smtp.from_name)
+    config.set(section, 'reply_to', smtp.reply_to)
+    config.set(section, 'timeout_seconds', str(smtp.timeout_seconds))
+    write_config(config)
+    logger.info("Saved SMTP config (enabled: %s, host: %s, port: %s, security: %s)",
+                smtp.enabled, smtp.host, smtp.port, smtp.security)
 
 
 # =============================================================================

@@ -86,6 +86,10 @@ class User:
     # Endpoint allowlist for non-admin users. ["*"] = all endpoints (default,
     # backward compatible). Admins always have access to all endpoints.
     endpoints: list = field(default_factory=lambda: ["*"])
+    # Optional recipient address for future email consumers (password recovery,
+    # alerts). Additive + backward compatible: old users.json without the key
+    # loads fine via .get("email", "").
+    email: str = ""
 
 
 @dataclass
@@ -202,7 +206,8 @@ def _ensure_users_file() -> None:
                 "failed_attempts": 0,
                 "created_at": now,
                 "last_login": None,
-                "created_by": "migrated_from_config"
+                "created_by": "migrated_from_config",
+                "email": ""
             }
         }
     }
@@ -232,6 +237,7 @@ def get_user(username: str) -> Optional[User]:
         last_login=user_data.get("last_login"),
         created_by=user_data.get("created_by", "system"),
         endpoints=user_data.get("endpoints", ["*"]),
+        email=user_data.get("email", ""),
     )
 
 
@@ -251,6 +257,7 @@ def get_all_users() -> Dict[str, User]:
             last_login=udata.get("last_login"),
             created_by=udata.get("created_by", "system"),
             endpoints=udata.get("endpoints", ["*"]),
+            email=udata.get("email", ""),
         )
     return result
 
@@ -266,8 +273,11 @@ def _normalize_endpoints(endpoints: Optional[list]) -> list:
 
 
 def create_user(username: str, password: str, role: str, created_by: str,
-                endpoints: Optional[list] = None) -> dict:
-    """Create a new user. Returns {"success": True} or {"success": False, "error": "..."}."""
+                endpoints: Optional[list] = None, email: str = "") -> dict:
+    """Create a new user. Returns {"success": True} or {"success": False, "error": "..."}.
+
+    ``email`` is optional (additive). Stored verbatim; format validation, if any,
+    is the caller's concern."""
     if not re.match(r'^[a-zA-Z0-9_-]+$', username):
         return {"success": False, "error": "Username must be alphanumeric (hyphens/underscores allowed)"}
     if len(username) < 2 or len(username) > 50:
@@ -295,6 +305,7 @@ def create_user(username: str, password: str, role: str, created_by: str,
             "last_login": None,
             "created_by": created_by,
             "endpoints": _normalize_endpoints(endpoints),
+            "email": email or "",
         }
         _save_users(data)
         return {"success": True}

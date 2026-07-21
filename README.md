@@ -403,8 +403,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:4.2.0 .
-docker push ghcr.io/fpellizz/magikup:4.2.0
+docker build -t ghcr.io/fpellizz/magikup:4.3.0 .
+docker push ghcr.io/fpellizz/magikup:4.3.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -623,6 +623,10 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 4.3.0
+
+- **Email sending (SMTP)** — MagikUp can now send email. A new encrypted `[smtp]` config section (host, port, security STARTTLS/SSL/none, username, Fernet-encrypted password, from/reply-to, timeout) is managed from an **Email (SMTP)** card in **Admin → Settings**, with a **Send test email** action that reports specific, actionable errors (auth, connection, TLS, timeout). Sending is provided by a small stdlib `app/email_service.py` (`send_email`), with header-injection defenses and no secrets in logs. Users gained an optional **email** field (Admin → Users). This is the foundation for the upcoming password-recovery flow and future alerts; the password is masked on read and preserved when left blank on save.
 
 ### 4.2.0
 

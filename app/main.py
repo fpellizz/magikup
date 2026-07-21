@@ -23,6 +23,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel, ConfigDict
 
 from . import config as cfg
+from . import email_service
 from . import db_service as db
 from . import backup_restore as br
 from . import auth
@@ -68,7 +69,7 @@ logger.info(f"Context path: '{_context_path}' (empty = root)")
 app = FastAPI(
     title="PostgreSQL Backup/Restore",
     description="Backup and restore PostgreSQL databases via direct or SSM tunnel connections",
-    version="4.2.0",
+    version="4.3.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -258,6 +259,23 @@ class FileBrowserModel(BaseModel):
     username: Optional[str] = ""
     password: Optional[str] = ""
     verify_ssl: bool = True
+
+
+class SMTPConfigIn(BaseModel):
+    enabled: bool = False
+    host: Optional[str] = ""
+    port: int = 587
+    security: str = "starttls"  # starttls | ssl | none
+    username: Optional[str] = ""
+    password: Optional[str] = ""  # blank on save => keep existing
+    from_address: Optional[str] = ""
+    from_name: Optional[str] = "MagikUp"
+    reply_to: Optional[str] = ""
+    timeout_seconds: int = 15
+
+
+class SMTPTestModel(BaseModel):
+    recipient: str
 
 
 class RemotePushModel(BaseModel):
@@ -2097,6 +2115,90 @@ async def api_delete_filebrowser(name: str, user: dict = Depends(auth.require_ad
 async def api_test_filebrowser(name: str, user: dict = Depends(auth.require_admin)):
     """Test connectivity to a saved filebrowser config."""
     return rs.filebrowser_test_connection(name=name)
+
+
+# =============================================================================
+# Email (SMTP) config API
+# =============================================================================
+
+@app.get("/api/config/smtp")
+async def api_get_smtp(user: dict = Depends(auth.require_admin)):
+    """Get the SMTP config (admin only). The password is masked: returned as
+    "***" when a secret is stored, else "". ``configured`` is true when email is
+    enabled and a host is set. A blank password on save preserves the stored
+    value (see api_save_smtp)."""
+    s = cfg.get_smtp_config()
+    return {
+        "enabled": s.enabled,
+        "host": s.host,
+        "port": s.port,
+        "security": s.security,
+        "username": s.username,
+        "password": "***" if s.password else "",
+        "has_password": bool(s.password),
+        "from_address": s.from_address,
+        "from_name": s.from_name,
+        "reply_to": s.reply_to,
+        "timeout_seconds": s.timeout_seconds,
+        "configured": bool(s.enabled and s.host),
+    }
+
+
+@app.post("/api/config/smtp")
+async def api_save_smtp(smtp: SMTPConfigIn, user: dict = Depends(auth.require_admin)):
+    """Save the SMTP config. A blank password keeps the existing encrypted value
+    (handled in cfg.save_smtp_config). Validates security, port, timeout and the
+    from-address (when set)."""
+    security = (smtp.security or "").lower().strip()
+    if security not in cfg.VALID_SMTP_SECURITY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid security '{smtp.security}'. Allowed: {', '.join(cfg.VALID_SMTP_SECURITY)}")
+    if not (1 <= smtp.port <= 65535):
+        raise HTTPException(status_code=400, detail="Port must be between 1 and 65535")
+    if not (cfg.SMTP_TIMEOUT_MIN <= smtp.timeout_seconds <= cfg.SMTP_TIMEOUT_MAX):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Timeout must be between {cfg.SMTP_TIMEOUT_MIN} and {cfg.SMTP_TIMEOUT_MAX} seconds")
+    from_address = (smtp.from_address or "").strip()
+    if from_address and not email_service.is_valid_email(from_address):
+        raise HTTPException(status_code=400, detail="From address is not a valid email")
+
+    reply_to = (smtp.reply_to or "").strip()
+    if reply_to and not email_service.is_valid_email(reply_to):
+        raise HTTPException(status_code=400, detail="Reply-To is not a valid email")
+
+    cfg.save_smtp_config(cfg.SMTPConfig(
+        enabled=smtp.enabled,
+        host=(smtp.host or "").strip(),
+        port=smtp.port,
+        security=security,
+        username=smtp.username or "",
+        password=smtp.password or "",  # blank => cfg preserves existing
+        from_address=from_address,
+        from_name=smtp.from_name or "",
+        reply_to=reply_to,
+        timeout_seconds=smtp.timeout_seconds,
+    ))
+    return {"status": "ok"}
+
+
+@app.post("/api/config/smtp/test")
+async def api_test_smtp(body: SMTPTestModel, user: dict = Depends(auth.require_admin)):
+    """Send a test email using the SAVED SMTP config (no secrets travel in the
+    request). Maps typed email errors to specific, user-safe messages."""
+    recipient = (body.recipient or "").strip()
+    try:
+        await asyncio.to_thread(email_service.send_test_email, recipient)
+        return {"status": "sent", "recipient": recipient}
+    except email_service.EmailError as e:
+        # not_configured / invalid_recipient are client errors (400);
+        # everything else is an upstream/relay failure (502).
+        status_code = 400 if e.code in ("not_configured", "invalid_recipient") else 502
+        return JSONResponse(
+            status_code=status_code,
+            content={"status": "error", "code": e.code, "message": e.message},
+        )
 
 
 @app.get("/api/config/settings")

@@ -832,6 +832,106 @@
                 </form>
             </div>
         </div>
+
+        <!-- Email (SMTP) config card -->
+        <div class="card config-card mt-3" id="smtpCard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-envelope-at"></i> Email (SMTP)</span>
+                <span id="smtpStatusPill" class="d-inline-flex align-items-center gap-2" style="font-size: 12.5px; color: var(--muted-foreground);">
+                    <span class="dot dot-idle" id="smtpStatusDot"></span>
+                    <span id="smtpStatusText">Not configured</span>
+                </span>
+            </div>
+            <div class="card-body">
+                <form id="smtpForm" onsubmit="return false;">
+                    <div class="ssm-toggle-wrapper">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="smtpEnabled">
+                            <label class="form-check-label" for="smtpEnabled">Enable email sending</label>
+                        </div>
+                        <span class="form-text mb-0">Master switch — gates all outbound email. When off, no feature will send.</span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="smtpHost" class="form-label">SMTP host</label>
+                            <input type="text" class="form-control mono" id="smtpHost" placeholder="smtp.example.com">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="smtpPort" class="form-label">Port</label>
+                            <input type="number" class="form-control mono" id="smtpPort" value="587" min="1" max="65535">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="smtpSecurity" class="form-label">Security</label>
+                            <select class="form-select" id="smtpSecurity" onchange="onSmtpSecurityChange()">
+                                <option value="starttls">STARTTLS</option>
+                                <option value="ssl">SSL/TLS</option>
+                                <option value="none">None</option>
+                            </select>
+                            <div class="form-text">STARTTLS (587) or SSL/TLS (465) are recommended.</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="smtpTimeout" class="form-label">Timeout (s)</label>
+                            <input type="number" class="form-control mono" id="smtpTimeout" value="15" min="5" max="60">
+                            <div class="form-text">Socket timeout, bounded 5–60.</div>
+                        </div>
+                    </div>
+
+                    <div id="smtpNoneWarning" class="security-info-box warning d-none">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <div>
+                            <p>Security is set to <code>None</code> — credentials and message contents are sent in <strong>cleartext</strong>. Prefer STARTTLS or SSL/TLS whenever the relay supports it.</p>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="smtpUsername" class="form-label">Username <span class="text-muted">(optional)</span></label>
+                            <input type="text" class="form-control" id="smtpUsername" placeholder="user@example.com">
+                            <div class="form-text">Leave empty for IP-allowlisted relays that require no auth.</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="smtpPassword" class="form-label">Password <span class="text-muted">(optional)</span></label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="smtpPassword" placeholder="••••••••" autocomplete="new-password">
+                                <button class="btn btn-outline-secondary password-toggle" type="button" onclick="togglePassword('smtpPassword')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text" id="smtpPasswordHint"></div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="smtpFromAddress" class="form-label">From address</label>
+                            <input type="email" class="form-control" id="smtpFromAddress" placeholder="magikup@example.com">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="smtpFromName" class="form-label">From name <span class="text-muted">(optional)</span></label>
+                            <input type="text" class="form-control" id="smtpFromName" placeholder="MagikUp">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="smtpReplyTo" class="form-label">Reply-To <span class="text-muted">(optional)</span></label>
+                        <input type="email" class="form-control" id="smtpReplyTo" placeholder="support@example.com">
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary" onclick="saveSmtpConfig()">
+                            <i class="bi bi-save me-1"></i> Save
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" onclick="openSendTestEmailModal()">
+                            <i class="bi bi-send me-1"></i> Send test email
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- ============================================
@@ -905,6 +1005,7 @@
                         <thead>
                             <tr>
                                 <th>Username</th>
+                                <th>Email</th>
                                 <th>Role</th>
                                 <th>Status</th>
                                 <th>Last Login</th>
@@ -919,6 +1020,13 @@
                                     <span class="endpoint-name">{{ username }}</span>
                                     {% if username == user %}
                                     <span class="badge-soft badge-role-admin ms-1" style="font-size: 10.5px; font-weight: 600;">you</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if u.email %}
+                                    <span class="mono" style="font-size: 12.5px;">{{ u.email }}</span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -952,7 +1060,7 @@
                                 <td>
                                     <div class="endpoint-actions">
                                         <button class="icon-btn"
-                                                onclick="editUser('{{ username }}', '{{ u.role }}', {{ 'true' if u.enabled else 'false' }}, '{{ u.endpoints | join(',') }}')"
+                                                onclick="editUser('{{ username }}', '{{ u.role }}', {{ 'true' if u.enabled else 'false' }}, '{{ u.endpoints | join(',') }}', '{{ u.email }}')"
                                                 title="Edit User" aria-label="Edit user {{ username }}">
                                             <i class="bi bi-pencil"></i>
                                         </button>
@@ -979,7 +1087,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="empty-state">
                                         <div class="empty-state-icon"><i class="bi bi-people"></i></div>
                                         <div class="empty-state-title">No users found</div>
@@ -1518,6 +1626,11 @@
                         <div class="form-text">Alphanumeric characters, hyphens and underscores only</div>
                     </div>
                     <div class="mb-3">
+                        <label for="newUserEmail" class="form-label">Email <span class="text-muted">(optional)</span></label>
+                        <input type="email" class="form-control" id="newUserEmail" placeholder="john@example.com">
+                        <div class="form-text">Used by future notification features. Leave blank if not needed.</div>
+                    </div>
+                    <div class="mb-3">
                         <label for="newPassword" class="form-label">Password</label>
                         <div class="input-group">
                             <input type="password" class="form-control" id="newPassword" required minlength="8">
@@ -1575,6 +1688,11 @@
                     <div class="mb-3">
                         <label class="form-label">Username</label>
                         <input type="text" class="form-control" id="editUsername" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUserEmail" class="form-label">Email <span class="text-muted">(optional)</span></label>
+                        <input type="email" class="form-control" id="editUserEmail" placeholder="john@example.com">
+                        <div class="form-text">Used by future notification features. Leave blank if not needed.</div>
                     </div>
                     <div class="mb-3">
                         <label for="editUserRole" class="form-label">Role</label>
@@ -1647,10 +1765,51 @@
     </div>
 </div>
 
+<!-- ============================================
+     Send Test Email Modal
+     ============================================ -->
+<div class="modal fade" id="sendTestEmailModal" tabindex="-1" aria-labelledby="sendTestEmailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sendTestEmailModalLabel">
+                    <i class="bi bi-send me-2"></i>Send test email
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="sendTestEmailForm" onsubmit="return false;">
+                    <div class="mb-3">
+                        <label for="testEmailRecipient" class="form-label">Recipient</label>
+                        <input type="email" class="form-control" id="testEmailRecipient" placeholder="you@example.com" required>
+                    </div>
+                    <div class="security-info-box">
+                        <i class="bi bi-info-circle-fill"></i>
+                        <div>
+                            <p>Sends a small test message using the currently <strong>saved</strong> SMTP settings. Save your changes first — unsaved form edits are not used.</p>
+                        </div>
+                    </div>
+                    <div id="testEmailResult" class="alert d-none" role="alert"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="sendTestEmailBtn" onclick="sendTestEmail()">
+                    <i class="bi bi-send me-1" id="sendTestEmailIcon"></i>
+                    <span id="sendTestEmailText">Send</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    // Logged-in admin's own email (if set) — used to prefill the test-email modal.
+    const CURRENT_USER_EMAIL = {{ (all_users[user].email if user in all_users else '') | tojson }};
+
     // ========================================
     // HTML Escaping Utility
     // ========================================
@@ -2370,6 +2529,134 @@
     }
 
     // ========================================
+    // Email (SMTP)
+    // ========================================
+
+    // Reflect saved SMTP state in the card-header status pill.
+    function updateSmtpStatusPill(configured, enabled) {
+        const dot = document.getElementById('smtpStatusDot');
+        const text = document.getElementById('smtpStatusText');
+        const pill = document.getElementById('smtpStatusPill');
+        if (configured && enabled) {
+            dot.className = 'dot dot-success';
+            text.textContent = 'Configured';
+            pill.style.color = 'var(--success-fg)';
+        } else if (enabled) {
+            dot.className = 'dot dot-idle';
+            text.textContent = 'Not configured';
+            pill.style.color = 'var(--muted-foreground)';
+        } else {
+            dot.className = 'dot dot-idle';
+            text.textContent = 'Disabled';
+            pill.style.color = 'var(--muted-foreground)';
+        }
+    }
+
+    // Show the cleartext warning when Security = None.
+    function onSmtpSecurityChange() {
+        const sec = document.getElementById('smtpSecurity').value;
+        document.getElementById('smtpNoneWarning').classList.toggle('d-none', sec !== 'none');
+    }
+
+    async function loadSmtpConfig() {
+        try {
+            const cfg = await apiCall('/api/config/smtp');
+            document.getElementById('smtpEnabled').checked = !!cfg.enabled;
+            document.getElementById('smtpHost').value = cfg.host || '';
+            document.getElementById('smtpPort').value = cfg.port || 587;
+            document.getElementById('smtpSecurity').value = cfg.security || 'starttls';
+            document.getElementById('smtpUsername').value = cfg.username || '';
+            // Password is masked on read: never populate the field, only hint.
+            document.getElementById('smtpPassword').value = '';
+            document.getElementById('smtpPasswordHint').textContent =
+                cfg.has_password ? 'Leave blank to keep the current password' : '';
+            document.getElementById('smtpFromAddress').value = cfg.from_address || '';
+            document.getElementById('smtpFromName').value = cfg.from_name || '';
+            document.getElementById('smtpReplyTo').value = cfg.reply_to || '';
+            document.getElementById('smtpTimeout').value = cfg.timeout_seconds || 15;
+            onSmtpSecurityChange();
+            updateSmtpStatusPill(!!cfg.configured, !!cfg.enabled);
+        } catch (error) {
+            // Non-fatal: leave defaults in place.
+        }
+    }
+
+    async function saveSmtpConfig() {
+        const payload = {
+            enabled: document.getElementById('smtpEnabled').checked,
+            host: document.getElementById('smtpHost').value.trim(),
+            port: parseInt(document.getElementById('smtpPort').value, 10) || 587,
+            security: document.getElementById('smtpSecurity').value,
+            username: document.getElementById('smtpUsername').value.trim(),
+            // Blank password => keep existing (backend preserves stored ciphertext).
+            password: document.getElementById('smtpPassword').value,
+            from_address: document.getElementById('smtpFromAddress').value.trim(),
+            from_name: document.getElementById('smtpFromName').value.trim(),
+            reply_to: document.getElementById('smtpReplyTo').value.trim(),
+            timeout_seconds: parseInt(document.getElementById('smtpTimeout').value, 10) || 15
+        };
+        try {
+            const res = await apiCall('/api/config/smtp', 'POST', payload);
+            if (res && res.status === 'ok') {
+                showToast('SMTP settings saved', 'success');
+                // Clear the password field and refresh the hint/pill from the saved state.
+                await loadSmtpConfig();
+            } else {
+                showToast(res.detail || res.error || 'Failed to save SMTP settings', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to save SMTP settings', 'error');
+        }
+    }
+
+    function openSendTestEmailModal() {
+        const result = document.getElementById('testEmailResult');
+        result.className = 'alert d-none';
+        result.textContent = '';
+        const recipient = document.getElementById('testEmailRecipient');
+        if (!recipient.value) recipient.value = CURRENT_USER_EMAIL || '';
+        const modal = new bootstrap.Modal(document.getElementById('sendTestEmailModal'));
+        modal.show();
+    }
+
+    function setTestEmailResult(kind, message) {
+        const result = document.getElementById('testEmailResult');
+        const icon = kind === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle';
+        result.className = `alert alert-${kind === 'success' ? 'success' : 'danger'}`;
+        result.innerHTML = `<i class="bi ${icon}"></i>${escapeHtml(message)}`;
+    }
+
+    async function sendTestEmail() {
+        const recipient = document.getElementById('testEmailRecipient').value.trim();
+        if (!recipient) {
+            setTestEmailResult('error', 'Please enter a recipient address.');
+            return;
+        }
+        const btn = document.getElementById('sendTestEmailBtn');
+        const icon = document.getElementById('sendTestEmailIcon');
+        const text = document.getElementById('sendTestEmailText');
+        btn.disabled = true;
+        icon.className = 'spinner-border spinner-border-sm me-1';
+        text.textContent = 'Sending…';
+        // Clear any previous result while sending.
+        document.getElementById('testEmailResult').className = 'alert d-none';
+        try {
+            const res = await apiCall('/api/config/smtp/test', 'POST', { recipient });
+            if (res && res.status === 'sent') {
+                setTestEmailResult('success', `Test email sent to ${res.recipient || recipient}. Check the inbox.`);
+            } else {
+                setTestEmailResult('error', (res && (res.message || res.detail)) || 'Failed to send test email.');
+            }
+        } catch (error) {
+            setTestEmailResult('error', 'Failed to send test email.');
+        } finally {
+            btn.disabled = false;
+            icon.className = 'bi bi-send me-1';
+            text.textContent = 'Send';
+        }
+    }
+
+    // ========================================
     // Configuration Import/Export
     // ========================================
 
@@ -2449,6 +2736,7 @@
         const username = document.getElementById('newUsername').value.trim();
         const password = document.getElementById('newPassword').value;
         const role = document.getElementById('newUserRole').value;
+        const email = document.getElementById('newUserEmail').value.trim();
         const endpoints = parseEndpointsField(document.getElementById('newUserEndpoints').value);
 
         if (!username || !password) {
@@ -2460,7 +2748,7 @@
             const response = await fetch(BASE_PATH + '/api/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, role, endpoints })
+                body: JSON.stringify({ username, password, role, email, endpoints })
             });
             const result = await response.json();
 
@@ -2476,10 +2764,11 @@
         }
     }
 
-    function editUser(username, role, enabled, endpoints) {
+    function editUser(username, role, enabled, endpoints, email) {
         document.getElementById('editUsername').value = username;
         document.getElementById('editUserRole').value = role;
         document.getElementById('editUserEnabled').checked = enabled;
+        document.getElementById('editUserEmail').value = email || '';
         // endpoints arrives as a comma-joined string ("*" or "a,b"); show as-is.
         document.getElementById('editUserEndpoints').value = (endpoints === undefined || endpoints === null) ? '*' : endpoints;
         const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
@@ -2490,13 +2779,14 @@
         const username = document.getElementById('editUsername').value;
         const role = document.getElementById('editUserRole').value;
         const enabled = document.getElementById('editUserEnabled').checked;
+        const email = document.getElementById('editUserEmail').value.trim();
         const endpoints = parseEndpointsField(document.getElementById('editUserEndpoints').value);
 
         try {
             const response = await fetch(BASE_PATH + `/api/users/${encodeURIComponent(username)}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role, enabled, endpoints })
+                body: JSON.stringify({ role, enabled, email, endpoints })
             });
             const result = await response.json();
 
@@ -2639,6 +2929,9 @@
                 if (trigger) new bootstrap.Tab(trigger).show();
             }
         } catch (_) {}
+
+        // Load the saved SMTP config into the Email card (masked password).
+        loadSmtpConfig();
 
         // Reset Endpoint modal when closed (restore to "add" mode)
         const addEndpointModal = document.getElementById('addEndpointModal');
