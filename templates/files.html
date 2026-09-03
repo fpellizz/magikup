@@ -26,14 +26,31 @@
             <div class="bf-eyebrow"><i class="bi bi-upload"></i> Max upload size</div>
             <div class="bf-stat-value">{{ settings.max_upload_size_gb }}<span class="bf-unit">GB</span></div>
         </div>
+        <!-- What the backups take, against the quota the app enforces on them
+             (MAX_TOTAL_BACKUP_GB) — the ceiling that refuses new backups. -->
         <div class="bf-card bf-stat">
-            <div class="bf-eyebrow"><i class="bi bi-hdd"></i> Total storage used</div>
+            <div class="bf-eyebrow"><i class="bi bi-archive"></i> Backup storage used</div>
             <div class="bf-stat-line">
                 <span class="bf-stat-value" id="totalStorageSize">{{ backup_stats.total_size_human }}</span>
-                <span class="bf-muted bf-small" id="storagePercentLabel">{{ backup_stats.disk_percent }}%</span>
+                <span class="bf-muted bf-small" id="storagePercentLabel">{% if backup_stats.quota_enabled %}{{ backup_stats.quota_percent }}%{% endif %}</span>
             </div>
-            <div class="bf-progress"><div class="bf-progress-fill" id="storageBar" style="width: {{ backup_stats.disk_percent }}%"></div></div>
-            <div class="bf-muted bf-small" id="storageCapacityLabel">of {{ backup_stats.disk_total_human }} volume</div>
+            <div class="bf-progress"><div class="bf-progress-fill" id="storageBar" style="width: {{ [backup_stats.quota_percent, 100]|min }}%"></div></div>
+            <div class="bf-muted bf-small" id="storageCapacityLabel">{% if backup_stats.quota_enabled %}of {{ backup_stats.quota_gb }} GB quota &middot; {{ backup_stats.quota_free_human }} left{% else %}no quota set{% endif %}</div>
+        </div>
+        <!-- Capacity of the volume hosting the backup directory, split between
+             the backups and whatever else lives on it. -->
+        <div class="bf-card bf-stat">
+            <div class="bf-eyebrow"><i class="bi bi-hdd"></i> Volume capacity</div>
+            <div class="bf-stat-line">
+                <span class="bf-stat-value" id="volumeUsedSize">{{ backup_stats.disk_used_human }}</span>
+                <span class="bf-muted bf-small" id="volumePercentLabel">{{ backup_stats.disk_percent }}%</span>
+            </div>
+            <div class="bf-progress bf-progress-split" id="volumeBar"
+                 title="Backups {{ backup_stats.total_size_human }}, other data {{ backup_stats.disk_other_used_human }}, free {{ backup_stats.disk_free_human }}">
+                <div class="bf-progress-fill" id="volumeBarBackups" style="width: {{ backup_stats.backups_disk_percent }}%"></div>
+                <div class="bf-progress-fill bf-fill-alt" id="volumeBarOther" style="width: {{ backup_stats.other_disk_percent }}%"></div>
+            </div>
+            <div class="bf-muted bf-small" id="volumeCapacityLabel">of {{ backup_stats.disk_total_human }} &middot; {{ backup_stats.disk_free_human }} free</div>
         </div>
     </div>
 
@@ -272,7 +289,7 @@
     /* --- Stat cards --- */
     .bf-stats {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 16px;
     }
     .bf-stat { padding: 18px 20px; }
@@ -292,6 +309,12 @@
     .bf-stat-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
     .bf-progress { height: 7px; border-radius: 999px; background: var(--bf-muted); overflow: hidden; margin-top: 10px; }
     .bf-progress-fill { height: 100%; background: var(--bf-brand); border-radius: 999px; transition: width .3s ease; }
+    /* Split bar: two shares of one capacity side by side (DOM order = L to R) */
+    .bf-progress-split { display: flex; gap: 1px; }
+    .bf-progress-split .bf-progress-fill { border-radius: 0; flex: 0 0 auto; }
+    .bf-progress-split .bf-progress-fill:first-child { border-radius: 999px 0 0 999px; }
+    .bf-progress-split .bf-progress-fill:last-child { border-radius: 0 999px 999px 0; }
+    .bf-progress-fill.bf-fill-alt { background: color-mix(in oklab, var(--bf-muted-fg) 45%, transparent); }
     .bf-stat .bf-small { margin-top: 6px; }
 
     /* --- Collapsible remote --- */
@@ -425,6 +448,9 @@
     .bf-objects th { background: var(--bf-pane); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; color: var(--bf-muted-fg); padding: 8px 12px; text-align: left; }
     .bf-objects td { padding: 8px 12px; border-top: 1px solid var(--bf-border); }
 
+    @media (max-width: 1100px) {
+        .bf-stats { grid-template-columns: repeat(2, 1fr); }
+    }
     @media (max-width: 768px) {
         .bf-stats { grid-template-columns: 1fr; }
         .bf-file-name { max-width: 180px; }
@@ -541,10 +567,38 @@
         return { rel, abs };
     }
 
-    function updateBackupStats() {
-        const totalStorageEl = document.getElementById('totalStorageSize');
-        const totalSize = allBackups.reduce((sum, b) => sum + b.size, 0);
-        totalStorageEl.textContent = formatSize(totalSize);
+    // Refresh the storage cards from the server: the quota and the volume figures
+    // can't be derived from the file list, and going stale after an upload/delete
+    // is worse than a second request.
+    async function updateBackupStats() {
+        const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+        const width = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = `${Math.min(pct, 100)}%`; };
+
+        // Optimistic: the file list we already have is authoritative for this one.
+        set('totalStorageSize', formatSize(allBackups.reduce((sum, b) => sum + b.size, 0)));
+
+        let stats;
+        try { stats = await apiCall('/api/backups/stats'); }
+        catch (_) { return; }
+        if (!stats || typeof stats.total_size !== 'number') return;
+
+        set('totalStorageSize', stats.total_size_human);
+        set('storagePercentLabel', stats.quota_enabled ? `${stats.quota_percent}%` : '');
+        set('storageCapacityLabel', stats.quota_enabled
+            ? `of ${stats.quota_gb} GB quota \u00b7 ${stats.quota_free_human} left`
+            : 'no quota set');
+        width('storageBar', stats.quota_percent);
+
+        set('volumeUsedSize', stats.disk_used_human);
+        set('volumePercentLabel', `${stats.disk_percent}%`);
+        set('volumeCapacityLabel', `of ${stats.disk_total_human} \u00b7 ${stats.disk_free_human} free`);
+        width('volumeBarBackups', stats.backups_disk_percent);
+        width('volumeBarOther', stats.other_disk_percent);
+        const volumeBar = document.getElementById('volumeBar');
+        if (volumeBar) {
+            volumeBar.title = `Backups ${stats.total_size_human}, other data `
+                + `${stats.disk_other_used_human}, free ${stats.disk_free_human}`;
+        }
     }
 
     function formatSize(bytes) {

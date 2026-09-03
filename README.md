@@ -233,6 +233,16 @@ All configuration is stored in `config/config.ini`. User accounts are in `config
 | `max_upload_size_gb` | `5` | Maximum upload file size in GB |
 | `context_path` | (empty) | URL prefix for reverse proxy deployment (e.g., `/magikup`) |
 
+#### Backup storage quota (environment)
+
+| Env var | Default | Description |
+|---------|---------|-------------|
+| `MAX_TOTAL_BACKUP_GB` | `100` | Cumulative ceiling on the whole backup directory, in GB. `0` disables it. |
+
+`max_upload_size_gb` limits **one** file; `MAX_TOTAL_BACKUP_GB` limits **all of them together**, so an accumulation of backups can't fill the volume. It is enforced on every path that writes into the backup directory — `pg_dump` (manual and scheduled, refused before it starts), uploads, and pulls from S3 / filebrowser / WebDAV — and both the dashboard and the Backup files page show the backups against it.
+
+Set it at or below the size of the volume mounted on `backup_dir` (in Kubernetes: the `magikup-backups` PVC, 50Gi in the template — so the default 100 means the volume, not the quota, runs out first). The **Volume capacity** card shows the real capacity and how much of it the backups account for, and the dashboard names whichever ceiling bites first.
+
 #### `[auth]` - Authentication Settings
 
 | Key | Default | Description |
@@ -554,6 +564,7 @@ The deployment includes an init container that copies the default `config.ini` f
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/backups` | All | List backup files |
+| GET | `/api/backups/stats` | All | Backups total, quota usage, hosting-volume capacity |
 | POST | `/api/backups/upload` | Operator+ | Upload backup file |
 | GET | `/api/backups/{file}/download` | All | Download backup |
 | DELETE | `/api/backups/{file}` | Operator+ | Delete backup |

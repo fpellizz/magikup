@@ -1729,6 +1729,14 @@ async def api_list_backups(user: dict = Depends(auth.require_auth)):
     return br.list_backup_files()
 
 
+@app.get("/api/backups/stats")
+async def api_backup_stats(user: dict = Depends(auth.require_auth)):
+    """Backup storage stats: backups total, cumulative quota, hosting volume.
+    Declared before /api/backups/{filename}/... so 'stats' is not read as a
+    filename."""
+    return br.get_backup_stats()
+
+
 @app.delete("/api/backups/{filename}")
 async def api_delete_backup(filename: str, user: dict = Depends(auth.require_operator)):
     """Delete a backup file."""
@@ -1801,16 +1809,12 @@ async def api_upload_backup(file: UploadFile = File(...), user: dict = Depends(a
                     raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {max_size_gb}GB")
                 f.write(chunk)
 
-        # Enforce a cumulative backup-storage quota (defense against disk
-        # exhaustion). Configurable via MAX_TOTAL_BACKUP_GB (default 100GB).
-        max_total_gb = int(os.environ.get("MAX_TOTAL_BACKUP_GB", "100"))
-        existing_total = br.get_backup_stats().get("total_size", 0)
-        if existing_total + total_size > max_total_gb * 1024 * 1024 * 1024:
-            raise HTTPException(
-                status_code=413,
-                detail=f"Backup storage quota exceeded (limit {max_total_gb}GB). "
-                       f"Delete old backups or raise MAX_TOTAL_BACKUP_GB.",
-            )
+        # Enforce the cumulative backup-storage quota (defense against disk
+        # exhaustion). The .tmp file written above is not matched by the *.backup
+        # glob, so it is not double-counted in the current total.
+        quota_ok, quota_err = br.check_backup_quota(total_size)
+        if not quota_ok:
+            raise HTTPException(status_code=413, detail=quota_err)
 
         # Atomic rename
         temp_path.rename(target_path)

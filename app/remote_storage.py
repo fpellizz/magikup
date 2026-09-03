@@ -67,6 +67,16 @@ def _max_bytes() -> int:
     return cfg.get_settings().max_upload_size_gb * 1024 * 1024 * 1024
 
 
+def _quota_error(size: int) -> Optional[str]:
+    """Error message when `size` more bytes would blow the cumulative backup
+    quota (MAX_TOTAL_BACKUP_GB), else None. A pull lands in the local backup
+    directory, so it is subject to the same ceiling as an upload or a pg_dump.
+    The in-flight .tmp file is not matched by the *.backup glob, so it is not
+    double-counted in the current total."""
+    ok, err = br.check_backup_quota(size)
+    return None if ok else err
+
+
 def _local_backup_path(filename: str):
     """Validate a local backup filename and return (path, error).
 
@@ -287,6 +297,9 @@ def s3_download_backup(store_name: str, key: str, progress_cb=None) -> Dict[str,
         ok, size_err = br.check_file_size_limit(size, cfg.get_settings().max_upload_size_gb)
         if not ok:
             return {"success": False, "error": size_err}
+        quota_err = _quota_error(size)
+        if quota_err:
+            return {"success": False, "error": quota_err}
 
         client.download_file(store.bucket, key, str(tmp),
                              Callback=_s3_progress(progress_cb, size))
@@ -297,6 +310,10 @@ def s3_download_backup(store_name: str, key: str, progress_cb=None) -> Dict[str,
         if not ok2:
             tmp.unlink()
             return {"success": False, "error": size_err2}
+        quota_err = _quota_error(actual)
+        if quota_err:
+            tmp.unlink()
+            return {"success": False, "error": quota_err}
         tmp.rename(target)
         return {
             "success": True,
@@ -479,6 +496,9 @@ def download_from_link(url: str, share_name: Optional[str] = None, progress_cb=N
         total_int = int(clen) if clen and clen.isdigit() else 0
         if total_int > max_bytes:
             return {"success": False, "error": f"Remote file exceeds limit of {max_gb}GB"}
+        quota_err = _quota_error(total_int)
+        if quota_err:
+            return {"success": False, "error": quota_err}
 
         written = 0
         too_big = False
@@ -496,6 +516,11 @@ def download_from_link(url: str, share_name: Optional[str] = None, progress_cb=N
             if tmp.exists():
                 tmp.unlink()
             return {"success": False, "error": f"Remote file exceeds limit of {max_gb}GB"}
+        quota_err = _quota_error(written)
+        if quota_err:
+            if tmp.exists():
+                tmp.unlink()
+            return {"success": False, "error": quota_err}
 
         tmp.rename(target)
         return {
@@ -698,6 +723,9 @@ def filebrowser_download_backup(name: str, key: str, progress_cb=None) -> Dict[s
         total_int = int(clen) if clen and clen.isdigit() else 0
         if total_int > max_bytes:
             return {"success": False, "error": f"Remote file exceeds limit of {max_gb}GB"}
+        quota_err = _quota_error(total_int)
+        if quota_err:
+            return {"success": False, "error": quota_err}
         written = 0
         too_big = False
         with open(tmp, 'wb') as f:
@@ -713,6 +741,11 @@ def filebrowser_download_backup(name: str, key: str, progress_cb=None) -> Dict[s
             if tmp.exists():
                 tmp.unlink()
             return {"success": False, "error": f"Remote file exceeds limit of {max_gb}GB"}
+        quota_err = _quota_error(written)
+        if quota_err:
+            if tmp.exists():
+                tmp.unlink()
+            return {"success": False, "error": quota_err}
         tmp.rename(target)
         return {
             "success": True,

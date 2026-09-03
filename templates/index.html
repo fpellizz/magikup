@@ -48,7 +48,21 @@
         </div>
         <div class="stat-value mono">{{ backup_stats.disk_used_human }}</div>
         <div class="stat-sub"><span class="mono">{{ backup_stats.disk_percent }}%</span> of <span class="mono">{{ backup_stats.disk_total_human }}</span></div>
-        <div class="stat-bar"><span style="width: {{ backup_stats.disk_percent }}%;"></span></div>
+        <!-- The volume capacity split between these backups and whatever else
+             lives on it, so the bar says how much of it is actually ours. -->
+        <div class="stat-bar stat-bar-split"
+             title="Volume {{ backup_stats.disk_total_human }} — backups {{ backup_stats.total_size_human }}, other data {{ backup_stats.disk_other_used_human }}, free {{ backup_stats.disk_free_human }}">
+            <span style="width: {{ backup_stats.backups_disk_percent }}%;"></span>
+            <span class="stat-seg-alt" style="width: {{ backup_stats.other_disk_percent }}%;"></span>
+        </div>
+        <div class="stat-sub">
+            Backups <span class="mono">{{ backup_stats.total_size_human }}</span>
+            {% if backup_stats.quota_enabled %}of <span class="mono">{{ backup_stats.quota_gb }} GB</span> quota{% else %}&middot; no quota set{% endif %}
+        </div>
+        <div class="stat-sub">
+            Room for <span class="mono">{{ backup_stats.available_human }}</span> more{%
+            if backup_stats.limited_by == 'quota' %} (quota){% elif backup_stats.limited_by == 'volume' %} on the volume{% endif %}
+        </div>
     </div>
 
     <div class="stat-card">

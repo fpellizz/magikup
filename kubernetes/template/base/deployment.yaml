@@ -70,6 +70,11 @@ spec:
             # Context path for reverse proxy deployment (e.g., /magikup)
             # - name: ROOT_PATH
             #   value: "/magikup"
+            # Cumulative quota on the backup directory (default 100GB, 0 = off).
+            # Keep it at or below the magikup-backups PVC size (50Gi in
+            # base/pvc.yaml) so backups are refused before the volume fills up.
+            # - name: MAX_TOTAL_BACKUP_GB
+            #   value: "45"
           resources:
             requests:
               cpu: 250m
