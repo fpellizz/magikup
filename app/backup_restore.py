@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import asyncio
 import fnmatch
+import logging
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,15 @@ from dataclasses import dataclass
 
 from .config import get_settings, validate_pg_tool_path
 from .operation_logger import get_logger
+
+# Named _log, not `logger`: the operation logger is bound to a local named
+# `logger` inside the run_* coroutines and would shadow a module-level one.
+_log = logging.getLogger(__name__)
+
+# Cumulative quota for the whole backup directory, in GB. Distinct from the
+# per-file upload limit (Settings.max_upload_size_gb): this one guards the volume
+# against being filled by the accumulation of backups. 0 disables it.
+DEFAULT_BACKUP_QUOTA_GB = 100
 
 
 @dataclass
@@ -147,8 +157,51 @@ def _format_size(size: int) -> str:
     return f"{size:.1f} TB"
 
 
+def get_backup_quota_gb() -> int:
+    """Cumulative backup-storage quota in GB, from the MAX_TOTAL_BACKUP_GB
+    environment variable (default 100GB); 0 means unlimited. Read at call time so
+    a redeploy with a different value takes effect without a code change."""
+    raw = os.environ.get("MAX_TOTAL_BACKUP_GB", str(DEFAULT_BACKUP_QUOTA_GB))
+    try:
+        gb = int(raw)
+    except (TypeError, ValueError):
+        _log.warning("Invalid MAX_TOTAL_BACKUP_GB=%r, using %dGB",
+                     raw, DEFAULT_BACKUP_QUOTA_GB)
+        return DEFAULT_BACKUP_QUOTA_GB
+    return max(0, gb)
+
+
+def get_backup_quota_bytes() -> int:
+    """Cumulative backup-storage quota in bytes; 0 means unlimited."""
+    return get_backup_quota_gb() * 1024 * 1024 * 1024
+
+
+def check_backup_quota(additional_bytes: int = 0) -> Tuple[bool, str]:
+    """Check whether `additional_bytes` more of backup still fit in the
+    cumulative quota. `additional_bytes=0` asks whether there is any room left at
+    all, so an already-full quota is reported as exceeded rather than as an exact
+    fit. Always valid when the quota is disabled.
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    quota = get_backup_quota_bytes()
+    if not quota:
+        return True, ""
+
+    current = get_backup_stats()["total_size"]
+    if current + max(additional_bytes, 1) > quota:
+        return False, (
+            f"Backup storage quota exceeded: {_format_size(current)} already used of "
+            f"{get_backup_quota_gb()}GB ({_format_size(max(0, quota - current))} left). "
+            f"Delete old backups or raise MAX_TOTAL_BACKUP_GB."
+        )
+    return True, ""
+
+
 def get_backup_stats() -> Dict[str, Any]:
-    """Get statistics about backup files (count and total size)."""
+    """Statistics about the backup directory: how much the backups take, how much
+    of the cumulative quota is left, and how full the hosting volume is."""
     backup_dir = get_backup_dir()
     total_size = 0
     count = 0
@@ -172,6 +225,33 @@ def get_backup_stats() -> Dict[str, Any]:
     except OSError:
         pass
 
+    # Split the volume between these backups and everything else living on it, so
+    # the UI can show what share of the capacity the backups actually account for.
+    # The backups' share is capped at what the volume reports as used: on a
+    # compressing (or sparse-file) filesystem the apparent size of the backups can
+    # exceed the space they really occupy, and the two shares must still add up.
+    backups_on_disk = min(total_size, disk_used)
+    disk_other_used = disk_used - backups_on_disk
+    backups_disk_percent = round(backups_on_disk / disk_total * 100) if disk_total else 0
+    other_disk_percent = round(disk_other_used / disk_total * 100) if disk_total else 0
+
+    # Cumulative quota: the ceiling the app itself enforces on the backup
+    # directory, independent of how big the volume is.
+    quota_total = get_backup_quota_bytes()
+    quota_free = max(0, quota_total - total_size)
+    quota_percent = round(total_size / quota_total * 100) if quota_total else 0
+
+    # Room for the next backup: whichever ceiling bites first.
+    if not disk_total:
+        available = quota_free
+        limited_by = "quota" if quota_total else "unknown"
+    elif quota_total:
+        available = min(quota_free, disk_free)
+        limited_by = "quota" if quota_free <= disk_free else "volume"
+    else:
+        available = disk_free
+        limited_by = "volume"
+
     return {
         "count": count,
         "total_size": total_size,
@@ -183,6 +263,20 @@ def get_backup_stats() -> Dict[str, Any]:
         "disk_free": disk_free,
         "disk_free_human": _format_size(disk_free),
         "disk_percent": disk_percent,
+        "disk_other_used": disk_other_used,
+        "disk_other_used_human": _format_size(disk_other_used),
+        "backups_disk_percent": backups_disk_percent,
+        "other_disk_percent": other_disk_percent,
+        "quota_enabled": bool(quota_total),
+        "quota_gb": get_backup_quota_gb(),
+        "quota_total": quota_total,
+        "quota_total_human": _format_size(quota_total) if quota_total else "unlimited",
+        "quota_free": quota_free,
+        "quota_free_human": _format_size(quota_free),
+        "quota_percent": quota_percent,
+        "available": available,
+        "available_human": _format_size(available),
+        "limited_by": limited_by,
     }
 
 
@@ -414,6 +508,19 @@ async def run_backup(
 
     # Get logger if operation_id is provided
     logger = get_logger() if operation_id else None
+
+    # Refuse to start when the cumulative backup quota is already used up: the
+    # dump size is unknown up front, so the only safe pre-flight check is whether
+    # there is any room left at all. Applies to manual and scheduled backups
+    # alike, the same quota the upload/pull paths enforce.
+    quota_ok, quota_err = check_backup_quota()
+    if not quota_ok:
+        error_msg = f"Refusing to run backup: {quota_err}"
+        if logger and operation_id:
+            logger.log_message(operation_id, error_msg)
+            logger.complete_operation(operation_id, status="failed", error=error_msg)
+        yield {"type": "complete", "success": False, "message": error_msg}
+        return
 
     # Per-endpoint pg_dump binary (version selectable, e.g. 14-17); falls back to
     # the global Settings path. Defense in depth: refuse to exec a tool path

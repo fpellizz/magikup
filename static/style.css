@@ -2315,6 +2315,27 @@ h2, h3, h4, h5 {
     background: var(--brand);
 }
 
+/* Split variant: two shares of the same capacity side by side (e.g. how much of
+   a volume is backups vs everything else on it). DOM order = left to right. */
+.stat-bar-split {
+    display: flex;
+    gap: 1px;
+}
+
+.stat-bar-split > span {
+    border-radius: 0;
+    flex: 0 0 auto;
+}
+
+.stat-bar-split > span:first-child { border-radius: 999px 0 0 999px; }
+.stat-bar-split > span:last-child { border-radius: 0 999px 999px 0; }
+
+/* Second share: same bar, deliberately quieter than the brand segment.
+   Selector kept at .stat-bar > span level so it wins over the brand fill. */
+.stat-bar > span.stat-seg-alt {
+    background: color-mix(in oklab, var(--muted-foreground) 45%, transparent);
+}
+
 /* ---- Empty state: centered icon tile + title + subtitle ---- */
 .empty-state {
     display: flex;
