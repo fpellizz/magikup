@@ -437,8 +437,8 @@ App Pod → SSM Session → EC2 Jump Host → VPC Network → RDS/Aurora DB
 
 ```bash
 # 1. Build and push image
-docker build -t ghcr.io/fpellizz/magikup:4.4.1 .
-docker push ghcr.io/fpellizz/magikup:4.4.1
+docker build -t ghcr.io/fpellizz/magikup:4.5.0 .
+docker push ghcr.io/fpellizz/magikup:4.5.0
 
 # 2. Create the Secret (fresh Fernet key) — out-of-band, never committed to git
 ./scripts/create-secret.sh
@@ -677,6 +677,11 @@ The deployment includes an init container that copies the default `config.ini` f
 | `scripts/deploy.sh` | Deploy to Kubernetes cluster |
 
 ## Version History
+
+### 4.5.0
+
+- **Backup privilege preflight** — before a backup, MagikUp checks that the endpoint's role can lock and read every object pg_dump will touch: database `CONNECT`, schema `USAGE`, table lock/`SELECT` (version-aware rules for PG12-15 / 16 / 17), owned/identity/extension-config sequences, row-level security, large objects, partitions and inheritance children — honouring the selected schemas, exclude patterns and dump mode. On issues, a dialog shows the role, counts per kind/schema, details and ready-to-copy **fix SQL** (GRANTs; never executed by MagikUp), with three choices: **Cancel**, **Proceed anyway**, **Exclude inaccessible objects** (partial backup: whole tables only when the lock fails, data-only otherwise so the dump stays restorable; marked **PARTIAL** in the operation history). **Scheduled backups** fail before pg_dump on blocking issues and the failure email carries the details. New endpoint `POST /api/db/backup-preflight`. Validated against real PostgreSQL 12/15/16/17.
+- **Backup storage quota** — the cumulative `MAX_TOTAL_BACKUP_GB` quota is now shown in the UI (dashboard split volume bar, "Backup storage used" vs "Volume capacity" cards on Backup files) and enforced on every path that writes into the backup directory: pg_dump (manual and scheduled, refused before it starts), uploads, and pulls from S3 / filebrowser / WebDAV. New `GET /api/backups/stats`.
 
 ### 4.4.1
 

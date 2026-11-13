@@ -320,8 +320,19 @@
                 <div class="version-timeline">
                     <div class="tl-item tl-current">
                         <div class="tl-head">
-                            <span class="tl-version">4.4.1</span>
+                            <span class="tl-version">4.5.0</span>
                             <span class="tl-current-tag">Current</span>
+                        </div>
+                        <ul class="tl-list">
+                            <li><i class="bi bi-check2"></i>Backup privilege preflight: checks the DB role can lock/read every object pg_dump will touch (CONNECT, schema USAGE, tables, sequences, RLS, large objects, partitions)</li>
+                            <li><i class="bi bi-check2"></i>Issues dialog with details and copy-only fix SQL; Cancel / Proceed anyway / Exclude inaccessible objects (PARTIAL backup)</li>
+                            <li><i class="bi bi-check2"></i>Scheduled backups fail before pg_dump on missing privileges and email the details</li>
+                            <li><i class="bi bi-check2"></i>Backup storage quota surfaced in the UI and enforced on every write path (pg_dump, uploads, remote pulls)</li>
+                        </ul>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-head">
+                            <span class="tl-version">4.4.1</span>
                         </div>
                         <ul class="tl-list">
                             <li><i class="bi bi-check2"></i>Fix: user email now persists on create/edit (was silently dropped) — password recovery can finally send</li>
