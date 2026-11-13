@@ -43,6 +43,24 @@ def reset_state():
     yield
 
 
+@pytest.fixture(autouse=True)
+def stub_privilege_check(monkeypatch):
+    """Keep every test hermetic: the backup privilege preflight never opens a
+    real DB connection. Tests that care override this monkeypatch."""
+    from unittest import mock
+    from app import privilege_check
+    # create_autospec enforces the real signature, so a wrong kwarg in a caller fails.
+    stub = mock.create_autospec(
+        privilege_check.check_backup_privileges,
+        side_effect=lambda *a, **k: {
+            "success": True, "error": None, "ok": True,
+            "current_user": "tester", "issues": [], "summary": {},
+            "exclusions": {"schemas": [], "tables": [], "large_objects": False},
+            "can_exclude": True, "fix_sql": ""})
+    monkeypatch.setattr(privilege_check, "check_backup_privileges", stub)
+    yield
+
+
 @pytest.fixture
 def backup_dir():
     return BACKUPS

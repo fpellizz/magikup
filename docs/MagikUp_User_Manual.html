@@ -358,6 +358,8 @@
         <li><a href="#cap5-1">5.1 Backup Completo</a></li>
         <li><a href="#cap5-2">5.2 Backup per Schema</a></li>
         <li><a href="#cap5-3">5.3 Parametri Avanzati</a></li>
+        <li><a href="#cap5-4">5.4 Verifica Privilegi (Preflight)</a></li>
+        <li><a href="#cap5-5">5.5 Backup Schedulati e Verifica Privilegi</a></li>
       </ul>
     </li>
     <li><a href="#cap6">6. Restore</a>
@@ -951,6 +953,47 @@ location /magikup/ {
   <strong>Suggerimento:</strong> Le opzioni <code>--no-owner</code>, <code>--no-privileges</code> e <code>--no-tablespaces</code>
   sono consigliate quando si ripristina su un server diverso dall&rsquo;originale, dove utenti, ruoli e tablespace potrebbero non esistere.
 </div>
+<h2 id="cap5-4">5.4 Verifica Privilegi (Preflight)</h2>
+<p>
+  Prima di ogni backup <strong>manuale</strong>, MagikUp verifica che il ruolo con cui l&rsquo;endpoint si connette
+  possa leggere tutti gli oggetti che <code>pg_dump</code> andr&agrave; a toccare, cos&igrave; un <code>GRANT</code>
+  mancante viene segnalato subito invece di far fallire il dump a met&agrave;. La verifica rispetta gli schema
+  selezionati, i pattern di esclusione e la modalit&agrave; (data-only / schema-only) e controlla:
+</p>
+<ul>
+  <li><code>CONNECT</code> sul database;</li>
+  <li><code>USAGE</code> sugli schema;</li>
+  <li>lock (<code>ACCESS SHARE</code>) e <code>SELECT</code> sulle tabelle;</li>
+  <li><code>SELECT</code> sulle sequenze;</li>
+  <li>row-level security (tabelle con RLS che il ruolo non pu&ograve; aggirare);</li>
+  <li>large object (se <code>--large-objects</code> &egrave; attivo).</li>
+</ul>
+<p>
+  Se vengono rilevati problemi, si apre una finestra che mostra il <strong>ruolo</strong>, i conteggi per tipo e per schema,
+  i <strong>dettagli</strong> (espandibili) e lo <strong>SQL di correzione</strong> pronto da copiare (pulsante <em>Copy SQL</em>).
+</p>
+<div class="warning">
+  <strong>Attenzione:</strong> MagikUp <strong>non esegue mai</strong> lo SQL suggerito. Va eseguito da un superuser
+  o dal proprietario degli oggetti.
+</div>
+<table>
+  <tr><th>Scelta</th><th>Effetto</th></tr>
+  <tr><td><strong>Cancel</strong></td><td>Annulla: nessun backup viene avviato.</td></tr>
+  <tr><td><strong>Proceed anyway</strong></td><td>Avvia il backup cos&igrave; com&rsquo;&egrave; configurato (probabilmente fallir&agrave; sugli oggetti non accessibili).</td></tr>
+  <tr><td><strong>Exclude inaccessible objects</strong></td><td>Esegue un <strong>backup parziale</strong> che salta gli oggetti non leggibili. L&rsquo;operazione &egrave; contrassegnata come <em>partial</em> nello storico operazioni.</td></tr>
+</table>
+<div class="tip">
+  <strong>Nota:</strong> la lista degli oggetti esclusi viene ricalcolata dal server all&rsquo;avvio del backup.
+  Se la verifica stessa non pu&ograve; essere eseguita (es. problema di connessione), la finestra lo segnala e consente di procedere.
+</div>
+
+<h2 id="cap5-5">5.5 Backup Schedulati e Verifica Privilegi</h2>
+<p>
+  I backup schedulati (pagina <strong>Schedules</strong>) eseguono la stessa verifica prima di avviare <code>pg_dump</code>.
+  Se emergono problemi bloccanti, l&rsquo;esecuzione <strong>fallisce prima del dump</strong> e viene registrata come fallita.
+  L&rsquo;email di errore (secondo la <em>notify policy</em> della schedulazione) include il dettaglio dei problemi e lo
+  SQL di correzione. Se la verifica stessa non pu&ograve; essere eseguita, il backup <strong>prosegue comunque</strong>.
+</p>
 </div>
 
 <!-- ==================== CHAPTER 6 ==================== -->
@@ -1851,6 +1894,16 @@ MagikUp Pod ──&gt; SSM Session ──&gt; EC2 Jump Host ──&gt; VPC Netwo
     <td>File troppo grande</td>
     <td>Verificare <code>max_upload_size_gb</code> e l&rsquo;annotation ingress <code>proxy-body-size</code></td>
   </tr>
+  <tr>
+    <td>&ldquo;Insufficient privileges&rdquo; / finestra di verifica privilegi</td>
+    <td>Il ruolo dell&rsquo;endpoint non pu&ograve; leggere alcuni oggetti</td>
+    <td>Eseguire lo SQL suggerito come superuser o proprietario, ad es.:<br>
+      <code>GRANT CONNECT ON DATABASE mydb TO backup_user;</code><br>
+      <code>GRANT USAGE ON SCHEMA app TO backup_user;</code><br>
+      <code>GRANT SELECT ON ALL TABLES IN SCHEMA app TO backup_user;</code><br>
+      <code>GRANT SELECT ON ALL SEQUENCES IN SCHEMA app TO backup_user;</code><br>
+      Su PostgreSQL 14+ <code>GRANT pg_read_all_data TO backup_user;</code> copre tabelle, sequenze e <code>USAGE</code> sugli schema ma <strong>non aggira la row-level security</strong>: per le tabelle con RLS serve un ruolo <code>BYPASSRLS</code> (o superuser).</td>
+  </tr>
 </table>
 
 <h2>Problemi Autenticazione</h2>
@@ -1947,6 +2000,7 @@ MagikUp Pod ──&gt; SSM Session ──&gt; EC2 Jump Host ──&gt; VPC Netwo
   <tr><td>GET</td><td><code>/api/schemas/{endpoint}/{db}</code></td><td>Lista schema</td></tr>
   <tr><td>GET</td><td><code>/api/users/{endpoint}</code></td><td>Lista ruoli/utenti</td></tr>
   <tr><td>GET</td><td><code>/api/test-connection/{endpoint}</code></td><td>Test connessione</td></tr>
+  <tr><td>POST</td><td><code>/api/db/backup-preflight</code></td><td>Verifica privilegi per il backup (Operator+, sola lettura)</td></tr>
 </table>
 
 <h2>Query Editor API</h2>

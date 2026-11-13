@@ -45,6 +45,15 @@ class BackupOptions:
     exclude_table_data: Optional[str] = None
     exclude_schema: Optional[str] = None
     schemas: Optional[List[str]] = None  # If set, only backup these schemas
+    # Partial-backup exclusions computed by the privilege preflight (see
+    # privilege_check). Entries are exact object names, quoted for pg_dump
+    # at command-build time.
+    privilege_exclude_schemas: Optional[List[str]] = None
+    privilege_exclude_tables: Optional[List[Tuple[str, str]]] = None
+    # Owned/identity sequences follow their table's dump flags, so --exclude-table
+    # alone has no effect on them: their data must be excluded explicitly too.
+    privilege_exclude_table_data: Optional[List[Tuple[str, str]]] = None
+    no_large_objects: bool = False  # Emit --no-blobs instead of --blobs
 
 
 @dataclass
@@ -303,6 +312,15 @@ def _validate_table_pattern(pattern: str, label: str = "table pattern") -> None:
         raise ValueError(f"{label} is too long (max 256 characters)")
 
 
+def _schema_privilege_excluded(schema: str, excluded: Optional[List[str]]) -> bool:
+    """True if a user-supplied --schema entry names a schema the privilege check
+    excluded. pg_dump folds unquoted names to lowercase, while the check reports
+    real catalog names, so compare both the raw and the folded form."""
+    if not excluded:
+        return False
+    return schema in excluded or schema.lower() in excluded
+
+
 def generate_backup_filename(database: str) -> str:
     """Generate a backup filename with timestamp."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -500,6 +518,13 @@ async def run_backup(
     if options.data_only and options.schema_only:
         raise ValueError("data_only and schema_only are mutually exclusive")
 
+    # Pruning inaccessible schemas must never turn a schema-scoped backup into
+    # an unscoped (whole database) one.
+    if options.schemas and options.privilege_exclude_schemas and \
+            not [s for s in options.schemas
+                 if not _schema_privilege_excluded(s, options.privilege_exclude_schemas)]:
+        raise ValueError("All selected schemas are excluded by the privilege check")
+
     settings = get_settings()
     backup_dir = get_backup_dir()
 
@@ -570,7 +595,10 @@ async def run_backup(
         cmd.append('--clean')
     if options.create:
         cmd.append('--create')
-    if options.large_objects:
+    if options.no_large_objects:
+        # -B/--no-blobs exists in every supported pg_dump; never combined with --blobs.
+        cmd.append('--no-blobs')
+    elif options.large_objects:
         # --blobs is accepted by pg_dump 14-17; --large-objects is the newer
         # (16/17) alias and would be rejected by older clients.
         cmd.append('--blobs')
@@ -589,9 +617,24 @@ async def run_backup(
     if options.exclude_table_data:
         cmd.extend(['--exclude-table-data', options.exclude_table_data])
 
-    # Schema mode: backup only specific schemas
+    # Exclusions from the privilege preflight (exact-match, quoted patterns).
+    # Imported lazily and called through the module so tests can monkeypatch it.
+    if (options.privilege_exclude_schemas or options.privilege_exclude_tables
+            or options.privilege_exclude_table_data):
+        from . import privilege_check
+        for sch in (options.privilege_exclude_schemas or []):
+            if not options.schemas:
+                cmd.extend(['--exclude-schema', privilege_check.quote_dump_pattern(sch)])
+        for sch, tbl in (options.privilege_exclude_tables or []):
+            cmd.extend(['--exclude-table', privilege_check.quote_dump_pattern(sch, tbl)])
+        for sch, tbl in (options.privilege_exclude_table_data or []):
+            cmd.extend(['--exclude-table-data', privilege_check.quote_dump_pattern(sch, tbl)])
+
+    # Schema mode: backup only specific schemas (inaccessible ones are pruned)
     if options.schemas:
         for schema in options.schemas:
+            if _schema_privilege_excluded(schema, options.privilege_exclude_schemas):
+                continue
             cmd.extend(['--schema', schema])
 
     cmd.extend([

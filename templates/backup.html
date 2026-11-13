@@ -274,6 +274,50 @@
     </div>
 </div>
 </div>
+
+<!-- Privilege preflight modal (content filled via textContent only) -->
+<div class="modal fade" id="privModal" tabindex="-1" aria-labelledby="privModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="privModalLabel"><i class="bi bi-shield-exclamation me-2"></i><span id="privTitle">Privilege check</span></h5>
+                <button type="button" class="btn-close" id="privCloseBtn" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="privIntro" class="mb-2"></p>
+                <div id="privError" class="alert alert-danger d-none" role="alert"></div>
+                <div id="privSummary" class="d-none">
+                    <div id="privCounts" class="mb-2"></div>
+                    <div id="privSchemas" class="mb-3"></div>
+                    <details class="mb-3" id="privDetails">
+                        <summary>Show details (<span id="privDetailsCount">0</span>)</summary>
+                        <div class="table-responsive mt-2" style="max-height: 260px; overflow: auto;">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead><tr><th>Kind</th><th>Schema</th><th>Object</th><th>Type</th><th>Message</th></tr></thead>
+                                <tbody id="privDetailsBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="privTruncated" class="form-text d-none">Only the first issues are listed; the counts above are complete.</div>
+                    </details>
+                    <div id="privFix" class="mb-3 d-none">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong>Suggested fix (SQL)</strong>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="privCopyBtn"><i class="bi bi-clipboard me-1"></i>Copy SQL</button>
+                        </div>
+                        <textarea id="privFixSql" class="form-control font-monospace" rows="7" readonly spellcheck="false" aria-label="Fix SQL"></textarea>
+                        <div class="form-text">Run this SQL as a superuser or as the owner of the objects. MagikUp never executes it.</div>
+                    </div>
+                    <div id="privExcludeWarn" class="alert alert-warning d-none" role="alert"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="privCancelBtn">Cancel</button>
+                <button type="button" class="btn btn-outline-danger" id="privProceedBtn">Proceed anyway</button>
+                <button type="button" class="btn btn-warning" id="privExcludeBtn">Exclude inaccessible objects</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_css %}
@@ -831,51 +875,110 @@
             }
         }
 
+        // Collect selections once (used for both the preflight and the WS payload)
+        const payload = {
+            endpoint_name: endpointName,
+            database: database,
+            backup_filename: backupFilename,
+            large_objects: document.getElementById('largeObjects').checked,
+            no_owner: document.getElementById('noOwner').checked,
+            no_privileges: document.getElementById('noPrivileges').checked,
+            no_tablespaces: document.getElementById('noTablespaces').checked,
+            no_comments: document.getElementById('noComments').checked,
+            data_only: document.getElementById('dataOnly').checked,
+            schema_only: document.getElementById('schemaOnly').checked,
+            clean: document.getElementById('cleanFlag').checked,
+            create: document.getElementById('createFlag').checked,
+        };
+
+        if (excludeTableToggle.checked) {
+            const excludeTable = document.getElementById('excludeTable').value.trim();
+            if (excludeTable) {
+                payload.exclude_table = excludeTable;
+            }
+        }
+
+        if (excludeTableDataToggle.checked) {
+            const excludeTableData = document.getElementById('excludeTableData').value.trim();
+            if (excludeTableData) {
+                payload.exclude_table_data = excludeTableData;
+            }
+        }
+
+        if (schemaModeToggle.checked && selectedSchemas.size > 0) {
+            payload.schemas = [...selectedSchemas];
+        }
+
+        // Privilege preflight
+        const backupBtn = document.getElementById('backupBtn');
+        const backupBtnHtml = backupBtn.innerHTML;
+        backupBtn.disabled = true;
+        backupBtn.textContent = 'Checking privileges...';
+        let preflight = { success: false };
+        let choice = 'cancel';
+        try {
+            try {
+                const body = {
+                    endpoint_name: payload.endpoint_name,
+                    database: payload.database,
+                    data_only: payload.data_only,
+                    schema_only: payload.schema_only,
+                    large_objects: payload.large_objects,
+                };
+                if (payload.schemas) body.schemas = payload.schemas;
+                if (payload.exclude_table) body.exclude_table = payload.exclude_table;
+                if (payload.exclude_table_data) body.exclude_table_data = payload.exclude_table_data;
+                const resp = await apiCall('/api/db/backup-preflight', 'POST', body);
+                if (resp && typeof resp.success === 'boolean') {
+                    preflight = resp;
+                } else {
+                    let detail = resp && resp.detail;
+                    if (detail && typeof detail !== 'string') detail = JSON.stringify(detail);
+                    preflight = { success: false, error: detail || 'Unexpected response from privilege check' };
+                }
+            } catch (err) {
+                preflight = { success: false, error: 'Privilege check request failed: ' + (err && err.message ? err.message : err) };
+            }
+
+            choice = 'proceed';
+            if (!(preflight.success && preflight.ok)) {
+                choice = await showPrivilegeModal(preflight);
+            }
+        } catch (err) {
+            // Unexpected failure in the preflight/modal flow: abort the backup and show why
+            choice = 'cancel';
+            progressContainer.style.display = 'block';
+            resultContainer.style.display = 'none';
+            output.textContent = '';
+            const line = document.createElement('div');
+            line.textContent = 'Privilege check flow failed: ' + (err && err.message ? err.message : err);
+            output.appendChild(line);
+        } finally {
+            backupBtn.innerHTML = backupBtnHtml;
+            if (choice === 'cancel') backupBtn.disabled = false;
+        }
+
+        if (choice === 'cancel') {
+            return;
+        }
+        if (choice === 'exclude') {
+            payload.privilege_mode = 'exclude';
+        }
+
         output.innerHTML = '';
         progressContainer.style.display = 'block';
         resultContainer.style.display = 'none';
-        document.getElementById('backupBtn').disabled = true;
+        backupBtn.disabled = true;
+        if (preflight.success && preflight.ok) {
+            output.innerHTML += '<div>Privilege check passed</div>';
+        } else if (choice === 'proceed') {
+            output.innerHTML += '<div>Privilege check: proceeding anyway at user request</div>';
+        }
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(`${protocol}//${window.location.host}${BASE_PATH}/ws/backup`);
 
         ws.onopen = function() {
-            const payload = {
-                endpoint_name: endpointName,
-                database: database,
-                backup_filename: backupFilename,
-                large_objects: document.getElementById('largeObjects').checked,
-                no_owner: document.getElementById('noOwner').checked,
-                no_privileges: document.getElementById('noPrivileges').checked,
-                no_tablespaces: document.getElementById('noTablespaces').checked,
-                no_comments: document.getElementById('noComments').checked,
-                data_only: document.getElementById('dataOnly').checked,
-                schema_only: document.getElementById('schemaOnly').checked,
-                clean: document.getElementById('cleanFlag').checked,
-                create: document.getElementById('createFlag').checked,
-            };
-
-            // Add exclude-table pattern if enabled and non-empty
-            if (excludeTableToggle.checked) {
-                const excludeTable = document.getElementById('excludeTable').value.trim();
-                if (excludeTable) {
-                    payload.exclude_table = excludeTable;
-                }
-            }
-
-            // Add exclude-table-data pattern if enabled and non-empty
-            if (excludeTableDataToggle.checked) {
-                const excludeTableData = document.getElementById('excludeTableData').value.trim();
-                if (excludeTableData) {
-                    payload.exclude_table_data = excludeTableData;
-                }
-            }
-
-            // Add schemas if schema mode is active
-            if (schemaModeToggle.checked && selectedSchemas.size > 0) {
-                payload.schemas = [...selectedSchemas];
-            }
-
             ws.send(JSON.stringify(payload));
         };
 
@@ -919,6 +1022,178 @@
             document.getElementById('backupBtn').disabled = false;
         };
     });
+
+    // =========================================================================
+    // Privilege preflight modal
+    // =========================================================================
+
+    const PRIV_KIND_LABELS = {
+        schema_usage: 'Schema access (USAGE)',
+        table_select: 'Table read (SELECT)',
+        table_lock: 'Table lock',
+        sequence_select: 'Sequence read (SELECT)',
+        rls: 'Row-level security',
+        large_object: 'Large objects',
+        database_connect: 'Database CONNECT',
+    };
+
+    function privKindLabel(kind) {
+        return PRIV_KIND_LABELS[kind] || String(kind);
+    }
+
+    function privCopyText(text, btn) {
+        const done = (ok) => {
+            const orig = '<i class="bi bi-clipboard me-1"></i>Copy SQL';
+            btn.innerHTML = ok ? '<i class="bi bi-check2 me-1"></i>Copied' : '<i class="bi bi-x me-1"></i>Copy failed';
+            setTimeout(() => { btn.innerHTML = orig; }, 2000);
+        };
+        const fallback = () => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+            done(ok);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(() => done(true), fallback);
+        } else {
+            fallback();
+        }
+    }
+
+    // Resolves to 'cancel' | 'proceed' | 'exclude'
+    function showPrivilegeModal(r) {
+        return new Promise((resolve, reject) => {
+            const $ = id => document.getElementById(id);
+            const modalEl = $('privModal');
+            const failed = !r.success;
+            let choice = 'cancel';
+
+            $('privTitle').textContent = failed ? 'Privilege check could not run' : 'Insufficient privileges for backup';
+            const err = $('privError'), sum = $('privSummary');
+            err.classList.toggle('d-none', !failed);
+            sum.classList.toggle('d-none', failed);
+            $('privExcludeBtn').classList.toggle('d-none', failed);
+            $('privCopyBtn').onclick = () => privCopyText($('privFixSql').value, $('privCopyBtn'));
+
+            if (failed) {
+                $('privIntro').textContent = 'MagikUp could not verify that the database user can read every object. You can cancel, or proceed anyway (pg_dump may fail).';
+                err.textContent = r.error || 'Unknown error';
+            } else {
+                const s = r.summary || {};
+                const errors = s.errors || 0, warnings = s.warnings || 0;
+                const intro = $('privIntro');
+                intro.textContent = '';
+                intro.append('Connected as ');
+                const code = document.createElement('code');
+                code.textContent = r.current_user || '(unknown)';
+                intro.append(code, ' (' + (r.is_superuser ? 'superuser' : 'not a superuser') + '). pg_dump may fail on objects this role cannot read.');
+
+                const counts = $('privCounts');
+                counts.textContent = '';
+                const mk = (txt, cls) => { const b = document.createElement('span'); b.className = 'badge me-1 ' + cls; b.textContent = txt; counts.appendChild(b); };
+                mk((s.issues_total || 0) + ' issues', 'text-bg-secondary');
+                if (errors) mk(errors + ' errors', 'text-bg-danger');
+                if (warnings) mk(warnings + ' warnings', 'text-bg-warning');
+                Object.entries(s.by_kind || {}).forEach(([k, n]) => { if (n) mk(privKindLabel(k) + ': ' + n, 'text-bg-light border'); });
+
+                const schemas = $('privSchemas');
+                schemas.textContent = '';
+                const bySchema = s.by_schema || [];
+                if (bySchema.length) {
+                    const t = document.createElement('div');
+                    t.className = 'small text-muted mb-1';
+                    t.textContent = 'By schema';
+                    schemas.appendChild(t);
+                    bySchema.forEach(x => {
+                        const b = document.createElement('span');
+                        b.className = 'badge text-bg-light border me-1';
+                        b.textContent = x.schema + ': ' + x.count;
+                        schemas.appendChild(b);
+                    });
+                }
+
+                const issues = r.issues || [];
+                $('privDetailsCount').textContent = String(issues.length);
+                const tbody = $('privDetailsBody');
+                tbody.textContent = '';
+                issues.forEach(i => {
+                    const tr = document.createElement('tr');
+                    [privKindLabel(i.kind), i.schema || '', i.object || '', i.object_type || '', i.message || ''].forEach((v, idx) => {
+                        const td = document.createElement('td');
+                        td.textContent = v;
+                        if (idx === 1 || idx === 2) td.className = 'font-monospace';
+                        tr.appendChild(td);
+                    });
+                    if (i.severity === 'warning') tr.className = 'table-warning';
+                    tbody.appendChild(tr);
+                });
+                $('privDetails').open = false;
+                $('privTruncated').classList.toggle('d-none', !r.truncated);
+
+                $('privFix').classList.toggle('d-none', !r.fix_sql);
+                $('privFixSql').value = r.fix_sql || '';
+
+                // Exclude choice
+                const ex = r.exclusions || {};
+                const nSchemas = (ex.schemas || []).length, nTables = (ex.tables || []).length;
+                const nData = (ex.table_data || []).length;
+                const warn = $('privExcludeWarn');
+                const exBtn = $('privExcludeBtn');
+                exBtn.disabled = !r.can_exclude;
+                warn.textContent = '';
+                if (r.can_exclude) {
+                    const parts = [];
+                    if (nSchemas) parts.push(nSchemas + ' schema(s)');
+                    if (nTables) parts.push(nTables + ' table(s)');
+                    if (nData) parts.push('the data of ' + nData + ' table/sequence object(s) (definition kept)');
+                    if (ex.large_objects) parts.push('large objects');
+                    const b = document.createElement('strong');
+                    b.textContent = 'Exclude inaccessible objects: the resulting backup will be PARTIAL. ';
+                    warn.append(b, 'It will omit ' + (parts.join(', ') || 'nothing') + '. A restore will not contain what is omitted.');
+                } else {
+                    warn.textContent = 'Excluding is not possible: ' + (r.can_exclude_reason
+                        || 'the remaining backup would not be meaningful (e.g. no CONNECT privilege or every selected schema is inaccessible).');
+                }
+                warn.classList.remove('d-none');
+            }
+
+            const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static', keyboard: false });
+            const finish = c => { choice = c; bsModal.hide(); };
+            const cancel = () => finish('cancel');
+            $('privCancelBtn').onclick = cancel;
+            $('privCloseBtn').onclick = cancel;
+            $('privProceedBtn').onclick = () => finish('proceed');
+            $('privExcludeBtn').onclick = () => finish('exclude');
+            // Esc and backdrop click = Cancel (static backdrop prevents accidental implicit close)
+            const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); cancel(); } };
+            const onBackdrop = e => { if (e.target === modalEl) cancel(); };
+            const onShown = () => $('privCancelBtn').focus();
+            const cleanup = () => {
+                modalEl.removeEventListener('keydown', onKey);
+                modalEl.removeEventListener('click', onBackdrop);
+                modalEl.removeEventListener('shown.bs.modal', onShown);
+                modalEl.removeEventListener('hidden.bs.modal', onHidden);
+            };
+            const onHidden = () => { cleanup(); resolve(choice); };
+            modalEl.addEventListener('keydown', onKey);
+            modalEl.addEventListener('click', onBackdrop);
+            modalEl.addEventListener('shown.bs.modal', onShown);
+            modalEl.addEventListener('hidden.bs.modal', onHidden);
+            try {
+                bsModal.show();
+            } catch (e) {
+                cleanup();
+                reject(e);
+            }
+        });
+    }
 
     // =========================================================================
     // Utilities
