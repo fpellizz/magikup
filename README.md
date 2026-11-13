@@ -5,6 +5,7 @@ A web application for PostgreSQL database backup, restore, and transfer operatio
 ## Features
 
 - **Backup** - Full or schema-level backups with advanced pg_dump parameters and real-time progress
+- **Backup privilege preflight** - Before a manual backup, MagikUp checks that the endpoint's DB role can read everything `pg_dump` will touch, and shows copy-ready fix SQL if not (see [Backup Privilege Preflight](#backup-privilege-preflight))
 - **Restore** - Restore from backup files with advanced pg_restore parameters, schema selection, table exclusion, role mapping, and TimescaleDB-aware mode
 - **Transfer** - One-click database copy (backup + restore) between any endpoints
 - **Query Editor** - Execute SQL queries directly on any endpoint with Ace editor, object browser, autocommit toggle, result export, query history, and contextual tooltips
@@ -100,6 +101,29 @@ The backup page includes an **Advanced Parameters** toggle that exposes fine-gra
 | `--exclude-table-data` | Off | Exclude data for tables matching a glob pattern |
 
 All parameters include tooltip popups with detailed descriptions. Table exclusion patterns support `*` and `?` wildcards and are validated against shell injection.
+
+### Backup Privilege Preflight
+
+Before a **manual** backup starts, MagikUp checks whether the endpoint's DB role can read every object `pg_dump` is going to touch, so a missing `GRANT` is reported up front instead of failing halfway through a dump. The check honours the selected schemas, the `--exclude-table` / `--exclude-table-data` patterns and the data-only / schema-only mode, and covers:
+
+- database `CONNECT`
+- schema `USAGE`
+- table lock (`ACCESS SHARE`) and `SELECT`
+- sequence `SELECT`
+- row-level security (tables with RLS the role cannot bypass)
+- large objects (when `--large-objects` is on)
+
+If issues are found, a dialog shows the role, counts per kind and per schema, a detail list and **ready-to-copy fix SQL** (`GRANT ...`). MagikUp never executes this SQL: run it as a superuser or as the owner of the objects. The dialog offers three choices:
+
+| Choice | Effect |
+|--------|--------|
+| **Cancel** | Abort, nothing is dumped |
+| **Proceed anyway** | Run the backup as configured (it will probably fail on the inaccessible objects) |
+| **Exclude inaccessible objects** | Run a **partial backup** that skips the unreadable objects; the operation is marked *partial* in the operation history |
+
+The exclusion list is recomputed server-side when the backup starts (client-sent object lists are never trusted). If the check itself cannot run (e.g. connection problem), the dialog says so and lets you proceed.
+
+**Scheduled backups** run the same check before `pg_dump`. Blocking issues make the run **fail before the dump starts**; the failure email (according to the schedule's notify policy) includes the issue details and the fix SQL. If the check itself cannot run, the backup proceeds anyway (fail-open).
 
 ### Advanced Restore Parameters
 
@@ -547,6 +571,7 @@ The deployment includes an init container that copies the default `config.ini` f
 | GET | `/api/schemas/{endpoint}/{db}` | List schemas |
 | GET | `/api/users/{endpoint}` | List users/roles |
 | GET | `/api/test-connection/{endpoint}` | Test connection |
+| POST | `/api/db/backup-preflight` | Operator+ - check the role can read everything a backup will touch (read-only; returns issues + fix SQL) |
 
 ### Query Editor API
 
@@ -626,6 +651,16 @@ The deployment includes an init container that copies the default `config.ini` f
 - **"pg_dump not found"**: Check `pg_dump_path` in settings
 - **"Restore completed with warnings"**: Normal with `--clean` flag (tries to drop non-existent objects)
 - **Large file uploads fail**: Check `max_upload_size_gb` setting and ingress body size annotation
+
+- **"Insufficient privileges" / privilege preflight dialog**: the endpoint's role cannot read some objects. Run the suggested SQL as a superuser or object owner, e.g.:
+  ```sql
+  GRANT CONNECT ON DATABASE mydb TO backup_user;
+  GRANT USAGE ON SCHEMA app TO backup_user;
+  GRANT SELECT ON ALL TABLES IN SCHEMA app TO backup_user;
+  GRANT SELECT ON ALL SEQUENCES IN SCHEMA app TO backup_user;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT SELECT ON TABLES TO backup_user;
+  ```
+  On PostgreSQL 14+ `GRANT pg_read_all_data TO backup_user;` covers tables, sequences and schema usage, but it does **not** bypass row-level security: tables with RLS still need a `BYPASSRLS` role (or superuser).
 
 ### Auth Issues
 

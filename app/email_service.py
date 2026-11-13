@@ -323,7 +323,7 @@ def send_schedule_notification(recipients, *, schedule_name: str, status: str,
                                endpoint: str, database: str, filename=None,
                                size=None, duration_seconds=None,
                                destination: str = "local", trigger: str = "schedule",
-                               error: str = None) -> None:
+                               error: str = None, details: str = None) -> None:
     """Send a scheduled-backup outcome notification (best-effort).
 
     ``status`` is the run outcome: "success" is treated as a success; any other
@@ -369,6 +369,8 @@ def send_schedule_notification(recipients, *, schedule_name: str, status: str,
         ]
         for label, value in rows:
             text_lines.append(f"{label}: {value}")
+        if details:
+            text_lines.extend(["", "Details:", str(details)])
         text = "\n".join(text_lines) + "\n"
 
         # --- html body ---
@@ -379,12 +381,20 @@ def send_schedule_notification(recipients, *, schedule_name: str, status: str,
             f'<td style="padding:4px 0;font-family:monospace;">{_esc(value)}</td></tr>'
             for label, value in rows
         )
+        html_details = ""
+        if details:
+            html_details = (
+                '<p style="margin-top:16px;font-size:14px;color:#6b7280;">Details</p>'
+                '<pre style="background:#f3f4f6;padding:8px 12px;font-size:12px;'
+                f'white-space:pre-wrap;">{_esc(details)}</pre>'
+            )
         html = (
             "<html><body style=\"font-family:-apple-system,Segoe UI,Roboto,sans-serif;"
             "color:#111827;\">"
             f'<p style="font-size:16px;">Scheduled backup '
             f'<strong style="color:{accent};">{outcome_word}</strong>.</p>'
             f'<table style="border-collapse:collapse;font-size:14px;">{html_rows}</table>'
+            f'{html_details}'
             '<p style="color:#9ca3af;font-size:12px;margin-top:16px;">'
             "This is an automated message from MagikUp.</p>"
             "</body></html>"

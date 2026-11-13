@@ -26,6 +26,7 @@ from . import config as cfg
 from . import email_service
 from . import db_service as db
 from . import backup_restore as br
+from . import privilege_check
 from . import auth
 from . import operation_logger as op_logger
 from . import aws_service as aws
@@ -1359,6 +1360,95 @@ async def api_db_capabilities(endpoint_name: str, database: str = "postgres", us
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Failed to get capabilities"))
     return result
+
+
+class BackupPreflightRequest(BaseModel):
+    endpoint_name: str
+    database: str
+    schemas: Optional[List[str]] = None
+    exclude_table: Optional[str] = None
+    exclude_table_data: Optional[str] = None
+    data_only: bool = False
+    schema_only: bool = False
+    large_objects: bool = True
+
+
+_EMAIL_DETAILS_MAX = 4096
+
+
+def _cap_text(text: str, limit: int) -> str:
+    """Truncate ``text`` to ``limit`` chars, noting how much was cut."""
+    if text is None or len(text) <= limit:
+        return text
+    return text[:limit] + f"\n... ({len(text) - limit} more characters, see the operation log)"
+
+
+def _apply_privilege_exclusions(options: "br.BackupOptions", result: dict) -> dict:
+    """Apply a privilege-check ``exclusions`` block to BackupOptions (partial
+    backup). Pure: mutates only ``options``. Returns the metadata block stored
+    in the operation record plus the number of excluded objects."""
+    excl = (result or {}).get("exclusions") or {}
+    schemas_x = [str(s) for s in (excl.get("schemas") or [])]
+    tables_x = [(str(t[0]), str(t[1])) for t in (excl.get("tables") or [])]
+    data_x = [(str(t[0]), str(t[1])) for t in (excl.get("table_data") or [])]
+    lo_x = bool(excl.get("large_objects"))
+    options.privilege_exclude_schemas = schemas_x or None
+    options.privilege_exclude_tables = tables_x or None
+    options.privilege_exclude_table_data = data_x or None
+    options.no_large_objects = lo_x
+    return {
+        "schemas": schemas_x,
+        "tables_count": len(tables_x),
+        "tables": [list(t) for t in tables_x[:100]],
+        # Data-only exclusions (definition kept, rows/sequence value skipped).
+        "table_data_count": len(data_x),
+        "table_data": [list(t) for t in data_x[:100]],
+        "large_objects": lo_x,
+        "count": len(schemas_x) + len(tables_x) + len(data_x) + (1 if lo_x else 0),
+    }
+
+
+@app.post("/api/db/backup-preflight")
+async def api_backup_preflight(req: BackupPreflightRequest, user: dict = Depends(auth.require_operator)):
+    """Check whether the connected role can read everything pg_dump will touch.
+    Read-only; returns the check result as-is (HTTP 200 even if the check
+    itself could not run: success=false)."""
+    endpoint = _resolve_mgmt_endpoint(user, req.endpoint_name, require_writable=False)
+    try:
+        br._validate_identifier(req.database, "database name")
+        for sch in (req.schemas or []):
+            if not isinstance(sch, str):
+                raise ValueError("schema name must be a string")
+            br._validate_identifier(sch, "schema name")
+        if req.exclude_table:
+            br._validate_table_pattern(req.exclude_table, "exclude table pattern")
+        if req.exclude_table_data:
+            br._validate_table_pattern(req.exclude_table_data, "exclude table data pattern")
+        if req.data_only and req.schema_only:
+            raise ValueError("data-only and schema-only are mutually exclusive")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    conn_endpoint = endpoint
+    if endpoint.backup_use_replica and endpoint.replica_host:
+        conn_endpoint = dataclasses.replace(endpoint, host=endpoint.replica_host)
+    try:
+        host, port = await asyncio.to_thread(get_endpoint_host_port, conn_endpoint)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return await asyncio.to_thread(
+        lambda: privilege_check.check_backup_privileges(
+            host, port, req.database, endpoint.username, endpoint.password,
+            endpoint.sslmode,
+            schemas=req.schemas or None,
+            exclude_table=req.exclude_table or None,
+            exclude_table_data=req.exclude_table_data or None,
+            data_only=req.data_only,
+            schema_only=req.schema_only,
+            large_objects=req.large_objects,
+        )
+    )
 
 
 @app.get("/api/db/roles/{endpoint_name}")
@@ -2707,7 +2797,7 @@ def apply_local_retention(sched: cfg.ScheduleConfig) -> None:
 
 def _notify_schedule_outcome(sched: cfg.ScheduleConfig, *, status: str, trigger: str,
                              filename=None, size=None, duration_seconds=None,
-                             error: str = None) -> None:
+                             error: str = None, details: str = None) -> None:
     """Best-effort email notification for a finished schedule run. Applies the
     schedule's policy, checks SMTP is enabled and that recipients exist, then
     hands off to email_service.send_schedule_notification (which itself never
@@ -2744,6 +2834,7 @@ def _notify_schedule_outcome(sched: cfg.ScheduleConfig, *, status: str, trigger:
             destination=destination,
             trigger=trigger,
             error=error,
+            details=details,
         )
     except Exception as exc:
         logger.warning("Schedule notification for '%s' skipped: %s",
@@ -2837,6 +2928,49 @@ async def _execute_schedule(name, sched, *, trigger="schedule", operation_id=Non
         )
     _running_operations[operation_id] = asyncio.Event()
     schedule_state.mark(name, last_operation_id=operation_id, last_filename=filename)
+
+    # --- Phase 0: privilege preflight (fails the run before pg_dump) ---
+    try:
+        pre = await asyncio.to_thread(
+            lambda: privilege_check.check_backup_privileges(
+                host, port, sched.database, endpoint.username, endpoint.password,
+                endpoint.sslmode,
+                schemas=schemas,
+                exclude_schema=sched.exclude_schema or None,
+                exclude_table=sched.exclude_table or None,
+                exclude_table_data=sched.exclude_table_data or None,
+                data_only=sched.data_only,
+                schema_only=sched.schema_only,
+                large_objects=sched.large_objects,
+            )
+        )
+    except Exception as exc:
+        pre = {"success": False, "error": str(exc)}
+    if not isinstance(pre, dict):
+        pre = {"success": False, "error": "unexpected privilege check result"}
+    if not pre.get("success"):
+        # Fail-open: a broken check must not block backups.
+        logger.warning("Privilege preflight for schedule '%s' could not run: %s",
+                       name, pre.get("error"))
+        ol.log_message(operation_id, f"Privilege check skipped (could not run): {pre.get('error')}")
+    elif not pre.get("ok"):
+        n = (pre.get("summary") or {}).get("errors", (pre.get("summary") or {}).get("issues_total", 0))
+        msg = f"Insufficient privileges: {n} objects not readable by role {pre.get('current_user')}"
+        try:
+            summary_text = privilege_check.format_issue_summary(pre)
+        except Exception:
+            summary_text = msg
+        _running_operations.pop(operation_id, None)
+        ol.log_message(operation_id, summary_text)
+        ol.complete_operation(operation_id, status="failed", error=msg)
+        _record_schedule_failure(name, sched, "failed", msg)
+        _notify_schedule_outcome(
+            sched, status="failed", trigger=trigger, filename=filename,
+            duration_seconds=(datetime.now(timezone.utc) - now).total_seconds(),
+            error=msg, details=_cap_text(summary_text, _EMAIL_DETAILS_MAX))
+        return
+    else:
+        ol.log_message(operation_id, "Privilege check passed")
 
     # --- Phase 1: pg_dump (reuse run_backup generator + broadcaster) ---
     broadcaster.start_operation(operation_id)
@@ -3390,6 +3524,38 @@ async def websocket_backup(websocket: WebSocket):
             schemas=schemas if schemas else None,
         )
 
+        # Partial backup requested by the user: re-run the check server-side
+        # (client-sent object lists are never trusted) and apply its exclusions.
+        partial_info = None
+        if data.get("privilege_mode") == "exclude":
+            try:
+                pre = await asyncio.to_thread(
+                    lambda: privilege_check.check_backup_privileges(
+                        host, port, database, endpoint.username, endpoint.password,
+                        endpoint.sslmode,
+                        schemas=options.schemas,
+                        exclude_table=options.exclude_table,
+                        exclude_table_data=options.exclude_table_data,
+                        data_only=options.data_only,
+                        schema_only=options.schema_only,
+                        large_objects=options.large_objects,
+                    )
+                )
+            except Exception as exc:
+                pre = {"success": False, "error": str(exc)}
+            if not isinstance(pre, dict):
+                pre = {"success": False, "error": "unexpected privilege check result"}
+            if not pre.get("success"):
+                await websocket.send_json({"type": "error", "message": f"Privilege check failed: {pre.get('error')}"})
+                await websocket.close()
+                return
+            if not pre.get("can_exclude"):
+                reason = pre.get("can_exclude_reason") or "excluding inaccessible objects would leave nothing meaningful to back up"
+                await websocket.send_json({"type": "error", "message": f"Cannot build a partial backup: {reason}"})
+                await websocket.close()
+                return
+            partial_info = _apply_privilege_exclusions(options, pre)
+
         # Create operation log
         operation_logger = op_logger.get_logger()
         metadata = {
@@ -3414,6 +3580,17 @@ async def websocket_backup(websocket: WebSocket):
             metadata["exclude_table"] = options.exclude_table
         if options.exclude_table_data:
             metadata["exclude_table_data"] = options.exclude_table_data
+        partial_msg = None
+        if partial_info and partial_info["count"] > 0:
+            metadata["partial_backup"] = True
+            metadata["privilege_excluded"] = {
+                k: partial_info[k] for k in ("schemas", "tables_count", "tables",
+                                             "table_data_count", "table_data", "large_objects")
+            }
+            partial_msg = {
+                "type": "progress",
+                "message": f"PARTIAL backup: {partial_info['count']} objects excluded due to insufficient privileges",
+            }
 
         operation_id = operation_logger.start_operation(
             operation_type="backup",
@@ -3448,6 +3625,9 @@ async def websocket_backup(websocket: WebSocket):
                     broadcaster.broadcast(operation_id, ssm_msg)
                 if replica_msg:
                     broadcaster.broadcast(operation_id, replica_msg)
+                if partial_msg:
+                    broadcaster.broadcast(operation_id, partial_msg)
+                    op_logger.get_logger().log_message(operation_id, partial_msg["message"])
                 async for progress in br.run_backup(
                     database=database,
                     host=host,

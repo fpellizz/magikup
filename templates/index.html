@@ -723,6 +723,17 @@
                         }
                     }
 
+                    let partialBadge = '';
+                    const pmeta = op.metadata || {};
+                    if (pmeta.partial_backup === true) {
+                        const pe = pmeta.privilege_excluded || {};
+                        const nSch = Array.isArray(pe.schemas) ? pe.schemas.length : 0;
+                        const nTab = Number(pe.tables_count) || 0;
+                        const tip = `Partial backup: ${nSch} schema(s), ${nTab} table(s)` +
+                            (pe.large_objects ? ', large objects' : '') + ' excluded (insufficient privileges)';
+                        partialBadge = ` <span class="badge text-bg-warning" title="${escapeHtml(tip)}"><i class="bi bi-exclamation-triangle-fill"></i> PARTIAL</span>`;
+                    }
+
                     return `
                         <tr>
                             <td>
@@ -741,7 +752,7 @@
                                 <small class="text-muted">${formatDateTime(startedDate)}</small>
                             </td>
                             <td>
-                                <span class="operation-status-badge ${statusClass}">${statusIcon} ${statusLabel}</span>
+                                <span class="operation-status-badge ${statusClass}">${statusIcon} ${statusLabel}</span>${partialBadge}
                                 ${errorHint}
                             </td>
                             <td>
